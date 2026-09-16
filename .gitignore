@@ -1,0 +1,35 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
+
+# Virtual environments
+.venv/
+venv/
+env/
+
+# Temporary build/download scratch
+.pip-tmp/
+
+# Agent tooling and generated artifacts (local only)
+.agents/
+
+# Runtime data: SQLite / Kuzu / Qdrant stores, cached full text
+data/
+
+# Environment and secrets
+.env
+.env.*
+!.env.example
+
+# Editor and OS
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
