@@ -1,5 +1,6 @@
 # 各模块框架选型调查（Module Framework Selection Survey）
 
+> 版本 v0.5 · 第五轮修订：§2.6 展开为"**LangChain 包架构拆解 + 逐模块不采用理由**"（含 v1 重组事实、灵活性缺口、按需单包边界与对导师口径）
 > 版本 v0.4 · 第四轮修订：① 数据源定为 **OpenAlex 为主、arXiv 为辅**（NUS·英文文献·CS/软硬件/工科）；② 补存储引擎"选定 vs 主流"的**架构级优劣**（Kuzu vs Neo4j、Qdrant vs Milvus、SQLite 角色）；③ 补"为什么不选经典 LangChain"（分模块拆分后职责被单点组件承接）
 > v0.3：每模块补业界主流对照（采用/未采用、优劣、规模化切换）；v0.2：成熟框架优先（导师意见）；v0.1 曾主推自研薄 harness，已废弃
 > 适用范围：EE5003 硕士项目《智能多智能体文献研究助手（Context & Harness Engineering）》
@@ -75,19 +76,61 @@
 | **LangGraph**（本模块主流） | LangChain 系第一大 agent 框架，生产级案例多 | ✅ 采用 | — | 图式确定性 + checkpoint + 流式俱全，与评测生态同源 | 本身就是规模化选项（官方 checkpoint 支持 PG，可水平拆分服务） |
 | AutoGen / CrewAI（并列第二主流） | 微软系 / 社区热度高、上手快 | ❌ | AutoGen 偏"会话团队"，控制流不如显式图直观，长受控流水线难表达；CrewAI 编排黑盒化、确定性弱，长期自纠错难做 | AutoGen 强在自由协作研究；CrewAI 强在快速 demo。二者都不如 LangGraph 适合"显式状态机+守卫"需求 | 可（切换成本在编排层：把 node/edge 重写为对应抽象）；但无必要，LangGraph 已覆盖 |
 
-### 2.6 为什么不直接用"经典 LangChain"（回应早期方案讨论，v0.4 补）
-- 早期方案曾向导师提过 **LangChain**：它的定位是"大而全的 LLM 应用工具箱"（模型封装、文档加载、向量库包装、旧版 Agent/记忆…），理念是"万物皆可链"。
-- 本项目改为**分模块拆分**后，经典 LangChain 的各层职责已被更聚焦的单点组件承接，叠上全家桶只会增加耦合：
+### 2.6 为什么不直接用"经典 LangChain"（v0.5 展开：包架构 + 逐模块理由）
 
-| 经典 LangChain 提供 | 本系统实际采用 | 说明 |
+#### 2.6.1 LangChain 家族的真实架构（哪些是自研、哪些只是包装）
+
+先纠正一个常见理解：**LangChain 不是"每个模块都自研引擎"的框架**，它本质是 **抽象层 + 集成包装层 + 少量自研实现**；真正的能力来自第三方库。并且 v1 做过一次大重组：旧版 chains / AgentExecutor / memory 迁至独立包 `langchain-classic`，编排交给 LangGraph（官方方向）。
+
+| LangChain 组成 | 性质 | 底层真身 |
 |---|---|---|
-| 旧版 Agent / 链式记忆 | **LangGraph**（模块1） | LangGraph 同属 LangChain 家族、是面向 agent 的"新一代"编排包，**可脱离经典 LangChain 独立使用**——我们用的正是它 |
-| 模型调用 / 路由抽象 | **LiteLLM**（模块2） | 网关职责与 LangChain 模型层重合 |
-| 文档加载器 / text splitter | 官方 API(pyalex/arxiv) + PyMuPDF + 自研分块（模块6） | loader 背后拖着 Unstructured 等重依赖 |
-| 向量库 / retriever 包装 | Qdrant 官方客户端直连（模块5） | 单一向量库时官方 SDK 更直接 |
+| `langchain-core` | **自研抽象层** | Runnable/LCEL、messages、tools、prompts、output parsers、callbacks、retrievers 基类 |
+| `langchain`（v1） | **自研（薄）** | 基于 LangGraph 的 agent API（如 `create_agent`）+ middleware |
+| `langchain-classic` | **自研（维护模式）** | 旧版 chains、AgentExecutor、memory —— v1 迁移后独立成包 |
+| `langchain-community` | **包装集合** | pypdf、Unstructured、BeautifulSoup、rank_bm25… |
+| `langchain-<provider>`（openai / anthropic / ollama…） | **包装** | 官方 SDK / HTTP API |
+| `langchain-<vectorstore>`（qdrant / chroma…） | **包装** | 官方客户端（qdrant-client 等） |
+| `langchain-text-splitters` | **自研（小）** | 递归/语义分块代码 |
+| `langgraph`（+ `langgraph-checkpoint-*`） | **自研引擎** | 图状态机 + checkpoint + 流式 |
+| `langserve` | **包装** | 把链暴露为 FastAPI 路由 |
+| `langchain.evaluation` / **LangSmith** | 自研 hooks / **SaaS 平台** | 评测与追踪服务 |
 
-- 不上全家桶的理由：① **版本耦合**——langchain 系多包同频大改，排障要翻两层；② **抽象泄漏**——框架包装层的"自己的想法"混入业务逻辑；③ **依赖变重**——loader/retriever 生态拖重依赖；④ 旧 Agent API 已被 LangGraph 取代，引入经典层属重复。
-- 例外条款：LangGraph 内部依赖 langchain-core 类型体系；将来若出现"多格式文档 / 跨向量库"等胶水需求，可**按需引入 langchain-\* 单包**，不必全量采用——保持"分模块、轻依赖、可维护"。
+**关键结论**：真正"自研"的是**编排（LangGraph）、旧链与记忆、分块、检索器、回调**；模型、向量库、解析、加载器这些**都是对第三方的薄包装**——"用 LangChain 的某个模块"往往等于"多一层包装去调用同一个第三方库"。
+
+#### 2.6.2 逐模块对照：为什么不用它自带的模块
+
+| 本项目模块 | 对应 LangChain 模块 | 采用 | 不采用理由（架构级） |
+|---|---|---|---|
+| 模块2 网关/路由 | `langchain-<provider>` 模型类 | ❌ | provider 差异被再抽象一层；加熔断/成本/敏感度策略要改链路代码；LiteLLM 更贴协议层，且 fallback/成本/多厂商由上游维护 |
+| 模块5 向量库 | `langchain-<vectorstore>` | ❌ | 单向量库场景官方客户端更直接，且全功能（payload 过滤、本地模式、量化）不被包装层裁剪 |
+| 模块6 文档加载 | `langchain-community` loaders | ❌ | 传递依赖重（Unstructured 等）；输出 `Document` 的元数据约定仍需二次归一化；本项目源固定 |
+| 模块6 分块 | `langchain-text-splitters` | ❌（唯一可单包引入） | 分块须与本地 embedding/模型 token 预算严格对齐；自研约 50 行更可控 |
+| 模块5/1 检索 | LangChain retrievers | ❌ | 检索过程被抽象隐藏；本项目要显式控制过滤、去重、novelty 判定、证据卡格式，评测要看到每一步 |
+| 模块1 旧 Agent/记忆 | `langchain-classic` | ❌ | 长时状态、条件控制、断点恢复弱；官方已用 LangGraph 取代（v1 迁移即证据） |
+| 模块1 编排 | **LangGraph** | ✅ **采用** | 家族里最新、最对口的一层；可脱离经典 LangChain 独立使用 |
+| 模块10 评测 | `langchain.evaluation` / LangSmith | ❌ | LangSmith 为 SaaS（数据出境 + 付费）；漂移/自愈等领域指标必须自研；标准指标用 DeepEval |
+| 模块8 服务化 | `langserve` | ❌ | 已自建 FastAPI + SSE + Job 注册表 + per-topic 锁；LangServe 不覆盖运行状态与三界面需求 |
+| 横切 追踪 | callbacks | ❌（作真相源） | 事件表是回放/评测/审计的真相源，不能绑在框架回调抽象上 |
+
+#### 2.6.3 "缺少灵活性"的五个具体点
+
+1. **声明式组合 vs 条件控制流**：LCEL/链擅长"拼管道"，但难以自然表达"漂移→回退、失败→降级、超预算→中断"这类条件跳转；图式编排（LangGraph）才直观——这也是官方把编排迁到 LangGraph 的原因。
+2. **隐藏的提示词与工具格式**：框架自带 prompt 模板与工具调用约定，模糊了"模型究竟看到什么"，影响可复现性与论文可控性。
+3. **抽象泄漏**：异常类型、流式事件、重试行为都经过多层包装，排障要翻两层。
+4. **版本耦合**：`langchain-core` 与各集成包版本矩阵强绑定；v1 大迁移把 chains 整体搬去 `langchain-classic`（旧代码 `import langchain.chains` 直接失败）→ 对一年制项目是实打实的维护风险。
+5. **依赖过重**：loader/retriever 生态带入大量传递依赖，与"单机、轻依赖、零外部服务"的目标冲突。
+
+#### 2.6.4 我们的采用边界
+
+- **采用**：LangGraph（编排内核）+ 其依赖的 `langchain-core` 类型体系；评测用 DeepEval（独立于 LangChain）。
+- **不采用**：经典 LangChain 全家桶（chains、AgentExecutor、memory、loaders、retrievers、模型类）。
+- **按需单包引入**：将来若出现"语义分块""特殊格式加载""跨向量库"等真实需求，只安装对应的 `langchain-*` 单包，保持"分模块、轻依赖、可维护"。
+
+#### 2.6.5 一句话口径（给导师/评审）
+
+> 不用经典 LangChain，不是因为它是"自研框架"，而恰恰因为它大部分是**对第三方库的薄包装**：这些包装与本项目已选定的更专业组件（LiteLLM 网关、官方向量客户端、自研解析/分块）职责重合，还带来版本耦合、隐藏提示词与依赖负担；我们采用的是同一家族的新一代编排引擎 **LangGraph**——即"用家族里最新、最合适的一层"，其余能力按需单包引入。
+>
+> 参考：[LangChain v1 迁移指南](https://docs.langchain.com/oss/python/migrate/langchain-v1)（旧 chains/agents/memory 迁至 `langchain-classic`，编排以 LangGraph 为核心）。
 
 ---
 
