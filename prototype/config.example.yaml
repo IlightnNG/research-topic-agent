@@ -1,0 +1,46 @@
+# Phase 0 运行配置模板：复制为 config.local.yaml 后按需修改。
+# 密钥只写环境变量名（见 .env.example），绝不写在本文件里。
+# 相对路径一律以「本文件所在目录」为基准解析。
+
+paths:
+  out_dir: out
+  data_dir: out/data
+  sqlite_path: out/data/sqlite.db
+  kuzu_path: out/data/kuzu
+  qdrant_path: out/data/qdrant
+  papers_dir: out/data/papers
+  logs_dir: logs
+
+providers:
+  cloud:
+    name: deepseek
+    base_url: https://api.deepseek.com
+    model: deepseek-chat
+    api_key_env: DEEPSEEK_API_KEY
+  local:
+    name: ollama
+    engine: ollama                     # ollama | vllm | llama.cpp
+    base_url: http://localhost:11434/v1
+    model: qwen2.5:7b
+    ctx_len: 8192
+
+sources:
+  openalex_mailto: you@example.com     # 进入 OpenAlex polite pool，务必改成真实邮箱
+  arxiv_categories: [cs.AI, cs.LG, cs.MA, cs.SE]
+  venues: []                           # OpenAlex source 白名单
+
+guards:
+  scope_cosine_min: 0.60
+  oos_share_max: 0.30
+  loop_k: 5
+  no_progress_steps: 2
+  max_retries: 2
+
+logging:
+  level: INFO
+  format: json
+  app_log: logs/app.jsonl
+  error_log: logs/errors.jsonl
+  retain_days: 30
+  retain_error_days: 90
+  debug_runs: []

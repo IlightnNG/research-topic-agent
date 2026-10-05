@@ -1,8 +1,8 @@
-# 状态机与守卫判决表（设计与实现规范）
+﻿# 状态机与守卫判决表（设计与实现规范）
 
 > 状态：**v0.1 预想/指导方案**——不是组会材料，而是后续系统完善的实现依据（可直接据此写代码与测试）
 > 用途：① 实现依据：状态、迁移、守卫、阈值、动作全部显式化；② 测试依据：每条迁移与守卫都有对应用例；③ 论文附录：Harness Engineering 的核心设计资产
-> 关联：`architecture-overview.md`（分层与时序）· `agent-design-decisions.md` A1–A8/B1（问题与解法）· `implementation-guide.md` §6/§7/§13（落地位置）· `evaluation-plan.md` §4.3（自愈指标）
+> 关联：`design/architecture-overview.md`（分层与时序）· `design/agent-design-decisions.md` A1–A8/B1（问题与解法）· `implementation/implementation-guide.md` §6/§7/§13（落地位置）· `implementation/evaluation-plan.md` §4.3（自愈指标）
 > 说明：所有阈值均为**初始建议值**，须经 §12 的标定流程确定；所有判决必须结构化（不得用自然语言表达"通过了"）。
 
 ---

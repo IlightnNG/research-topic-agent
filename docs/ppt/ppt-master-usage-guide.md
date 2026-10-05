@@ -1,4 +1,4 @@
-# PPT Master 使用指南：怎样让它生成"你想要的"PPT
+﻿# PPT Master 使用指南：怎样让它生成"你想要的"PPT
 
 > 适用环境：DeepSeek Harness（DSH）Web GUI + 已安装到本工作区的 ppt-master skill
 > （`.agents/skills/ppt-master`）。本指南把「人话需求」翻译成 ppt-master 能理解并执行的
@@ -36,7 +36,7 @@ ppt-master 不是"一个会画 PPT 的模型"，而是一套**分角色、分阶
 ```
 用 ppt-master 生成一份 PPT：
 - 用途 / 场合：[组会汇报 | 课程作业 | 立项答辩 | 方案宣讲…]
-- 源材料：docs/framework-selection-brief.md（只讲第 1–2 节）
+- 源材料：docs/ppt/framework-selection-brief.md（只讲第 1–2 节）
 - 页数：8–10 页
 - 内容要求：每页一个核心观点，正文每页不超过 4 个要点
 - 风格：简约商务，白底 + 单一蓝色强调色，少装饰
@@ -54,7 +54,7 @@ ppt-master 不是"一个会画 PPT 的模型"，而是一套**分角色、分阶
 |---|---|
 | **用途与受众** | 组会汇报 / 导师评审 / 答辩 / 宣讲 / 课程。决定"信息密度天花板"和是否要结论先行 |
 | **时长** | 如"15 分钟"，通常每分钟 0.6–1 页 → 建议页数 |
-| **源材料** | 三档：① 只有主题（它会做主题研究）；② 要点提纲（推荐：你自己列每节要点）；③ 完整文档（给路径，如 `docs/framework-selection.md`）。档位越高越贴你原意 |
+| **源材料** | 三档：① 只有主题（它会做主题研究）；② 要点提纲（推荐：你自己列每节要点）；③ 完整文档（给路径，如 `docs/project/framework-selection.md`）。档位越高越贴你原意 |
 | **只取哪部分** | "只看第 1–2 节" / "第 3 节每个模块只留一句理由" —— 精确圈定范围 |
 | **语言** | 中文 / 英文 / 中英混排（术语保留原文）；组会建议中文 + 英文技术词 |
 | **画布** | 默认 16:9 即可；要 4:3 投影可说"画布 4:3" |
@@ -177,7 +177,7 @@ ppt-master 内部按页有密度档位，你只需给**总体 + 每页**两个�
 **档 1 · 快速测试**（5 页内，无确认，验证链路）
 
 ```
-用 ppt-master 快速生成 5 页 PPT 测试稿：源 docs/framework-selection-brief.md 第 1–2 节；
+用 ppt-master 快速生成 5 页 PPT 测试稿：源 docs/ppt/framework-selection-brief.md 第 1–2 节；
 封面 + 原则 5 条 + 编排与模型层 + 数据与应用层 + 待确认问题；每页 ≤ 4 点；
 简约白底蓝色强调；中文。
 ```
@@ -186,7 +186,7 @@ ppt-master 内部按页有密度档位，你只需给**总体 + 每页**两个�
 
 ```
 用 ppt-master 生成一份组会汇报 PPT（约 12 页，15 分钟）：
-源材料 docs/framework-selection.md 与 docs/project-analysis.md。
+源材料 docs/project/framework-selection.md 与 docs/project/project-analysis.md。
 呈现逻辑：①封面 ②背景与目标（为什么做、要回答什么问题）③总体架构 ④技术选型原则
 ⑤核心模块逐个讲（编排/网关/推理/存储/检索/后端/前端/评测，每个 1 页：职责→选型→理由→风险）
 ⑥完整技术栈一页 ⑦待确认问题 ⑧下一步计划。
@@ -199,7 +199,7 @@ ppt-master 内部按页有密度档位，你只需给**总体 + 每页**两个�
 
 ```
 用 ppt-master 生成一份"技术选型论证"详细版 PPT（25–30 页，用于存档和答辩）：
-源 docs/framework-selection.md（完整）。
+源 docs/project/framework-selection.md（完整）。
 每模块一页主文 + 可选一页"候选对比表"；先逐模块展开，再给综合权衡；
 密度用 dense，允许表格；风格 consulting-decision；
 关键指标（显存、延迟、许可证）用表格呈现；请先把章节大纲和 2 页样张给我确认风格，
@@ -211,7 +211,7 @@ ppt-master 内部按页有密度档位，你只需给**总体 + 每页**两个�
 | 反面（它会猜） | 正面（它照着做） |
 |---|---|
 | "做个好看点的 PPT" | 用途 + 页数 + 风格描述 + 密度要求 |
-| "详细一点" | "把 framework-selection.md 第 3 节每个模块展开：职责 1 行、选它 3 行、为什么不用别的 2 行、风险 1 行" |
+| "详细一点" | "把 project/framework-selection.md 第 3 节每个模块展开：职责 1 行、选它 3 行、为什么不用别的 2 行、风险 1 行" |
 | "科技感强一些" | "深色底（#0B1220）+ 亮蓝强调 + 等宽字体代码片段 + 少曲线装饰" |
 | "逻辑清晰" | 给它明确章节顺序或逐页 roster |
 | "重点突出" | "标题直接写结论，如『选 LangGraph：显式状态图 + checkpoint 开箱即用』" |
@@ -309,9 +309,9 @@ ppt-master 内部按页有密度档位，你只需给**总体 + 每页**两个�
 ## 9. 与项目文档结合的建议（你的场景）
 
 本工作区 `docs\` 已有：
-- `framework-selection-brief.md`（组会速览版）→ 适合 5–10 页快稿（已实测）
-- `framework-selection.md`（详细对比 v0.2）→ 适合 25–30 页详细论证版（档 3 示例）
-- `architecture-overview.md` / `project-analysis.md` → 适合讲背景、总体架构、分析结论
+- `ppt/framework-selection-brief.md`（组会速览版）→ 适合 5–10 页快稿（已实测）
+- `project/framework-selection.md`（详细对比 v0.2）→ 适合 25–30 页详细论证版（档 3 示例）
+- `design/architecture-overview.md` / `project/project-analysis.md` → 适合讲背景、总体架构、分析结论
 
 建议产出顺序：**档 2 均衡汇报稿**（确认逻辑与风格）→ 需要存档/答辩时再生成**档 3 详细版**。
 每轮需求变动把本指南 §3 的对应字段改一两个字即可，不必重写整段。

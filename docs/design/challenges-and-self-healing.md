@@ -1,7 +1,7 @@
-# 重难点模块与自愈机制设计预想
+﻿# 重难点模块与自愈机制设计预想
 
 > 状态：**v0.1 预想稿**——为未来架构做准备，后续逐步细化、工程化
-> 关联：选型见 `framework-selection.md`（模块 1–10）；总体架构见 `architecture-overview.md`
+> 关联：选型见 `project/framework-selection.md`（模块 1–10）；总体架构见 `design/architecture-overview.md`
 > 使用方式：每个难点按"为什么难 → 方案预想要点 → 涉及模块 → 落地阶段 → 待细化"组织
 
 ## 1. 难点总览
@@ -64,7 +64,7 @@ retry(≤2, 退避) → degrade(换 provider/模型档, 见模块2) → replan(�
 ### 2.6 在 LangGraph 上的实现预想
 - 节点 = 阶段/角色 agent；**条件边 = 2.4 的处置路由**；守卫做成"节点前后执行的 Python 函数"（框架无关逻辑，可单测）。
 - checkpoint（langgraph-checkpoint-sqlite）语义需明确：恢复点粒度 = 节点边界；"恢复后注入"依赖状态里的结构化上下文而非原始对话。
-- **测试钩子（fault-injection hook）必须从 P2 就存在**：允许测试脚本注入"越界检索结果/重复工具序列/模拟超时/错误产出"，守卫代码与生产共用同一路径——这是"自愈功能本身可测"的前提（详见 `evaluation-plan.md` §3.3）。
+- **测试钩子（fault-injection hook）必须从 P2 就存在**：允许测试脚本注入"越界检索结果/重复工具序列/模拟超时/错误产出"，守卫代码与生产共用同一路径——这是"自愈功能本身可测"的前提（详见 `implementation/evaluation-plan.md` §3.3）。
 
 ### 2.7 待细化/工程化
 - 阈值标定方法（用录制回放跑阈值扫描）；检测器误报/漏报代价定义；
@@ -113,6 +113,6 @@ retry(≤2, 退避) → degrade(换 provider/模型档, 见模块2) → replan(�
 - 迁移友好：SQLite→PostgreSQL、Kuzu→Neo4j、Qdrant 本地→server 均只需换存储实现层。
 
 ## 9. 关联与待确认
-- 依赖选型：`framework-selection.md` 模块1（LangGraph/守卫）、模块2（网关）、模块4（Kuzu）、模块10（评测）。
-- 自愈功能的"可测性"要求 fault-injection hook 在 P2 落地 → 与 `evaluation-plan.md` §3.3/§4 联动。
+- 依赖选型：`project/framework-selection.md` 模块1（LangGraph/守卫）、模块2（网关）、模块4（Kuzu）、模块10（评测）。
+- 自愈功能的"可测性"要求 fault-injection hook 在 P2 落地 → 与 `implementation/evaluation-plan.md` §3.3/§4 联动。
 - 待组会确认：自愈处置策略（重试/降级/终止留痕）的"激进 vs 保守"倾向；成本预算默认值。

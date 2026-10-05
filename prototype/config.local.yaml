@@ -1,0 +1,45 @@
+# Phase 0 运行配置（可入库的非敏感配置；密钥只写环境变量名）
+# 相对路径一律以「本文件所在目录」为基准解析，与启动时的工作目录无关。
+
+paths:
+  out_dir: out
+  data_dir: out/data
+  sqlite_path: out/data/sqlite.db
+  kuzu_path: out/data/kuzu
+  qdrant_path: out/data/qdrant
+  papers_dir: out/data/papers
+  logs_dir: logs
+
+providers:
+  cloud:
+    name: deepseek
+    base_url: https://api.deepseek.com
+    model: deepseek-chat
+    api_key_env: DEEPSEEK_API_KEY      # 只存环境变量名，绝不在此写密钥
+  local:
+    name: ollama
+    engine: ollama                     # ollama | vllm | llama.cpp
+    base_url: http://localhost:11434/v1
+    model: qwen2.5:7b
+    ctx_len: 8192
+
+sources:
+  openalex_mailto: you@example.com     # 进入 OpenAlex polite pool，务必改成真实邮箱
+  arxiv_categories: [cs.AI, cs.LG, cs.MA, cs.SE]
+  venues: []                           # OpenAlex source 白名单（如 NeurIPS/ICML 的 venue id）
+
+guards:
+  scope_cosine_min: 0.60               # G1 主题漂移 warn 阈值（Phase 0 初值，待标定）
+  oos_share_max: 0.30                  # G2 检索越界占比阈值
+  loop_k: 5                            # G4 循环检测窗口
+  no_progress_steps: 2                 # G5 停滞检测步数
+  max_retries: 2                       # 单边最大重试次数
+
+logging:
+  level: INFO
+  format: json
+  app_log: logs/app.jsonl
+  error_log: logs/errors.jsonl
+  retain_days: 30
+  retain_error_days: 90
+  debug_runs: []                       # 例：["p0-s5-001"]，开启该 run 的 DEBUG 录制（Step 0.3 起支持）

@@ -1,12 +1,12 @@
-# PPT Master 提示词 — 组会 PPT（Module & Framework Selection）
+﻿# PPT Master 提示词 — 组会 PPT（Module & Framework Selection）
 
 > 用法：把下面 `===== PROMPT =====` 之间的内容整体复制给模型（或在 DSH 里直接说
-> "按 docs/ppt-master-prompt-group-meeting.md 生成"）。第一轮只出 Slide 1–5 供检查，
+> "按 docs/ppt/ppt-master-prompt-group-meeting.md 生成"）。第一轮只出 Slide 1–5 供检查，
 > 通过后再用同一套设定续完全部 15 页。
 >
-> 源文件：`docs/framework-selection-brief.md`（分页 deck brief，每 `## Slide N` = 一页）
-> 支撑文件：`docs/framework-selection.md`、`docs/architecture-overview.md`、
-> `docs/challenges-and-self-healing.md`、`docs/evaluation-plan.md`
+> 源文件：`docs/ppt/framework-selection-brief.md`（分页 deck brief，每 `## Slide N` = 一页）
+> 支撑文件：`docs/project/framework-selection.md`、`docs/design/architecture-overview.md`、
+> `docs/design/challenges-and-self-healing.md`、`docs/implementation/evaluation-plan.md`
 
 ===== PROMPT =====
 
@@ -20,10 +20,10 @@ style-and-layout sample for review; do not author Slides 6–15 yet.
 **Route** — Quick generate (one pass, no confirmation stops). Source is a closed corpus; do not
 run topic research.
 
-**Source of truth** — `docs/framework-selection-brief.md` is the page-by-page content authority:
+**Source of truth** — `docs/ppt/framework-selection-brief.md` is the page-by-page content authority:
 treat each `## Slide N` block as exactly one slide; keep its title, key message, and content
 points; `Visual` and `Speaker note` lines are production hints, not slide copy. Use
-`docs/architecture-overview.md` and `docs/framework-selection.md` only to disambiguate wording.
+`docs/design/architecture-overview.md` and `docs/project/framework-selection.md` only to disambiguate wording.
 Never invent facts, numbers, or technology names beyond these files.
 
 **Roster (this round, in order)**
@@ -74,7 +74,7 @@ which charts/diagrams were used on which slide, and anything you simplified for 
 
 ## 第二轮（样例通过后）
 
-把上面的 **Roster** 换成 `docs/framework-selection-brief.md` 的 Slide 6–15，并追加一句：
+把上面的 **Roster** 换成 `docs/ppt/framework-selection-brief.md` 的 Slide 6–15，并追加一句：
 
 ```
 Continue the same deck, same style system and chrome. Keep Slides 1–5 unchanged; author

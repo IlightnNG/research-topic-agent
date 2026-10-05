@@ -33,3 +33,19 @@ Thumbs.db
 
 # Logs
 *.log
+
+# Local tooling artifacts (uv cache/python, temp, verification libs)
+.local/
+.uv-cache/
+.uv-python/
+.pylibs/
+.pip-cache/
+.tmp/
+
+# Runtime products of the prototype / app
+out/
+logs/
+
+# Frontend (Phase 1)
+node_modules/
+dist/

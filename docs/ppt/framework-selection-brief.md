@@ -1,9 +1,9 @@
-# Slide Deck Brief — Module & Framework Selection
+﻿# Slide Deck Brief — Module & Framework Selection
 
 > **Purpose:** group-meeting review of module-level framework selection for the Literature Research Assistant
 > **Audience:** supervisor + research group · **Language:** English · **Aspect:** 16:9 · **Target:** 15 slides, 15–20 min
 > **Structure:** system context → architecture → module map → module-by-module selection (choice + mainstream alternatives + rationale) → challenges & self-correction → evaluation preview → roadmap & decisions
-> **Source of truth:** `framework-selection.md` (v0.4), `architecture-overview.md`, `challenges-and-self-healing.md`, `evaluation-plan.md`
+> **Source of truth:** `project/framework-selection.md` (v0.4), `design/architecture-overview.md`, `design/challenges-and-self-healing.md`, `implementation/evaluation-plan.md`
 > **Design notes:** one idea per slide · short noun phrases, not sentences · use the comparison tables as the visual centrepiece · one architecture diagram on Slide 3 · avoid code
 > **How to read this file:** every `## Slide N` block = one PPT page. `Visual` and `Speaker note` lines are production hints, not slide copy.
 
@@ -287,4 +287,4 @@
 
 ---
 
-> **Appendix (optional slide):** full per-module option matrices and references live in `framework-selection.md` (v0.4).
+> **Appendix (optional slide):** full per-module option matrices and references live in `project/framework-selection.md` (v0.4).

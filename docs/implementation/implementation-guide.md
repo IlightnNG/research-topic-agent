@@ -1,8 +1,8 @@
 # 系统实现指导方案（Implementation Guide）
 
 > 版本 v0.1 · 用途：把选型与架构落成**可被 AI 逐步生成、可验收、可回归**的工程方案
-> 关联：选型 `framework-selection.md` v0.5 · 架构 `architecture-overview.md` · 设计问题手册 `agent-design-decisions.md` · 自愈预想 `challenges-and-self-healing.md` · 评测方案 `evaluation-plan.md`
-> 已定范围（v0.1 决策）：首版只做 **Web 三界面**（CLI 延后）· 代码位于本工作区 **`code/`** · 前端 **Vue3 + TS + Vite + Element Plus** · 工具层**内置工具为主、预留 MCP 接口** · 部署环境**全部参数化** · 工程规范按推荐默认
+> 关联：选型 `project/framework-selection.md` v0.5 · 架构 `design/architecture-overview.md` · 设计问题手册 `design/agent-design-decisions.md` · 自愈预想 `design/challenges-and-self-healing.md` · 评测方案 `implementation/evaluation-plan.md`
+> 已定范围（v0.1 决策）：首版只做 **Web 三界面**（CLI 延后）· **代码直接放仓库根**（`src/`、`config/`、`tests/`、`web/` 与 `docs/` 平级；Phase 0 实验区为 `prototype/`）· 前端 **Vue3 + TS + Vite + Element Plus** · 工具层**内置工具为主、预留 MCP 接口** · 部署环境**全部参数化** · 工程规范按推荐默认
 > 技术栈：Python 3.11+ · uv · FastAPI · SQLAlchemy 2.0 + Alembic · LangGraph(+SQLite checkpointer) · LiteLLM · Kuzu · Qdrant(local) · DeepEval · APScheduler · Vue3
 
 ---
@@ -47,9 +47,11 @@
 
 ## 1. 仓库结构与工程规范
 
-### 1.1 目录树（`code/`）
+### 1.1 目录树（仓库根 = Python 项目根）
 ```
-code/
+agent/                         # 仓库根（= 项目根；docs/ 与代码平级）
+├─ docs/                       # 研究与设计文档（选型/架构/实现/评测/演示）
+├─ prototype/                  # Phase 0 实验区（Phase 1 完成后删除）
 ├─ pyproject.toml            # uv 管理；依赖与工具配置
 ├─ uv.lock
 ├─ README.md                 # 启动、配置、最小可跑说明
@@ -101,10 +103,13 @@ eval: {enabled: true, judge_provider: cloud, sample_rate: 0.2}
 logging: {level: INFO, format: json}
 ```
 
-### 1.4 日志规范
-- 结构化 JSON（structlog）：字段固定 `ts, level, event, run_id, stage, agent, tool, error_code, latency_ms`；
-- **info 以上不得含论文正文/敏感原文**；正文仅在 `debug` 且写受控文件；
-- 每个外部调用（源 API、LLM、DB 写）至少一条日志 + 一条事件（§2.2）。
+### 1.4 日志规范（详规见 `logging-and-observability.md`）
+- 结构化 JSON（structlog）写 `logs/app.jsonl` + 控制台：必填 `ts/level/event/logger/msg/app_version/config_version/host/pid/schema_version`；有上下文时带 `run_id/topic_id/stage/agent/attempt/tool/tool_call_id/event_seq`；
+- **info 以上不得含论文正文/敏感原文**；正文与完整 prompt/response 仅在 debug 模式写 `logs/debug/<run_id>/`（7 天自动清理）；
+- 每个外部调用（源 API、LLM、DB 写）**双写**：一条日志 + 一条事件（§2.2），并以 `run_id + stage + tool_call_id/event_seq` 三向关联；
+- 错误日志必带 `error_code/retryable/action_taken`（§1.5）；
+- 轮转与保留：按天 + 100 MB 上限轮转，`app.jsonl` 30 天、`errors.jsonl` 90 天（规范 §4）；
+- 框架日志统一接管（LangGraph/LiteLLM/SQLAlchemy/httpx 等降为 WARNING），禁止 `print()`；慢点阈值与告警见规范 §8。
 
 ### 1.5 错误分类学（`errors.py`）
 | 代码段 | 示例 | 默认处置 |
@@ -202,7 +207,7 @@ CREATE REL TABLE SIMILAR_TO(FROM Paper TO Paper, score DOUBLE, computed_at TIMES
 `chunks`（阶段 P3 启用）：payload=`{paper_id,chunk_idx,tokens}`，正文放文件系统。
 
 ### 2.7 契约变更流程
-任何契约变更 → 写 ADR（`docs/adr/NNNN-*.md`）：动机 / 影响面 / 迁移步骤 / 回归范围；未记录不得合并。
+任何契约变更 → 写 ADR（`docs/implementation/adr/NNNN-*.md`）：动机 / 影响面 / 迁移步骤 / 回归范围；未记录不得合并。
 
 ---
 
@@ -268,7 +273,7 @@ class LLMGateway:
 
 ## 7. 模块 5：守卫与自愈（`graph/guards.py`, `runtime/watchdog.py`）
 
-**目标**：把 `agent-design-decisions.md` A1–A8 落成可测代码。
+**目标**：把 `design/agent-design-decisions.md` A1–A8 落成可测代码。
 **接口**
 ```python
 @dataclass
@@ -331,7 +336,7 @@ def recovery_packet(verdict, state) -> Message      # 失败类型+可信状态+
 
 ## 12. 模块 10：评测与可观测（`eval/`）
 
-**目标**：实现 `evaluation-plan.md` 的数据集、指标与执行协议。
+**目标**：实现 `implementation/evaluation-plan.md` 的数据集、指标与执行协议。
 **接口**：`extract_claims(md) -> list[Claim]`；`ground(claims, snapshot) -> GroundingReport`；`judge(target, rubric) -> Score`（DeepEval 外壳）；`faultinject.inject(run, scenario)`；`aggregate(...) -> MetricsFrame`；`export_charts(...)`。
 **实现步骤**：① 数据集管理（`eval_data/topics/`、`chat_sets/`、`fault_scenarios/`、`snapshots/` 版本化）；② grounding：claim → citation → 快照回查 → 三类判定（支持/矛盾/无支撑）；③ 指标：grounding 支持率、幻觉率、对话准确率与召回（对 gold 事实）、漂移与自愈指标（检出/处置/恢复/越界）、双引擎配对对比；④ 故障注入 hook（生产同路径、仅测试副本）；⑤ 导出论文图表数据。
 **单测清单**：claim 抽取、三类判定边界、召回计算、fault injector 不影响生产数据、指标聚合口径。
@@ -341,7 +346,7 @@ def recovery_packet(verdict, state) -> Message      # 失败类型+可信状态+
 
 ## 13. 重难点实现指引（与设计手册映射）
 
-| 设计问题（`agent-design-decisions.md`） | 实现位置 |
+| 设计问题（`design/agent-design-decisions.md`） | 实现位置 |
 |---|---|
 | A1 防走偏 · A2 循环停滞 · A3 恢复注入 | `graph/guards.py`、`graph/edges.py` |
 | A4 预算看门狗 · A7 失败留痕 | `runtime/watchdog.py`、`runtime/jobs.py` |
@@ -390,7 +395,7 @@ Forbidden: 修改 §2 契约；新增依赖；改动提示词文本
 ```
 
 ### 15.2 提示词模板（给 AI 生成者）
-> 读取 `docs/implementation-guide.md` 的 §{模块} 与 §2 契约；只实现任务卡列出的文件；先写测试再实现；不得修改冻结契约/新增依赖；完成后运行验收命令并贴出输出；若契约不足，输出 ADR 草稿而不是自行决定。
+> 读取 `docs/implementation/implementation-guide.md` 的 §{模块} 与 §2 契约；只实现任务卡列出的文件；先写测试再实现；不得修改冻结契约/新增依赖；完成后运行验收命令并贴出输出；若契约不足，输出 ADR 草稿而不是自行决定。
 
 ### 15.3 每任务验收命令
 ```bash
@@ -406,6 +411,23 @@ uv run pytest -q tests/integration -m "not slow"     # 涉及 DB/存储时
 
 ### 15.5 常见错误（AI 生成时的红线）
 1. 用裸 `dict` 替代 Pydantic 契约；2. 在提示词里塞业务约束（应放代码/守卫）；3. 用 LLM 做可确定性判定的校验（如数值范围）；4. 事件"先广播后落库"；5. 图/向量写入不做 MERGE 幂等；6. 忘记写 `llm_calls`/事件埋点；7. 引入未批准依赖（Redis/Celery 等）；8. 修改冻结契约而不提 ADR；9. 在日志/事件中写入密钥或敏感原文；10. 失败静默（不写错误事件）。
+
+### 15.6 文档结构要求（所有 step/phase 类文档必备章节，v0.2 起强制）
+
+后续每一份"阶段/步骤"文档（Phase N、Step 清单、Wave 计划等）必须包含以下 8 个章节，缺一不可：
+
+| # | 必备章节 | 说明 |
+|---|---|---|
+| 1 | 目标与出口标准 | 含"明确不做清单"与可勾选的出口检查项 |
+| 2 | 全局约定 | 代码位置、环境初始化、埋点要求、记录模板 |
+| 3 | **文件结构与职责** | 目录树 **+ 文件职责表**（路径 / 功能责任 / 关键接口或内容 / 输入→输出 / 依赖 / 归属步骤 / 下一阶段归属）**+ 文件边界与命名约定** |
+| 4 | Step 明细 | 每步：内容要求 / 交付物 / 执行命令 / 期望输出 / 验收标准 / 时间盒 / 失败应对 |
+| 5 | 进度跟踪表 | 状态（☐◐☑⛔）+ 结论数字列 + 依赖 |
+| 6 | 常见失败与应对 | 含"结论为负"的处理原则 |
+| 7 | 出口检查清单 | 逐项勾选，作为进入下一阶段的门 |
+| 8 | 与下一阶段的衔接 | 哪些文件保留/升级/丢弃 + 下一阶段第一张任务卡 |
+
+**理由**：文件职责表让后续优化能**定位到具体文件**（避免重复实现与职责漂移），也是 AI 生成代码时的文件边界依据；范式模板见 `implementation/phase0-implementation-steps.md` §1.1–§1.1.2。
 
 ---
 
@@ -453,4 +475,4 @@ Migration: 迁移步骤（含数据）
 Verification: 回归与验收命令
 ```
 
-> 下一步建议：按附录 A 的 Wave 1 起在 `code/` 中生成代码骨架；每完成一个 Wave 跑一次验收门并更新本方案（v0.2 起在文末追加"实现进度"小节）。
+> 下一步建议：按附录 A 的 Wave 1 起**在仓库根**生成正式代码骨架（`src/` 等，见 §1.1）；Phase 0 的 `prototype/` 按 FILEMAP 的"下一阶段归属"列搬运完成后删除。每完成一个 Wave 跑一次验收门并更新本方案（v0.2 起在文末追加"实现进度"小节）。

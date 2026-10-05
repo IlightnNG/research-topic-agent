@@ -1,4 +1,4 @@
-# 各模块框架选型调查（Module Framework Selection Survey）
+﻿# 各模块框架选型调查（Module Framework Selection Survey）
 
 > 版本 v0.5 · 第五轮修订：§2.6 展开为"**LangChain 包架构拆解 + 逐模块不采用理由**"（含 v1 重组事实、灵活性缺口、按需单包边界与对导师口径）
 > 版本 v0.4 · 第四轮修订：① 数据源定为 **OpenAlex 为主、arXiv 为辅**（NUS·英文文献·CS/软硬件/工科）；② 补存储引擎"选定 vs 主流"的**架构级优劣**（Kuzu vs Neo4j、Qdrant vs Milvus、SQLite 角色）；③ 补"为什么不选经典 LangChain"（分模块拆分后职责被单点组件承接）
@@ -48,7 +48,7 @@
 
 ### 2.1 职责与需求
 - 周更流水线：`onboarding → scoping → planning → retrieval → map → analyze → report`，阶段可拆专职 agent。
-- 对话场景的轻量 agent（多轮 + 工具调用）；显式控制流；长跑可中断/恢复；看门狗与自纠错（防漂移/循环，见 challenges-and-self-healing.md）；轨迹可回放。
+- 对话场景的轻量 agent（多轮 + 工具调用）；显式控制流；长跑可中断/恢复；看门狗与自纠错（防漂移/循环，见 design/challenges-and-self-healing.md）；轨迹可回放。
 
 ### 2.2 可能遇到的问题
 - 框架把控制流包办 → 自纠错变成"框架配置"；框架层太厚 → 排障与升级成本；自研过度 → 2–3k 行核心+测试反噬工期；自由对话式多 agent → 行为不可控。
@@ -382,7 +382,7 @@ Vue3|React + TS + Vite + Element Plus/AntD + ECharts；SSE 实时；作者节点
 
 ---
 
-## 11. 模块 10：评测与可观测（导师要求设计期内置；详见 evaluation-plan.md）
+## 11. 模块 10：评测与可观测（导师要求设计期内置；详见 implementation/evaluation-plan.md）
 
 ### 11.1 职责与需求
 周报忠实度/准确率、对话准确率与召回、自愈有效性（漂移检出/恢复率）、local vs cloud 对比；grounding 客观优先 + LLM-judge + 人工抽查；运行即埋点、全量留痕回放。
@@ -486,4 +486,4 @@ Vue3|React + TS + Vite + Element Plus/AntD + ECharts；SSE 实时；作者节点
 - LLM 评测框架盘点（[futureagi](https://futureagi.com/blog/best-open-source-eval-frameworks-2026/) / [AI & Agents: Eval Tools 2025](https://fast.io/resources/best-tools-ai-agent-evaluation/)）
 
 > 注：框架生态变动快，文中特性描述以撰写时公开资料为准；各模块 PoC 时以最新版本文档复核。
-> 配套：组会速览《framework-selection-brief.md》与《architecture-overview.md》需按 v0.3 同步（模块2 网关 LiteLLM、模块10 DeepEval）。
+> 配套：组会速览《ppt/framework-selection-brief.md》与《design/architecture-overview.md》需按 v0.3 同步（模块2 网关 LiteLLM、模块10 DeepEval）。

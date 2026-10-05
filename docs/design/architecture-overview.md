@@ -1,6 +1,6 @@
 # 整体架构设计（Architecture Overview）
 
-> 版本 v0.2 · 与《framework-selection.md v0.2》配套（编排内核 = LangGraph，成熟框架优先）
+> 版本 v0.2 · 与《project/framework-selection.md v0.2》配套（编排内核 = LangGraph，成熟框架优先）
 > 状态：结构定稿，待导师确认项见 §9；Jetson 关联项目仅作背景备注（见 §8），未纳入正式架构
 
 ## 1. 设计目标与约束（速览）
@@ -127,7 +127,8 @@ scoping → planning → retrieval_agent → ingest_parse(确定性)
 ### 3.7 事件溯源与回放（真相源）
 事件表统一记录：`phase_change / tool_call / llm_call / guard_trigger / message / error / metric`。
 - Report 页"过程回放" = 按 run_id 读事件时间线（过滤分类展示）；
-- 评测 = 事件聚合；审计/复现 = 事件回放（结合固定 sampling 参数）。
+- 评测 = 事件聚合；审计/复现 = 事件回放（结合固定 sampling 参数）；
+- 日志与事件的边界、字段字典与"日志 ↔ 事件 ↔ 上下文快照"三向关联规范见 `implementation/logging-and-observability.md`（日志可轮转，事件不可变）。
 
 ---
 
@@ -220,7 +221,7 @@ APScheduler 触发(topic_i, cron) → 创建 run(queued) → 广播事件
 - 目录：`config.yaml`；`data/{app.db, kuzu/, qdrant/, papers/}`；前端构建产物静态托管。
 - 配置面：providers（本地档位/云 key）、路由策略、守卫阈值、调度 cron、评测开关。
 - 无外部服务依赖；Windows 开发机直跑，Linux 部署可选容器化。
-- 备注（非正式路径）：本地推理后端未来可能多一个"Jetson 本地服务"档位（导师另一项目，设备/进度未定，见 project-analysis.md"关联项目"，届时仅需在网关 provider 注册表中加一条）。
+- 备注（非正式路径）：本地推理后端未来可能多一个"Jetson 本地服务"档位（导师另一项目，设备/进度未定，见 project/project-analysis.md"关联项目"，届时仅需在网关 provider 注册表中加一条）。
 
 ## 9. 待导师/组会确认项（承接选型文档 §14）
 1. 编排内核 LangGraph 认可度（备选 AutoGen / OpenAI Agents SDK）；贡献重定位口径（§2.5 选型文档）
@@ -240,5 +241,5 @@ APScheduler 触发(topic_i, cron) → 创建 run(queued) → 广播事件
 | P6 文档(≈4–6w) | Context/Harness 配置规范 + 论文 | 交付物齐套 |
 
 ## 关联文档
-- 选型与理由：《framework-selection.md》（v0.2）
-- 需求与会议记录：《project-analysis.md》（含关联项目备注）
+- 选型与理由：《project/framework-selection.md》（v0.2）
+- 需求与会议记录：《project/project-analysis.md》（含关联项目备注）

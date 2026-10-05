@@ -1,9 +1,9 @@
-# 评测方案与数据集计划（Evaluation & Dataset Plan）
+﻿# 评测方案与数据集计划（Evaluation & Dataset Plan）
 
 > 状态：**v0.2 指导/预想方案**——用于后续系统完善与工程化的实现依据，不是组会材料
 > 与 v0.1 的差别：补齐**数据集规格与样例、构建流程与工作量、指标公式与边界处理、实验设计、执行命令、验收标准**
-> 一致性修正：评测技术底座按 `framework-selection.md` v0.5 更新为 **DeepEval 外壳 + 自研领域模块**（原 v0.1 写的"自研评测核心"）
-> 关联：`state-machine-and-guards.md`（守卫与自愈判决）· `architecture-overview.md` §3.7/§7（事件与埋点）· `implementation-guide.md` §12（评测模块落地）· `agent-design-decisions.md` J 类（评测闭环问题）
+> 一致性修正：评测技术底座按 `project/framework-selection.md` v0.5 更新为 **DeepEval 外壳 + 自研领域模块**（原 v0.1 写的"自研评测核心"）
+> 关联：`design/state-machine-and-guards.md`（守卫与自愈判决）· `design/architecture-overview.md` §3.7/§7（事件与埋点）· `implementation/implementation-guide.md` §12（评测模块落地）· `design/agent-design-decisions.md` J 类（评测闭环问题）
 
 ---
 
@@ -292,7 +292,7 @@ uv run python -m lit_agent.eval.faultinject --scenario F-LOOP-01 --repeats 3
 
 ## 11. 关联与待确认
 
-- 守卫判决与阈值：`state-machine-and-guards.md`（自愈指标口径与其 §12 标定目标一致）；
-- 落地实现：`implementation-guide.md` §12（`eval/` 组件与接口）；
-- 技术底座：DeepEval 外壳 + 自研领域模块（`framework-selection.md` 模块10）；
+- 守卫判决与阈值：`design/state-machine-and-guards.md`（自愈指标口径与其 §12 标定目标一致）；
+- 落地实现：`implementation/implementation-guide.md` §12（`eval/` 组件与接口）；
+- 技术底座：DeepEval 外壳 + 自研领域模块（`project/framework-selection.md` 模块10）；
 - 待确认：① gold 事实人工量为 20–30 h 是否可接受（或缩减到 3 topic × 20 条）；② 是否纳入"无守卫/无折叠"两组消融；③ 是否保留一个留出 topic；④ 未来是否加第三引擎（Jetson 本地后端）作扩展维度。
