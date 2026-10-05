@@ -277,7 +277,7 @@ jq -c 'select(.seq==42)' out/events.jsonl          # 或 SQLite: WHERE run_id=? 
 
 | 阶段 | 内容 | 任务卡（建议） |
 |---|---|---|
-| **Phase 0** | 最小日志基线：`logging.py`、`logs/app.jsonl` 双写、字段照 §2.1、查看命令入 README | `P0-LOG-01`（见 `phase0-implementation-steps.md` Step 0.3） |
+| **Phase 0** | 最小日志基线：`logging.py`、`logs/app.jsonl` 双写、字段照 §2.1、查看命令入 README ✅ **已交付（2026-10-05）** | `P0-LOG-01`（见 `phase0-implementation-steps.md` Step 0.3） |
 | **P1** | 轮转/保留/容量、`errors.jsonl`、脱敏 processor、bundle 基础版、字段完整性测试 | `P1-LOG-01..03` |
 | **P2** | 框架日志接管、慢点告警、debug 开关 + LLM 全量录制、日志健康自检 | `P2-LOG-01..03` |
 | **P3** | 度量扩展（缓存命中/折叠次数/图查询）、性能基线对比 | `P3-LOG-01` |

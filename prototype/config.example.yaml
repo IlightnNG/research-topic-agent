@@ -44,3 +44,6 @@ logging:
   retain_days: 30
   retain_error_days: 90
   debug_runs: []
+  console: true
+  max_field_chars: 500
+  strict_contracts: true

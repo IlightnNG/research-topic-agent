@@ -63,6 +63,10 @@ find . -type f -not -path './.venv/*' -not -path './out/*' -not -path './logs/*'
 | `uv run pytest -q` | ✅ 7 passed |
 | `uv run ruff check .` + `ruff format --check .` | ✅ 通过（7 files formatted） |
 | `uv run … selfcheck`（lax / 缺 key / 有 key） | ✅ 0 / 2 / 0 |
+| Step 0.2 `uv run pytest -q` | ✅ 26 passed（含 `tests/test_contracts.py` 19 用例） |
+| Step 0.2 `uv run python -m lit_agent_min demo-events` | ✅ `lines=3 seqs=[1, 2, 3]`，事件 JSON 形状与契约一致 |
+| Step 0.3 `uv run pytest -q` | ✅ 35 passed（0.1 的 7 + 0.2 的 19 + 0.3 的 9） |
+| Step 0.3 `uv run python -m lit_agent_min demo-logging` | ✅ `events=3 / log lines=3 / error lines=1`，`[OK]` 事件与日志可用 `run_id` 互相定位 |
 
 > 依赖装在 `prototype/.venv`（由 `uv sync` 创建）；uv 缓存与托管解释器在 **uv 默认位置**（`uv cache dir` / `uv python dir`），因此**不需要任何自定义环境变量**，换机器只需 `uv sync`。
 > 若 Windows 终端把中文显示成乱码，属控制台编码问题（程序输出为 UTF-8），`chcp 65001` 可解决。
@@ -84,10 +88,12 @@ agent/                          # 仓库根 = Phase 1 的项目根
    ├─ config.local.yaml / config.example.yaml
    ├─ pyproject.toml / uv.lock              # 依赖与锁定
    ├─ lit_agent_min/                        # ★可升级到 Phase 1 的最小内核
-   │  ├─ __init__.py  config.py  __main__.py  py.typed
-   │  ├─ models.py / eventlog.py            # ← 0.2
-   │  └─ logging.py                         # ← 0.3
-   ├─ tests/test_config.py                  # ← 0.1（7 用例）
+   │  ├─ _version.py  __init__.py  config.py  __main__.py  py.typed
+   │  ├─ models.py / eventlog.py            # ✅ 0.2
+   │  └─ logging.py                         # ✅ 0.3
+   ├─ tests/test_config.py                  # ✅ 0.1（7 用例）
+   ├─ tests/test_contracts.py               # ✅ 0.2（19 用例）
+   ├─ tests/test_logging.py                 # ✅ 0.3（9 用例）
    ├─ steps/                                # ← S1–S7（一次性脚本）
    └─ out/ + logs/                          # 运行产物（gitignored）
 ```
@@ -97,7 +103,8 @@ agent/                          # 仓库根 = Phase 1 的项目根
 | Step | 命令（规划中，随实现补齐） | 状态 |
 |---|---|---|
 | 0.1 | `python -m lit_agent_min selfcheck` | ✅ 已实现 |
-| 0.2 | 契约模型 + `eventlog.py`（`tests/test_contracts.py`） | ⏳ |
+| 0.2 | 契约与事件：`python -m lit_agent_min demo-events`；测试 `uv run pytest -q tests/test_contracts.py` | ✅ 已实现（19 用例） |
+| 0.3 | 日志基线：`python -m lit_agent_min demo-logging`；测试 `uv run pytest -q tests/test_logging.py` | ✅ 已实现（9 用例） |
 | 0.3 | 日志基线：`lit_agent_min/logging.py` + `logs/app.jsonl` + `jq` 查看段 | ⏳ |
 | 1 (S1) | `python steps/s1_source_coverage.py --topic T1 --years 3 --limit 200 --out out/s1_coverage.csv` | ⏳ |
 | 2 (S2) | `python steps/s2_model_baseline.py --tasks out/s2_tasks.yaml --local ollama/qwen2.5:7b --cloud deepseek/deepseek-chat` | ⏳ |
@@ -109,7 +116,28 @@ agent/                          # 仓库根 = Phase 1 的项目根
 
 ## 日志查看
 
-> Step 0.3 实现日志基线后，此处补齐 5 条 `jq` 常用命令（按 run 取时间线、按错误码过滤、慢调用 Top10、阶段耗时均值、错误码计数）。规范见 `docs/implementation/logging-and-observability.md` §9。
+日志与事件都落盘在 `prototype/` 下：`logs/app.jsonl`（全量）、`logs/errors.jsonl`（仅 error/critical）、`out/events.jsonl`（事件真相源）。两者用 `run_id + stage` 关联。
+
+```bash
+# 1) 某 run 的完整日志时间线
+jq -c 'select(.run_id=="p0-log-smoke")' logs/app.jsonl
+
+# 2) 只看错误（含错误码与是否可重试）
+jq -c 'select(.level=="error") | {ts,run_id,stage,error_code,retryable,msg}' logs/errors.jsonl
+
+# 3) 错误码计数 Top（定位高发故障类型）
+jq -r 'select(.error_code!=null) | .error_code' logs/app.jsonl | sort | uniq -c | sort -rn
+
+# 4) 慢调用 Top10（工具/LLM 延迟）
+jq -c 'select(.latency_ms!=null)' logs/app.jsonl | jq -s 'sort_by(-.latency_ms)[:10] | .[] | {ts,event,tool,latency_ms}'
+
+# 5) 事件与日志互查：先取事件 seq，再查同一 run 的日志
+jq -c 'select(.run_id=="p0-log-smoke")' out/events.jsonl
+```
+
+> Windows 未装 `jq` 时：`winget install jqlang.jq`（或 `scoop install jq`）。没有 jq 也可用 Python 一行替代：
+> `uv run python -c "import json,sys;[print(l,end='') for l in open('logs/app.jsonl',encoding='utf-8') if json.loads(l).get('level')=='error']"`
+> 完整规范（字段字典/轮转/调试开关/debug bundle/慢点告警）见 `docs/implementation/logging-and-observability.md`。
 
 ## 已知限制
 

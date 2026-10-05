@@ -1,8 +1,11 @@
 """lit_agent_min —— Phase 0 最小可复用内核。
 
-公开入口：
-- `load_settings()` / `ConfigError`：配置加载与可预期错误
-- `selfcheck()`：导入自检（版本 → 配置 → 目录 → 密钥），返回进程退出码
+公开入口
+- 配置：`load_settings()` / `ConfigError` / `ensure_dirs()` / `missing_env()`
+- 契约：`Paper / EvidenceCard / Citation / Claim / Verdict / Event`（`models.py`）
+- 事件：`JsonlEventLog` / `EventSink` / `read_events()`（`eventlog.py`）
+- 日志：`setup_logging()` / `bind_context()` / `log_event()`（`logging.py`）
+- 自检：`selfcheck()`（版本 → 配置 → 目录 → 密钥，返回进程退出码）
 """
 
 from __future__ import annotations
@@ -10,6 +13,7 @@ from __future__ import annotations
 import sys
 from pathlib import Path
 
+from ._version import __version__
 from .config import (
     ConfigError,
     Settings,
@@ -20,18 +24,86 @@ from .config import (
     missing_env,
     project_root,
 )
-
-__version__ = "0.1.0"
+from .eventlog import EventLogError, EventSink, JsonlEventLog, read_events
+from .logging import (
+    LoggingContractError,
+    LoggingHandles,
+    bind_context,
+    clear_context,
+    get_logger,
+    log_event,
+    setup_logging,
+    validate_no_bodies,
+)
+from .models import (
+    Author,
+    Citation,
+    Claim,
+    Event,
+    EventType,
+    EvidenceCard,
+    GuardAction,
+    Paper,
+    RunId,
+    Severity,
+    Support,
+    Verdict,
+)
 
 __all__ = [
+    # 配置
     "ConfigError",
     "Settings",
-    "__version__",
     "default_config_path",
+    "ensure_dirs",
+    "ensure_env",
     "load_settings",
+    "missing_env",
+    "open_event_log",
     "project_root",
     "selfcheck",
+    # 契约
+    "Author",
+    "Citation",
+    "Claim",
+    "Event",
+    "EventType",
+    "EvidenceCard",
+    "GuardAction",
+    "Paper",
+    "RunId",
+    "Severity",
+    "Support",
+    "Verdict",
+    # 事件
+    "EventLogError",
+    "EventSink",
+    "JsonlEventLog",
+    "read_events",
+    # 日志
+    "LoggingContractError",
+    "LoggingHandles",
+    "bind_context",
+    "clear_context",
+    "get_logger",
+    "log_event",
+    "setup_logging",
+    "validate_no_bodies",
+    # 元信息
+    "__version__",
 ]
+
+
+def open_event_log(
+    path: str | Path | None = None, *, run_id: RunId, fsync: bool = False
+) -> JsonlEventLog:
+    """按配置创建事件日志；默认写到 `<out_dir>/events.jsonl`。
+
+    供各 Step 统一入口使用：既保证事件落点一致，也让 Phase 1 替换 sink 时只改这一处。
+    """
+    settings = load_settings()
+    target = Path(path).expanduser() if path else settings.paths.out_dir / "events.jsonl"
+    return JsonlEventLog(target, run_id=run_id, fsync=fsync)
 
 
 def selfcheck(*, strict: bool = True, config_path: str | Path | None = None) -> int:

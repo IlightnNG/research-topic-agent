@@ -42,4 +42,7 @@ logging:
   error_log: logs/errors.jsonl
   retain_days: 30
   retain_error_days: 90
-  debug_runs: []                       # 例：["p0-s5-001"]，开启该 run 的 DEBUG 录制（Step 0.3 起支持）
+  debug_runs: []                       # 例：["p0-s5-001"]，开启该 run 的 DEBUG 录制
+  console: true                        # 同时输出到控制台
+  max_field_chars: 500                 # info 及以上单字段长度上限，超出转 sha1 摘要（禁止正文入日志）
+  strict_contracts: true               # ERROR 级缺 error_code 等契约违规直接报错

@@ -8,8 +8,8 @@
 | Step | 结论 | 关键数字 | 证据文件 | 是否影响设计 | 日期 | 状态 |
 |---|---|---|---|---|---|---|
 | 0.1 | 骨架/配置/自检就绪，**`uv run` 全链路验收通过** | `uv.lock` 935,775 B（111 包）；pytest 7/7；ruff check+format 通过；selfcheck 0/2/0；import ok（CPython 3.11.17 托管） | `README.md`、`FILEMAP.md`、`uv.lock` | 是（新增 2 条环境约束，见 §2.1） | 2026-10-05 | ☑ 完成 |
-| 0.2 | — | — | — | — | — | ☐ |
-| 0.3 | — | — | — | — | — | ☐ |
+| 0.2 | 契约与事件写入完成，19 用例覆盖约束与并发 | pytest 26 passed（0.1 的 7 + 0.2 的 19）；`demo-events` → `lines=3 seqs=[1,2,3]`；ruff check + format 通过；版本 0.2.0 | `lit_agent_min/models.py`、`lit_agent_min/eventlog.py`、`tests/test_contracts.py` | 是（判定：事件 seq 按 run 独立 + 损坏行必须报错） | 2026-10-05 | ☑ 完成 |
+| 0.3 | 日志基线交付；事件与日志可用 `run_id` 互查 | pytest 35 passed（7+19+9）；ruff/format 通过；`demo-logging` → events=3 / logs=3 / errors=1，`[OK]` 互查；版本 0.3.0 | `lit_agent_min/logging.py`、`tests/test_logging.py`、`logs/app.jsonl` | 是（判定：正文守卫在 info+ 生效、ERROR 必带 error_code） | 2026-10-05 | ☑ 完成 |
 | 1 (S1) | — | — | — | — | — | ☐ |
 | 2 (S2) | — | — | — | — | — | ☐ |
 | 3 (S3) | — | — | — | — | — | ☐ |
@@ -82,6 +82,55 @@
 | 验收重跑（新位置） | `uv sync` exit 0；`import ok 0.1.0 / 3.11.17`；`pytest` 7 passed；`ruff check`+`format --check` 通过；`selfcheck` **0 / 2 / 0** | 搬迁后功能等价 ✅ |
 | Git 暂存区 | 索引中仍是 `AD code/prototype/...`（已暂存后删除）与 ` M .gitignore` | 需 `git add -A` 记录搬迁，再提交 `step-0.1: prototype at repo root` |
 | 根级 `README.md` | **未改动**（属你已有的项目概览，2026-09-17） | 开发者快速开始见 `prototype/README.md` |
+
+## 2.3 Step 0.2 记录（契约与事件写入）
+
+**交付物**
+- `lit_agent_min/models.py`：`Author / Paper / EvidenceCard / Citation / Claim / Verdict / Event` + 枚举 `Severity / EventType / GuardAction / Support`；
+- `lit_agent_min/eventlog.py`：`EventSink` 协议 + `JsonlEventLog`（append-only、seq 自增、可续写、并发安全）+ `read_events()`；
+- `tests/test_contracts.py`：19 用例；`lit_agent_min/__main__.py` 增 `demo-events` 子命令。
+
+**契约约束（写进模型而非注释）**
+| 约束 | 理由 |
+|---|---|
+| `extra="forbid"` + `frozen=True` | 拼写错误在入口暴露；契约对象构造后不可变，避免跨步骤被悄悄改写 |
+| 非 `unverified` 的 `Claim` 必须带 ≥1 条 `Citation` | 对应 D1"断言必须可回查"，把 grounding 纪律下沉到数据层 |
+| `Verdict(ok=False)` 必须给 `reasons` | 守卫判决必须可解释（对应 state-machine §7） |
+| `Event.ts` 必须带时区；`payload` 必须可 JSON 序列化 | 事件是回放/评测的真相源：时区缺失与不可序列化 payload 必须在写盘前拦住 |
+| `paper_id` 不得含空白；`year ∈ [1800, 2200]` | canonical id 与明显异常值在入口拦截 |
+
+**语义决定（写入文档，供后续步骤依赖）**
+1. **`seq` 按 run 独立**：同一文件可容纳多个 run，各自从 1 开始；`JsonlEventLog` 打开已有文件时从该 run 的最大 seq 续写（重跑不产生重复 seq）。
+2. **失败不留痕**：`emit` 任一步失败（契约校验/IO）→ 抛 `EventLogError` 且不写半行、不推进 seq。
+3. **不掩盖损坏**：`read_events` 遇到非法行立即报错并给出行号（Phase 1 迁移 SQLite 前，JSONL 是唯一真相源）。
+4. **sink 可替换**：上层只依赖 `EventSink.emit(...)`，Phase 1 用 SQLite 实现即可，无需改调用方。
+
+**验收数字**：`uv run pytest -q` → 26 passed；`uv run ruff check .` / `format --check .` → 通过；`demo-events` → `lines=3 seqs=[1, 2, 3]`，首行 JSON 与 `implementation-guide.md` §2.2 形状一致（`id: null` 由 Phase 1 数据库分配）。
+**版本**：`lit_agent_min.__version__` 0.1.0 → **0.2.0**。
+**待办**：Step 0.3（日志基线 `logging.py` + `logs/app.jsonl` + 双写纪律）。
+
+## 2.4 Step 0.3 记录（日志基线）
+
+**交付物**
+- `lit_agent_min/logging.py`：`setup_logging()`（幂等；app/errors 双 handler + 可选控制台）、`bind_context()/clear_context()`、`log_event()`、`get_logger()`、`validate_no_bodies()`、`config_version()`（配置短哈希，便于复现对比）；
+- `lit_agent_min/_version.py`：单一版本来源（`__init__` 与 `logging` 共用，避免循环导入）；版本 → **0.3.0**；
+- `tests/test_logging.py`：9 用例；`__main__.py` 增 `demo-logging` 子命令；`config.Logging` 增 3 个开关。
+
+**落地的三条纪律（规范 §1/§3）**
+| 纪律 | 实现方式 |
+|---|---|
+| info 及以上不得含正文 | `_guard_body` processor：超 `max_field_chars`(500) 的字符串字段 → `<redacted chars=… sha1=…>`；DEBUG 例外（受控目录） |
+| ERROR 必须带 `error_code` | `log_event()` 严格模式直接抛 `LoggingContractError`（`strict_contracts` 可关） |
+| 外部调用双写（日志 + 事件） | `demo-logging` 演示同 run 的 3 事件 / 3 日志 / 1 错误行，并断言 `run_id` 互查 |
+
+**脱敏（规范 §3）**：键名匹配 `api_key/token/secret/password/authorization` → `***`；邮箱保留域名打码（`z***@nus.edu.sg`）；家目录前缀 → `~`；`sk-…`/`Bearer …` 值 → `***`。
+
+**字段（规范 §2.1）**：必填 `ts/level/event/logger/msg/app_version/config_version/host/pid/schema_version`；上下文 `run_id/topic_id/stage/agent` 由 `bind_context` 注入。事件 `seq`（0.2）与日志 `run_id` 构成跨层关联键。
+
+**踩坑与修复**：`structlog` 未在 0.1 依赖清单中 → 本次补入 `pyproject.toml` 并 `uv sync`（`uv.lock` 更新）；`BoundLogger.info(msg, event=…)` 位置参数本身叫 `event` → 改为 `log_event` 内部显式 `event=/msg=` 关键字传参（并移除 `EventRenamer` processor）。
+
+**验收数字**：`pytest -q` → **35 passed**；`ruff check` / `format --check` → 通过；`demo-logging --run-id p0-log-smoke` → `events=3 / log lines=3 / error lines=1`，`[OK] 事件与日志可用 run_id 互相定位`（exit 0）。
+**待办**：W1 的四个 spike（S1 源覆盖度 / S2 本地 vs 云 / S3 存储栈 / S4 断点续跑）。
 
 ## 3. 假设与发现
 

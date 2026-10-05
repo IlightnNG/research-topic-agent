@@ -87,6 +87,9 @@ class Logging(_Model):
     retain_days: int = 30
     retain_error_days: int = 90
     debug_runs: list[str] = Field(default_factory=list)
+    console: bool = True  # 是否同时输出到控制台
+    max_field_chars: int = Field(default=500, ge=64)  # info 及以上单字段长度上限（超出转摘要）
+    strict_contracts: bool = True  # ERROR 级缺 error_code 等契约违规是否直接报错
 
 
 class Settings(_Model):
