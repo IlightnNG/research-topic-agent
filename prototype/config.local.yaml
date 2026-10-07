@@ -24,9 +24,21 @@ providers:
     ctx_len: 8192
 
 sources:
-  openalex_mailto: you@example.com     # 进入 OpenAlex polite pool，务必改成真实邮箱
+  openalex_mailto: hepengzhou@u.nus.edu   # OpenAlex polite pool（真实邮箱）
   arxiv_categories: [cs.AI, cs.LG, cs.MA, cs.SE]
-  venues: []                           # OpenAlex source 白名单（如 NeurIPS/ICML 的 venue id）
+  venues:                              # OpenAlex source id 白名单（人工确认，勿用名字搜索）
+    - S4363606243                      # NeurIPS — neural information processing systems
+    - S4306419637                      # ICLR  — International Conference on Learning Representations
+    - S4306419644                      # ICML  — International Conference on Machine Learning
+    - S4210191458                      # AAAI  — Proceedings of the AAAI Conference on AI
+    - S4306419999                      # IJCAI — International Joint Conference on AI
+    - S4363608652                      # ACL   — Annual Meeting of the ACL
+    - S4363608991                      # EMNLP — Conference on EMNLP
+    - S4210176548                      # CVPR  — IEEE/CVF Conference on CVPR
+    - S7407086902                      # ICCV  — IEEE International Conference on Computer Vision
+    - S4306420647                      # OSDI  — USENIX Symposium on Operating Systems Design and Implementation
+    - S7407089168                      # SOSP  — ACM SIGOPS Symposium on Operating Systems Principles
+    - S7407086679                      # ICSE  — IEEE/ACM International Conference on Software Engineering
 
 guards:
   scope_cosine_min: 0.60               # G1 主题漂移 warn 阈值（Phase 0 初值，待标定）

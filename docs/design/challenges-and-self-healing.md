@@ -1,4 +1,4 @@
-﻿# 重难点模块与自愈机制设计预想
+# 重难点模块与自愈机制设计预想
 
 > 状态：**v0.1 预想稿**——为未来架构做准备，后续逐步细化、工程化
 > 关联：选型见 `project/framework-selection.md`（模块 1–10）；总体架构见 `design/architecture-overview.md`
@@ -77,7 +77,7 @@ retry(≤2, 退避) → degrade(换 provider/模型档, 见模块2) → replan(�
 
 - 为什么难：关系"口径"与"度量"没有标准答案；同名消歧是公认难题；跨 topic 作者一致性要维护。
 - 方案预想：
-  - **元数据级起步**（引用/共著/主题相近，来自 API 元数据），稳定键（paper_id/author_id）全局统一，schema 预留合并机制（消歧二期）；
+  - **元数据级起步**（引用/共著/主题相近，来自 API 元数据），稳定键（paper_id/author_id）全局统一，schema 预留合并机制（消歧列为**二期低优先级**，延后而非取消）；
   - **时间显式建模**：每条边带年份/发现时间 → 作者动向 = 窗口聚合：近 N 年发文量、合作者集合逐年差异、论文主题质心（embedding）逐年位移；
   - **novelty 判定**：检索命中但图中无 BELONGS_TO 的新 paper_id → 候选"新出现论文"（结合 Qdrant payload）；
   - 图谱查询全部收敛在图服务（Kuzu），前端只调接口，不裸查。
@@ -109,7 +109,7 @@ retry(≤2, 退避) → degrade(换 provider/模型档, 见模块2) → replan(�
 ## 8. 对未来架构的准备（工程化预留点）
 
 - 抽象接口先行：`guard 接口`、`事件 schema`、`fault-injection hook`、`provider 注册表`、`图/向量/关系存储接口`（换实现不影响上层）。
-- 扩展点：更多 provider（含未来可能的 Jetson 本地后端——设备/进度未定）；VLM 图文解析进解析管道；全文级引用图（GROBID）；作者消歧二期；多用户与鉴权。
+- 扩展点：更多 provider（含未来可能的 Jetson 本地后端——设备/进度未定）；VLM 图文解析进解析管道；全文级引用图（GROBID）；作者消歧（**二期，低优先级**）；多用户与鉴权。
 - 迁移友好：SQLite→PostgreSQL、Kuzu→Neo4j、Qdrant 本地→server 均只需换存储实现层。
 
 ## 9. 关联与待确认

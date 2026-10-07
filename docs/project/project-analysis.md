@@ -153,6 +153,7 @@ onboarding → scoping(关键词/种子文献/边界)
   - UI：**本地 Web，FastAPI + React/Vue 前后端分离**。
   - 每周运行：**全自动无人值守**；自纠错 + 失败留痕 + 手动重跑。
   - 评测：**混合方案**（citation-grounding 客观检查 + LLM-judge + 人工抽查）。
+  - 引擎范围（2026-10-07 决定）：**本轮只用云端 DeepSeek API**，本地模型不测试、不考虑；local vs cloud 对比延后（若后期恢复本地档需求）。
 
 ### 关联项目（导师的另一项目：Jetson 本地多模态 LLM）——导师提过可能与本项目对接
 

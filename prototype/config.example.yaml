@@ -27,7 +27,7 @@ providers:
 sources:
   openalex_mailto: you@example.com     # 进入 OpenAlex polite pool，务必改成真实邮箱
   arxiv_categories: [cs.AI, cs.LG, cs.MA, cs.SE]
-  venues: []                           # OpenAlex source 白名单
+  venues: []                           # OpenAlex source id 白名单（人工确认的 Sxxxxxxx，勿用名字搜索）
 
 guards:
   scope_cosine_min: 0.60

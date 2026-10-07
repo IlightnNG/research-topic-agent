@@ -67,6 +67,8 @@ find . -type f -not -path './.venv/*' -not -path './out/*' -not -path './logs/*'
 | Step 0.2 `uv run python -m lit_agent_min demo-events` | ✅ `lines=3 seqs=[1, 2, 3]`，事件 JSON 形状与契约一致 |
 | Step 0.3 `uv run pytest -q` | ✅ 35 passed（0.1 的 7 + 0.2 的 19 + 0.3 的 9） |
 | Step 0.3 `uv run python -m lit_agent_min demo-logging` | ✅ `events=3 / log lines=3 / error lines=1`，`[OK]` 事件与日志可用 `run_id` 互相定位 |
+| Step 1 (S1) `python steps/s1_source_coverage.py --topics T1,T2 --limit 100 --skip-probe --venue-sufficiency --arxiv-existence 12` | ✅ 白名单 venue 3 年召回 386 篇（≈129/年，下限）；arXiv 收录率 91.7%；抽查 10/10；限速 20/20 无 429 |
+| Step 1b (S1b) `python steps/s1b_retrieval_and_dedup.py --topics T1,T2 --per-page 100` | ✅ 白名单 vs 宽召回重叠 0.004–0.014；扩展查询 +126/155 篇；重复率 19.3–19.8%；白名单引用完整率 1.5%/14.3%；`from_updated_date` 不可用（付费），`from_publication_date`+cursor 可用且稳定 |
 
 > 依赖装在 `prototype/.venv`（由 `uv sync` 创建）；uv 缓存与托管解释器在 **uv 默认位置**（`uv cache dir` / `uv python dir`），因此**不需要任何自定义环境变量**，换机器只需 `uv sync`。
 > 若 Windows 终端把中文显示成乱码，属控制台编码问题（程序输出为 UTF-8），`chcp 65001` 可解决。
@@ -94,7 +96,7 @@ agent/                          # 仓库根 = Phase 1 的项目根
    ├─ tests/test_config.py                  # ✅ 0.1（7 用例）
    ├─ tests/test_contracts.py               # ✅ 0.2（19 用例）
    ├─ tests/test_logging.py                 # ✅ 0.3（9 用例）
-   ├─ steps/                                # ← S1–S7（一次性脚本）
+   ├─ steps/                                # S1 ✅ 已交付；S2 本轮不做；S3–S7 待做
    └─ out/ + logs/                          # 运行产物（gitignored）
 ```
 
@@ -105,9 +107,9 @@ agent/                          # 仓库根 = Phase 1 的项目根
 | 0.1 | `python -m lit_agent_min selfcheck` | ✅ 已实现 |
 | 0.2 | 契约与事件：`python -m lit_agent_min demo-events`；测试 `uv run pytest -q tests/test_contracts.py` | ✅ 已实现（19 用例） |
 | 0.3 | 日志基线：`python -m lit_agent_min demo-logging`；测试 `uv run pytest -q tests/test_logging.py` | ✅ 已实现（9 用例） |
-| 0.3 | 日志基线：`lit_agent_min/logging.py` + `logs/app.jsonl` + `jq` 查看段 | ⏳ |
-| 1 (S1) | `python steps/s1_source_coverage.py --topic T1 --years 3 --limit 200 --out out/s1_coverage.csv` | ⏳ |
-| 2 (S2) | `python steps/s2_model_baseline.py --tasks out/s2_tasks.yaml --local ollama/qwen2.5:7b --cloud deepseek/deepseek-chat` | ⏳ |
+| 1 (S1) | `python steps/s1_source_coverage.py --topics T1,T2 --years 3 --limit 200 --venue-sufficiency --arxiv-existence 12` | ✅ 已实现（覆盖度 + 白名单召回量 + arXiv 收录率） |
+| 1b (S1b) | `python steps/s1b_retrieval_and_dedup.py --topics T1,T2 --years 3 --per-page 100` | ✅ 已实现（检索策略对比 + 去重 + 过滤后引用完整率 + 增量语义） |
+| 2 (S2) | ~~`python steps/s2_model_baseline.py …`~~ | ⏸ 本轮不做（只用云端 DeepSeek API） |
 | 3 (S3) | `python steps/s3_storage_spike.py --papers 5000 --out out/s3_storage.json` | ⏳ |
 | 4 (S4) | `python steps/s4_checkpoint_spike.py --run-id p0-s4-001`（可中断重跑） | ⏳ |
 | 5 (S5) | `python steps/s5_walking_skeleton.py --topic T1 --run-id p0-s5-001` | ⏳ |

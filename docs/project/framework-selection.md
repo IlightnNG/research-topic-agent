@@ -1,4 +1,4 @@
-﻿# 各模块框架选型调查（Module Framework Selection Survey）
+# 各模块框架选型调查（Module Framework Selection Survey）
 
 > 版本 v0.5 · 第五轮修订：§2.6 展开为"**LangChain 包架构拆解 + 逐模块不采用理由**"（含 v1 重组事实、灵活性缺口、按需单包边界与对导师口径）
 > 版本 v0.4 · 第四轮修订：① 数据源定为 **OpenAlex 为主、arXiv 为辅**（NUS·英文文献·CS/软硬件/工科）；② 补存储引擎"选定 vs 主流"的**架构级优劣**（Kuzu vs Neo4j、Qdrant vs Milvus、SQLite 角色）；③ 补"为什么不选经典 LangChain"（分模块拆分后职责被单点组件承接）
@@ -201,7 +201,7 @@
 节点 Paper/Author/Venue/Topic；边 AUTHORED/CITES/CO_AUTHOR/BELONGS_TO/SIMILAR_TO（均带时间）；作者动向（近 N 年发文、合作者演变、方向位移）；增量 MERGE；规模万级 → 单机。
 
 ### 5.2 可能遇到的问题
-- 无查询语言/内存图 → 分析难写、规模崩（NetworkX）；服务型图库 JVM 重 + 许可证；作者同名消歧（预留不做）；时间不建模则"动向"不可答。
+- 无查询语言/内存图 → 分析难写、规模崩（NetworkX）；服务型图库 JVM 重 + 许可证；作者同名消歧（**二期低优先级，延后**）；时间不建模则"动向"不可答。
 
 ### 5.3 候选对比
 
@@ -285,6 +285,13 @@ collection 全库共享，topic 过滤用 payload 字段；novelty = 检索命�
 **OpenAlex 主 + arXiv 辅**，轻依赖组合：`httpx + pyalex + arxiv + PyMuPDF(+pdfplumber 兜底)`；Pydantic 定义统一 `Paper`；自定义源 = venue/category 白名单数据驱动，无新代码路径。
 
 **是否自研（分层，v0.4 补）**：抓取协议 / PDF 抽取 / OCR / embedding 全部用现成 API 与库；**自研 = 领域胶水**——SourceAdapter 统一接口、字段映射、canonical id（DOI → OpenAlex W → arxiv，加前缀防冲突）与作者键（name_norm + 源内 id）、增量游标（sync_state）与幂等 upsert、分块策略（递归 + token 预算）。解析管道做成**可重跑、失败留痕**的 queue（配合模块7 调度），即 Harness Engineering 的"文档解析运行时"落点。
+
+**实测补充（S1/S1b，2026-10-07）**——模块6 的关键结论已用真实数据验证并调整：
+- **白名单落地形式**：`config.sources.venues` 现为 **12 个人工确认的 OpenAlex source id**（NeurIPS/ICLR/ICML/AAAI/IJCAI/ACL/EMNLP/CVPR/ICCV/OSDI/SOSP/ICSE）；实测"按 venue 名字搜索"不可靠（`neurips` 会被解析成法律评论、`iclr`/`osdi` 搜不到）→ **必须用 source id**；
+- **检索策略**：白名单过滤与宽召回的标题重叠仅 **Jaccard 0.004–0.014**，且"多查询扩展"在白名单内再增加 **126/155** 篇新论文 → 检索器默认「**白名单过滤 + 多查询扩展**」，宽召回仅作跨源候选发现；
+- **去重**：同标题多记录占 **19.3–19.8%**（会议版/期刊版/存档版）→ 去重键由 `sha1(canonical_id)` 升级为「**DOI + 归一化标题 + 年份**」，主记录保留 `merged_ids`；
+- **引用元数据**：白名单侧 `referenced_works` 完整率仅 **1.5%/14.3%**（低于宽召回 25–27%，且 DOI 交叉核对确认非版本问题）→ 关联图需 **`cited_by` 反向构边**，Crossref 补源列为待评估项；
+- **增量同步**：`from_updated_date` 为 OpenAlex 付费专属（429）→ 改用 **`from_publication_date` 倒序 + 已见 paper_id 水位线**（游标分页实测稳定）。
 
 ### 7.5 主流框架对照
 
@@ -459,7 +466,7 @@ Vue3|React + TS + Vite + Element Plus/AntD + ECharts；SSE 实时；作者节点
 | 框架 API 演进（LangGraph/LiteLLM/DeepEval） | 锁版本；按官方稳定模式写；框架相关代码收敛在少数文件（图定义/网关配置/评测配置） |
 | 框架 checkpoint 与自库状态重复 | LangGraph checkpointer 只管运行内恢复；SQLite 管领域数据+事件+指标 |
 | LiteLLM 抽象黑盒 | 关键字段自定义 callback 校验；锁版本 + 官方文档 |
-| 作者同名/异名 | 不做消歧，schema 预留合并键；评测注明口径 |
+| 作者同名/异名 | 消歧**延后（二期，低优先级）**：schema 预留合并键与 author_id 稳定键；评测注明口径 |
 | 源 API 限流/字段变动 | 礼貌限速+重试；Pydantic 校验告警不崩管道 |
 | SQLite 并发写 | WAL + 单写者封装；预留 PG |
 | LLM 非确定性影响评测 | 记录 sampling；judge 异源；固定配置复现 |

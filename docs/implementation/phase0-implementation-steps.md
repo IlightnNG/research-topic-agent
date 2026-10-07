@@ -10,12 +10,12 @@
 ## 0. Phase 0 的目标与出口标准
 
 ### 0.1 三个目标
-1. **验证关键选型**：数据源覆盖度、本地 vs 云模型质量、存储栈性能、断点续跑能力——都要有**数字**；
+1. **验证关键选型**：数据源覆盖度、存储栈性能、断点续跑能力——都要有**数字**（本地 vs 云模型质量本轮不做，见 Step 2 注记）；
 2. **跑通最小闭环**：单个 topic 从检索到出报告（无 UI、无调度），且重复运行幂等；
 3. **建立埋点与守卫雏形**：4 类事件可回放；漂移与循环两个守卫能"注入→检出→回退"。
 
 ### 0.2 出口标准（Phase 0 Exit Gate，全部勾选才算完成）
-- [ ] Step 1–4 四个验证都有数字结论（含"结论为负"的情况，需写明应对）；
+- [ ] Step 1/3/4 三个验证都有数字结论（**S2 本轮豁免**；含"结论为负"的情况需写明应对）；
 - [ ] 三库（SQLite/Kuzu/Qdrant）可写可查、重复写入幂等；
 - [ ] 单 topic 能自动产出一份报告，且每条 claim 带可回查 citation；
 - [ ] 事件日志可按 run 完整回放（4 类事件齐全）；
@@ -93,8 +93,8 @@ agent/                            # 仓库根（= Phase 1 的 Python 项目根�
 | `lit_agent_min/parsing.py` | 全文抽取与分块 | `extract_text() -> str`、`chunk(text, budget) -> Chunk[]` | PDF 路径 → 文本/分块 | pymupdf/pdfplumber/tiktoken | 5.3 | → `parsing/` |
 | `lit_agent_min/stores.py` | 三库读写（幂等） | `upsert_paper()`、`search()`、`graph_upsert()` | Paper/向量 → 三库 | sqlalchemy/kuzu/qdrant-client | 5.4（S3 复用） | → `db/` + `stores/` |
 | `lit_agent_min/report.py` | 报告生成与引用解析 | `draft_report(cards) -> (md, Claim[])` | 证据卡 → 报告 + claims | litellm/models | 5.6 | → `agents/reporter.py` |
-| `steps/s1_source_coverage.py` | 覆盖度统计实验 | CLI：`--topic --years --limit --out` | 源 API → CSV + 结论 | sources | 1 | 逻辑并入 `sources/` + `eval/` |
-| `steps/s2_model_baseline.py` | 双引擎基线实验 | CLI：`--tasks --local --cloud --out` | 任务集 → 对比 CSV | litellm | 2 | 逻辑并入 `eval/`，结论进路由策略 |
+| `steps/s1_source_coverage.py` | 源覆盖度实验（✅ 已交付） | CLI：`--topics --years --limit --venue-sufficiency --arxiv-existence --skip-probe` | 源 API → `out/s1_coverage.csv/.json` + 结论 | httpx/arxiv | 1 ✅ | 逻辑并入 `sources/` + `eval/` |
+| `steps/s2_model_baseline.py` | 双引擎基线实验（⏸ 本轮不做：只用云端 DeepSeek） | CLI：`--tasks --local --cloud --out` | 任务集 → 对比 CSV | litellm | 2（延后） | 逻辑并入 `eval/`，结论进路由策略 |
 | `steps/s3_storage_spike.py` | 存储性能与幂等实验 | CLI：`--papers --out` | 元数据 → 指标 JSON | stores | 3 | 逻辑并入 `stores/` 测试 |
 | `steps/s4_checkpoint_spike.py` | 断点续跑实验 | CLI：`--run-id`（可中断重跑） | 图执行 → 事件 JSONL | langgraph | 4 | 配置结论进 `runtime/` |
 | `steps/s5_walking_skeleton.py` | 端到端编排（子步 5.1–5.7） | CLI：`--topic --run-id` | topic → 报告 + claims + 事件 | lit_agent_min 全部 | 5 | 拆解进 sources/parsing/stores/agents |
@@ -223,7 +223,47 @@ uv run python steps/s1_source_coverage.py --topic T1 --years 3 --limit 200 --out
 - 明确回答："只用 OpenAlex 会漏什么？arXiv 补上多少？"
 **失败应对**：覆盖率 < 60% → 记录并评估加 DBLP/Crossref/自定义源；OA 率 < 20% → 确认"仅摘要"为默认策略，评测 grounding 口径写入文档。
 
+#### Step 1b（S1b）检索策略 / 去重 / 过滤后引用完整率（S1 的衍生，时间盒 0.5–1 天）
+
+**要回答的问题**（S1 只测了"覆盖与噪声"，这些是"怎么检索、怎么去重"的可行性）
+1. **白名单过滤后的引用完整率**是多少（宽召回样本仅 ~18%，过滤后是否显著更高）→ 决定关联图是否需要 Crossref 补源；
+2. **去重方案**是否可行：同标题/同 DOI 的多版本占多少？指纹去重后剩多少唯一论文？
+3. **检索策略**怎么选：宽召回 / 白名单过滤 / 多查询扩展并集 → 产出量、白名单命中、彼此重叠（Jaccard）；
+4. **增量游标**语义：`from_updated_date` 是否可用？游标分页是否稳定？是否存在回溯更新（updated ≫ published）？
+
+**内容要求**
+- 脚本 `steps/s1b_retrieval_and_dedup.py`：三策略抓取（每策略记录 strategy 标签）+ 去重统计 + 完整性统计 + 增量探测；
+- 白名单读自 `config.sources.venues`（**必须是人工确认的 source id**，见 S1 结论 3）；
+- 产出 `out/s1b_records.csv`（逐条含 strategy/去重键）与 `out/s1b_summary.json`（四项结论 + 数字）。
+
+**执行命令**
+```bash
+uv run python steps/s1b_retrieval_and_dedup.py --topics T1,T2 --years 3 --per-page 100
+```
+
+**验收标准**
+- 四个问题都有数字，且可追溯到 CSV/JSON；
+- 给出**检索策略结论**（默认策略 + 是否需要查询扩展）与**去重键结论**（指纹够不够、是否需要标题+DOI+年份组合键）；
+- 增量探测给出"时间戳游标是否可用/分页是否稳定"的明确答复。
+
+**失败应对**：空间不足或接口限制导致策略 3 不可跑 → 保留策略 1/2 结论并记录；引用完整率仍低（<50%）→ 在 S3/S5 前把 Crossref 补源列入计划。
+
+**实测结果（2026-10-07，脚本已交付）**
+
+| topic | broad n/refs | whitelist n/refs/OA | expansion n/refs | 重复率 | 唯一/总 |
+|---|---|---|---|---|---|
+| T1 | 100 / 27.0% | 200 / **1.5%** / 100% | 211 / 1.9% | 19.8% | 410/511 |
+| T2 | 100 / 25.0% | 147 / **14.3%** / 100% | 236 / 9.8% | 19.3% | 390/483 |
+
+**结论（三项改动直接进入 S5 前置）**
+1. **白名单必须作主通道**：白名单与宽召回标题重叠 **Jaccard 0.014/0.004**，白名单中 196/146 篇是宽召回没捞到的 → 只做宽召回会系统性漏目标会议论文；
+2. **去重键必须是三元组**：同标题多记录 19.3–19.8%（version copies 101/93）→「DOI + 归一化标题 + 年份」合并为一条主记录并保留 `merged_ids`；
+3. **引用图要反向构边**：白名单记录引用完整率仅 1.5%/14.3%（宽召回 25–27%），DOI 交叉核对确认**不是版本问题**（AAAI/IJCAI/ACL proceedings 记录本身无 references）→ 用 `cited_by` 反向构边 + 后续评估 Crossref；评测注明引用覆盖不完整；
+4. **增量改用 publication_date 水位线**：`from_updated_date` 为付费专属（429 Plan upgrade required）；`from_publication_date + sort=publication_date:desc + cursor` 可用且稳定（page1 两次一致、page2 与 page1 重叠 0）；并对"未来日期"记录（实测到 2050-02-21）做合理性过滤。
+
 ### Step 2（S2）本地 vs 云质量基线（时间盒 1 天）
+
+> **⏸ 本轮不做（2026-10-07 决定）**：项目当前只使用**云端 DeepSeek API**，本地模型不测试、不考虑；本节保留为将来（若恢复本地档需求）的执行定义。S5 的依赖因此为 **1、3、4**（不含 S2）。
 **要回答的问题**：本地小模型（Ollama）在哪些任务上可用？质量差多少、成本与延迟差多少？
 **内容要求**
 1. 任务集 20 条（固定、可复跑）：10 条**字段抽取**（从摘要抽方法/年份/任务）+ 5 条**摘要概括** + 5 条**相关性判定**（相关/不相关）；
@@ -373,11 +413,12 @@ uv run python steps/s7_metrics.py --events out/events.jsonl --out out/metrics_su
 | 0.1 | 环境与骨架 | 0.5 d | — | ☐ 待办 / ◐ 进行中 / ☑ 完成 / ⛔ 阻塞 | |
 | 0.2 | 最小契约与事件写入 | 0.5 d | 0.1 | ☑ 完成（26 passed；`demo-events` seq=1/2/3） | |
 | 0.3 | 最小日志基线 | 0.5 d | 0.2 | ☑ 完成（35 passed；`demo-logging` 互查 OK） | |
-| 1 | S1 源覆盖度 | 1 d | 0.2 | ☐ | |
-| 2 | S2 本地 vs 云基线 | 1 d | 0.2 | ☐ | |
+| 1 | S1 源覆盖度 | 1 d | 0.2 | ☑ 完成（白名单 386 篇/3 年；arXiv 收录率 91.7%；抽查 10/10） | |
+| 1b | S1b 检索/去重/引用完整率 | 0.5–1 d | 1 | ☑ 完成（重叠 0.004–0.014；重复 19%；白名单 refs 1.5%/14.3%；updated 过滤付费） | |
+| 2 | S2 本地 vs 云基线 | 1 d | 0.2 | ⏸ 本轮不做（云-only） | |
 | 3 | S3 存储栈 | 1 d | 0.2 | ☐ | |
 | 4 | S4 断点续跑 | 0.5 d | 0.2 | ☐ | |
-| 5 | S5 最小闭环 | 2.5 d | 1–4 | ☐ | |
+| 5 | S5 最小闭环 | 2.5 d | 1、3、4（S2 跳过） | ☐ | |
 | 6 | S6 守卫与注入 | 2 d | 5 | ☐ | |
 | 7 | S7 指标聚合 | 1 d | 5, 6 | ☐ | |
 | 8 | 收尾与决策门 | 0.5–1 d | 1–7 | ☐ | |
@@ -402,8 +443,9 @@ uv run python steps/s7_metrics.py --events out/events.jsonl --out out/metrics_su
 ## 9. Phase 0 出口检查清单（逐项勾选）
 
 - [ ] Step 0：环境可复现（README + uv.lock）；事件 JSONL 格式与 §2.2 对齐；**日志可用 `run_id` 与事件三向定位、错误行 100% 带 `error_code`、info 无正文**；
-- [ ] S1：venue 覆盖率 / 引用完整率 / OA 率 / arXiv 补漏率 四个数字齐 + 抽查正确率 ≥ 90%；
-- [ ] S2：20 条任务双引擎对比完成，给出"哪些任务可走本地"的结论；
+- [x] S1：四项数字齐，且白名单 venue 3 年召回 386 篇（≈129/年，下限）、arXiv 收录率 91.7%、抽查 10/10；
+- [x] S1b：检索策略（白名单主通道 + 多查询扩展）、去重键（DOI+标题+年份）、增量语义（publication_date 水位线）三项结论齐，引用覆盖缺口已量化；
+- [~] S2 **本轮豁免**：只用云端 DeepSeek API（本地档测试推迟，见 Step 2 注记）；
 - [ ] S3：5k 导入与四类查询达标，**重复导入幂等**，给出是否需要换库的结论；
 - [ ] S4：中断恢复成功，已完成节点不重跑，恢复粒度结论已记录；
 - [ ] S5：单 topic 出报告（≥800 字、≥10 claim、100% 带 citation、事件 ≥30 条），重跑幂等；
@@ -434,5 +476,19 @@ Depends: Phase 0 Exit Gate 通过
 Acceptance: uv run pytest -q tests/unit/test_config.py；空配置启动自检通过
 Forbidden: 修改 §2 冻结契约；新增未批准依赖
 ```
+
+**数据源优化 backlog（来自 S1/S1b，转入 Phase 1，不在 Phase 0 继续）**
+
+| 优化项 | 归属 | 前置/触发 |
+|---|---|---|
+| 白名单扩充与治理（硬件/EDA/网络/系统；source id 人工确认） | `sources/` | 每 topic 订阅集定义 |
+| 三段式去重 + `merged_ids`（需 ADR 改 `Paper` 契约） | `sources/normalize.py` | S5 前置 |
+| `cited_by` 反向构边 + 引用覆盖率指标 | `stores/graph.py` + 评测 | S3 之后 |
+| Crossref 补引用评估 | 待评估 | 反向构边不足时 |
+| topic 质心相关性过滤（embedding） | 检索 agent | Qdrant 就绪（P3） |
+| publication_date 水位线增量 + 日期校验 + 周期性浅刷新 | `runtime/` + `sources/` | S3/S5 |
+| 滚雪球（references + citers）召回通道 | `sources/` | 同上 |
+
+> 数据源 track 的可行性验证已在 **S1 + S1b 收口**（结论、数字与 backlog 见 `prototype/RESULTS.md` §2.5–§2.7）。Phase 0 剩余：S3 存储栈、S4 断点续跑、S5 最小闭环。
 
 > 使用方式：把本文件当"施工日志"。每完成一步，在 §7 表里改状态、在 `RESULTS.md` 记数字、在 §9 勾一项；全部勾完即 Phase 0 完成，可向导师申请开工 Phase 1。

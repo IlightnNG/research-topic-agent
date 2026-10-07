@@ -142,7 +142,7 @@ scoping → planning → retrieval_agent → ingest_parse(确定性)
 | Qdrant(本地) | 论文摘要/片段 embedding，payload 过滤 | 语义召回 + 元数据过滤 |
 | 文件系统 | 原始/解析后全文（按 paper_id 目录） | 避免 DB 膨胀，PDF 重解析 |
 
-键策略：paper_id（canonical，如 openalex id / arxiv id 归一）为全局稳定键，三存储同键互引；author_id 预留合并机制（同名消歧后续做）。
+键策略：paper_id（canonical，如 openalex id / arxiv id 归一）为全局稳定键，三存储同键互引；author_id 预留合并机制（同名消歧：**二期低优先级，延后而非取消**）。
 
 ### 4.2 SQLite schema 草案（表清单）
 - `topics(id, name, description, scope_statement, status, config_json, schedule_cron, created_at, updated_at)`
@@ -159,6 +159,7 @@ scoping → planning → retrieval_agent → ingest_parse(确定性)
 - 节点：`Paper{paper_id,title,abstract,venue,year,published_at,discovered_at,updated_at,source,doi}`；`Author{author_id,name_norm}`；`Venue{venue_id,name}`；`Topic{topic_id,name,scope_statement}`
 - 边：`PAPER_AUTHOR(p,a,year)` · `CITES(p→p)` · `PUBLISHED_IN(p→v)` · `BELONGS_TO(p→topic, added_at)` · `SIMILAR_TO(p→p, score, computed_at)`（由向量相似度定期写）
 - 代表查询（作者动向）：某 author 近 N 年发文时间线（按 year 聚合）；合作者集合逐年差异（CO_AUTHOR 派生）；论文关键词/embedding 质心逐年位移（方向演变）。
+- 实测修正（S1/S1b，2026-10-07）：白名单记录 `referenced_works` 完整率仅 1.5–14.3%（宽召回 25–27%，且 DOI 交叉核对确认非版本问题）→ **`CITES` 边以 `cited_by` 反向构边为主**（用"引用方的 references"补出被引关系），Crossref 补源列为待评估；`Paper` 节点增加 `merged_ids`（去重合并的多版本 id）与 `citers_checked_at`（反向抓取水位）。
 - topic 为图上子图视图；作者节点跨 topic 共享（跨领域动向可查）。
 
 ### 4.4 向量（Qdrant）
