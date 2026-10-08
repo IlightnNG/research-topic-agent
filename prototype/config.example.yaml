@@ -6,7 +6,7 @@ paths:
   out_dir: out
   data_dir: out/data
   sqlite_path: out/data/sqlite.db
-  kuzu_path: out/data/kuzu
+  kuzu_path: out/data/kuzu              # 必须是纯 ASCII 路径（Kuzu Windows 限制，S3 实测）；仓库路径含中文时需改为 ASCII 绝对路径
   qdrant_path: out/data/qdrant
   papers_dir: out/data/papers
   logs_dir: logs

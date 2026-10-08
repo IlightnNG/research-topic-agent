@@ -1,7 +1,8 @@
 # 整体架构设计（Architecture Overview）
 
-> 版本 v0.2 · 与《project/framework-selection.md v0.2》配套（编排内核 = LangGraph，成熟框架优先）
+> 版本 v0.3 · 与《project/framework-selection.md v0.5》配套（编排内核 = LangGraph，成熟框架优先）
 > 状态：结构定稿，待导师确认项见 §9；Jetson 关联项目仅作背景备注（见 §8），未纳入正式架构
+> v0.3 变更：§8 补充 S3 实测的三条本地存储约束（Kuzu 单文件路径 / 仅 `Database.close()` 落盘 / 非 ASCII 路径不可用）
 
 ## 1. 设计目标与约束（速览）
 
@@ -219,9 +220,13 @@ APScheduler 触发(topic_i, cron) → 创建 run(queued) → 广播事件
 
 ## 8. 部署形态与配置
 - 单进程 uvicorn(FastAPI) 承载 Web + 调度器 + 运行器（asyncio）；CPU 密集（PDF 解析/embedding 批量）走线程池或独立 worker（预留）。
-- 目录：`config.yaml`；`data/{app.db, kuzu/, qdrant/, papers/}`；前端构建产物静态托管。
+- 目录：`config.yaml`；`data/{app.db, kuzu, qdrant/, papers/}`；前端构建产物静态托管。
+  - **实测约束（S3）**：Kuzu 的 `kuzu_path` 是**单文件**（不是目录），而 Qdrant local 的 `qdrant_path` 是**目录**——两者清理方式不同（删文件 vs 删目录），代码里统一走 `reset_store_path()` 处理。
+  - **实测约束（S3）**：Kuzu 只在 `Database.close()` 时 checkpoint 落盘（`Connection.close()` 不触发），因此磁盘占用统计必须在关闭 DB 句柄之后进行，否则读到 0.0MB 假值。
+  - **实测约束（S3）**：Kuzu 无法打开含非 ASCII 的路径（Windows），数据路径需落在纯 ASCII 目录（开发机用 `E:\lit-agent-data\`），Qdrant local 无此限制。
 - 配置面：providers（本地档位/云 key）、路由策略、守卫阈值、调度 cron、评测开关。
 - 无外部服务依赖；Windows 开发机直跑，Linux 部署可选容器化。
+  - **⚠️ 待决策（S3 §2.9 实测引出）**：向量检索的**部署形态**存在三选一岔路，会影响到本行的"无外部服务依赖"表述——**A** 接受 Qdrant local（嵌入式）的暴力扫描（纯 Python、无 ANN；实测 ≈0.038 ms/点 → 2 万篇 ≈0.76 s/查询；优点是**精确 kNN、召回更高**且仍是单进程）；**B** 起本地 Qdrant **server 进程**（仍单机、不需 Docker，可拿到 HNSW + payload 索引 + 量化，代价是端口/进程管理与崩溃恢复）；**C** 换嵌入式 ANN 库（hnswlib/FAISS/LanceDB，保留单进程但需自实现 payload 过滤与持久化）。Phase 1 先决策、后调参；S5（最小闭环）不受阻。
 - 备注（非正式路径）：本地推理后端未来可能多一个"Jetson 本地服务"档位（导师另一项目，设备/进度未定，见 project/project-analysis.md"关联项目"，届时仅需在网关 provider 注册表中加一条）。
 
 ## 9. 待导师/组会确认项（承接选型文档 §14）

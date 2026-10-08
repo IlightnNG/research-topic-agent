@@ -1,4 +1,4 @@
-﻿# 状态机与守卫判决表（设计与实现规范）
+# 状态机与守卫判决表（设计与实现规范）
 
 > 状态：**v0.1 预想/指导方案**——不是组会材料，而是后续系统完善的实现依据（可直接据此写代码与测试）
 > 用途：① 实现依据：状态、迁移、守卫、阈值、动作全部显式化；② 测试依据：每条迁移与守卫都有对应用例；③ 论文附录：Harness Engineering 的核心设计资产
@@ -257,6 +257,17 @@ S0 scope_check ─► S1 plan ─► S2 retrieve ─► S3 ingest_parse ─► S
 | 判决 | `annotate`（报告标记低置信，**不阻断**）；评测中分桶统计 |
 | 事件 | `metric{degraded_ratio}` + `report_written{degraded=true}` |
 | 测试要点 | 降级 run 的报告带标记；正常 run 不带 |
+
+### G14 数据完整性对账（write verification，**S3 实测后新增，脚本内已实现**）
+| 项 | 内容 |
+|---|---|
+| 触发点 | 每次投影写入（SQLite → Kuzu/Qdrant）之后；每次导入之前 |
+| 信号 | ① 写入后 `expected`（应写节点/边/向量数）与 `actual`（库内计数）不一致 → 差集"只多不少"提示跨运行残留，缺项提示"边静默丢失"；② 导入前目标库非空（空库哨兵不为 0） |
+| 默认阈值 | 任一计数不相等即触发（计数是整数真值，无需容差） |
+| 判决 | `E_DATA_COUNT_MISMATCH` → `retry`（≤2）后仍不一致 → `abort`（索引不可信，回退真相源查询）；`E_STORE_NOT_EMPTY` → `abort`（reset 未生效，后续所有计数不可信） |
+| 事件 | `guard_trigger{code=E_DATA_COUNT_MISMATCH, expected, actual, diff}` / `{code=E_STORE_NOT_EMPTY, detail}`；`metric{projection_write_mismatch_total}` |
+| 测试要点 | 注入"边端点缺失"（`MATCH+MERGE` 会**静默不写**）必须被检出；注入"旧库残留"必须被空库哨兵拦下；正常写入零误报 |
+| 实测依据 | S3：20000 条边全部 `MATCH+MERGE` 成功时 `mismatches={}`（无假阳性）；旧库残留场景 `expected_authors=631 / actual=957` 被差集特征定位（详见 `agent-design-decisions.md` F7） |
 
 ---
 

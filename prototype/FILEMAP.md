@@ -33,7 +33,8 @@
 | `steps/s1_source_coverage.py` | 源覆盖度实验（✅ 已交付） | CLI：`--topics --years --limit --venue-sufficiency --arxiv-existence --skip-probe`；产出覆盖度四指标 + 白名单召回量 + arXiv 收录率 + 限速探测 | 源 API → `out/s1_coverage.csv` / `.json` / `s1_deep.log` + 事件/日志 | httpx/arxiv/pyalex | 1 ✅ | 逻辑并入 `sources/` + `eval/` |
 | `steps/s1b_retrieval_and_dedup.py` | 检索策略/去重/引用完整率实验（✅ 已交付） | CLI：`--topics --years --per-page --out --summary`；三策略对比（broad/whitelist/expansion）+ 去重统计 + 增量语义探测 | 源 API → `out/s1b_records.csv` / `s1b_summary.json` + 事件/日志 | httpx | 1b ✅ | 逻辑并入 `sources/`（检索器+去重器） |
 | `steps/s2_model_baseline.py` | 双引擎基线实验（⏸ 本轮不做：项目当前只用云端 DeepSeek） | 规划 CLI：`--tasks --local --cloud --out` | 任务集 → 对比 CSV | litellm | 2（延后） | 逻辑并入 `eval/` |
-| `steps/s3_storage_spike.py` | 存储性能与幂等实验 | CLI：`--papers --out` | 元数据 → 指标 JSON | stores | 3 | 逻辑并入 `stores/` 测试 |
+| `steps/s3_storage_spike.py` | 存储栈验证（✅ 已交付，5k 全量）：导入/四类查询/幂等/可重建/边界探针 | CLI：`--papers --rounds --[no-]rebuild-check --summary`；`reset_store_path()`（文件/目录通用清理）、`path_size_mb()`、`store_is_empty()`（导入前空库哨兵）、写入后计数对账 | 元数据 → `out/s3_storage.json` + 事件/日志 | kuzu/qdrant-client/sqlite3 | 3 ✅ | 逻辑并入 `stores/` + `tests/integration/` |
+| `steps/s3b_vector_latency_probe.py` | 向量延迟归因探针（✅ 已交付）：拆解"纯算力下限 / local 模式开销 / payload 过滤成本"、1250–5000 规模曲线、payload 索引有效性 | 无 CLI（`ROUNDS`/`SIZES` 为文件内常量）；写入路径复用 S3 的 `init_qdrant`/`qdrant_upsert` 保证同口径 | 5000 点 → `out/s3b_vector_latency.json` | numpy/qdrant-client | 3 ✅ | **一次性归因脚本，不迁移**；结论进 Phase 1 部署形态决策 |
 | `steps/s4_checkpoint_spike.py` | 断点续跑实验 | CLI：`--run-id` | 图执行 → 事件 JSONL | langgraph | 4 | 配置结论进 `runtime/` |
 | `steps/s5_walking_skeleton.py` | 端到端编排（子步 5.1–5.7） | CLI：`--topic --run-id` | topic → 报告 + claims + 事件 | lit_agent_min 全部 | 5 | 拆解进 sources/parsing/stores/agents |
 | `steps/s6_guards_demo.py` | 守卫与注入演示 | CLI：`--topic --inject --repeats` | 注入场景 → 事件链 | lit_agent_min + guards | 6 | → `graph/guards.py` + `eval/faultinject.py` |

@@ -69,6 +69,8 @@ find . -type f -not -path './.venv/*' -not -path './out/*' -not -path './logs/*'
 | Step 0.3 `uv run python -m lit_agent_min demo-logging` | ✅ `events=3 / log lines=3 / error lines=1`，`[OK]` 事件与日志可用 `run_id` 互相定位 |
 | Step 1 (S1) `python steps/s1_source_coverage.py --topics T1,T2 --limit 100 --skip-probe --venue-sufficiency --arxiv-existence 12` | ✅ 白名单 venue 3 年召回 386 篇（≈129/年，下限）；arXiv 收录率 91.7%；抽查 10/10；限速 20/20 无 429 |
 | Step 1b (S1b) `python steps/s1b_retrieval_and_dedup.py --topics T1,T2 --per-page 100` | ✅ 白名单 vs 宽召回重叠 0.004–0.014；扩展查询 +126/155 篇；重复率 19.3–19.8%；白名单引用完整率 1.5%/14.3%；`from_updated_date` 不可用（付费），`from_publication_date`+cursor 可用且稳定 |
+| Step 3 (S3) `python steps/s3_storage_spike.py --papers 5000` | ✅ 5k 全量：kuzu 169.5s / qdrant 26.8s 导入，图 2-hop p95 4.42ms、聚合 p95 5.06ms、向量 p95 155.45ms、sqlite p50 0.07ms；幂等零增长；删库重建计数一致；磁盘 64.9MB；20000 边全 MERGE；单写者语义成立 |
+| Step 3b (S3b) `python steps/s3b_vector_latency_probe.py` | ✅ 归因：5000 点约 190ms 中纯算力仅 **0.65ms（0.3%）**、local 无过滤 49.91ms、payload 过滤 +140ms（占 74%）；**Qdrant local 无 ANN、payload 索引无效**；规模线性 ≈0.038ms/点（2 万篇外推 ~0.76s/查询）→ 判为"部署形态选型 + 验收目标错配"，非架构缺陷；local = 精确 kNN，召回不受损 |
 
 > 依赖装在 `prototype/.venv`（由 `uv sync` 创建）；uv 缓存与托管解释器在 **uv 默认位置**（`uv cache dir` / `uv python dir`），因此**不需要任何自定义环境变量**，换机器只需 `uv sync`。
 > 若 Windows 终端把中文显示成乱码，属控制台编码问题（程序输出为 UTF-8），`chcp 65001` 可解决。
@@ -96,7 +98,7 @@ agent/                          # 仓库根 = Phase 1 的项目根
    ├─ tests/test_config.py                  # ✅ 0.1（7 用例）
    ├─ tests/test_contracts.py               # ✅ 0.2（19 用例）
    ├─ tests/test_logging.py                 # ✅ 0.3（9 用例）
-   ├─ steps/                                # S1 ✅ 已交付；S2 本轮不做；S3–S7 待做
+   ├─ steps/                                # S1 ✅ / S1b ✅ / S3 ✅ 已交付；S2 本轮不做；S4–S7 待做
    └─ out/ + logs/                          # 运行产物（gitignored）
 ```
 
@@ -110,7 +112,8 @@ agent/                          # 仓库根 = Phase 1 的项目根
 | 1 (S1) | `python steps/s1_source_coverage.py --topics T1,T2 --years 3 --limit 200 --venue-sufficiency --arxiv-existence 12` | ✅ 已实现（覆盖度 + 白名单召回量 + arXiv 收录率） |
 | 1b (S1b) | `python steps/s1b_retrieval_and_dedup.py --topics T1,T2 --years 3 --per-page 100` | ✅ 已实现（检索策略对比 + 去重 + 过滤后引用完整率 + 增量语义） |
 | 2 (S2) | ~~`python steps/s2_model_baseline.py …`~~ | ⏸ 本轮不做（只用云端 DeepSeek API） |
-| 3 (S3) | `python steps/s3_storage_spike.py --papers 5000 --out out/s3_storage.json` | ⏳ |
+| 3 (S3) | `python steps/s3_storage_spike.py --papers 5000`（`--no-rebuild-check` 可跳过删库重建校验） | ✅ 已实现（导入/四类查询/幂等/可重建/边界探针 + 写入计数对账） |
+| 3b (S3b) | `python steps/s3b_vector_latency_probe.py` | ✅ 已实现（向量延迟归因：算力下限 / local 开销 / 过滤成本 / 规模曲线；**一次性探针，不迁移**） |
 | 4 (S4) | `python steps/s4_checkpoint_spike.py --run-id p0-s4-001`（可中断重跑） | ⏳ |
 | 5 (S5) | `python steps/s5_walking_skeleton.py --topic T1 --run-id p0-s5-001` | ⏳ |
 | 6 (S6) | `python steps/s6_guards_demo.py --topic T1 --inject drift --repeats 3` | ⏳ |
@@ -152,6 +155,8 @@ jq -c 'select(.run_id=="p0-log-smoke")' out/events.jsonl
    - 当前规避：`[tool.uv] package = false` + 托管解释器；代价是 **`import lit_agent_min` 只在项目目录下有效**（从仓库根 `uv run --project prototype …` 会 `ModuleNotFoundError`，已实测）；
    - **根治（Phase 1 推荐）**：正式仓库放到**纯 ASCII 路径**，恢复 `package = true` 与可编辑安装；
    - 备选（未实测）：保留中文路径但用 `uv sync --no-editable`（安装 wheel 副本，不生成带路径的 `.pth`）。
+7. **Kuzu 要求纯 ASCII 数据路径**（S3 实测）：`kuzu.Database("E:\\大学\\…\\kuzu")` → `RuntimeError: IO exception: Cannot open file … Error 3`。因此 `config.local.yaml` 的 `kuzu_path` 指向 ASCII 目录（本机 `E:\lit-agent-data\kuzu`）；Qdrant local 无此限制（可放中文路径）。
+8. **Kuzu 的库路径是单文件、且只在 `Database.close()` 时落盘**（S3 实测）：清理必须区分文件/目录（`rmtree` 对文件会抛 `NotADirectoryError`，配 `ignore_errors=True` 会被静默吞掉 → 旧库残留、`MERGE` 跨运行累积）；磁盘统计要在 `db.close()` 之后做，否则读到 `0.0MB` 假值。脚本内已固化为 `reset_store_path()` / `path_size_mb()` / 导入前空库哨兵 `store_is_empty()`。
 
 ## 变更与提交约定
 

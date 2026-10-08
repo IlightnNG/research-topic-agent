@@ -13,7 +13,7 @@
 | 1 (S1) | 源覆盖度验证完成：**OpenAlex 为主成立**，arXiv 价值在时效而非补漏 | 白名单 venue 3 年召回 **386 篇（≈129/年，缺 NeurIPS/ICLR/OSDI，属下限）**；arXiv 预印本 OpenAlex 收录率 **91.7%（11/12）**；宽召回样本白名单命中仅 3.5–5%；OA 率 90–93%；引用完整率 18%；限速 20/20 无 429（p50 1.09s）；抽查 10/10 | `out/s1_coverage.csv`、`out/s1_coverage.json`、`out/s1_deep.log` | 是（见 §2.5：检索必须白名单过滤+去重；venue 白名单必须用 source id） | 2026-10-07 | ☑ 完成 |
 | 1b (S1b) | 检索策略/去重/引用完整率验证完成，出现 3 个反直觉但决定性的发现（见 §2.6） | 白名单 vs 宽召回重叠 Jaccard 仅 **0.004–0.014**；查询扩展新增 **126/155** 篇；重复率 **19.3–19.8%**（version copies 101/93）；白名单引用完整率 **1.5%/14.3%（低于**宽召回 27%/25%）；`from_updated_date` **付费专属（429）**，`from_publication_date` 可用且游标分页稳定（page2 overlap=0）；发现 2050 年未来日期记录 | `out/s1b_records.csv`、`out/s1b_summary.json`、`out/s1b_run.log` | 是（检索必须显式白名单+多查询；引用图需反向边/Crossref；增量改用 publication_date 水位线） | 2026-10-07 | ☑ 完成 |
 | 2 (S2) | **本轮不做**：项目当前只使用云端 DeepSeek API，本地模型不测试、不考虑 | — | — | 是（评测的 local vs cloud 对比维度延后；路由暂无本地分支） | 2026-10-07 | ⏸ 延后 |
-| 3 (S3) | — | — | — | — | — | ☐ |
+| 3 (S3) | 存储栈验证完成：**三库方案成立，不需要换 Neo4j/Milvus**；唯一未达标项是向量检索延迟 | 5k 导入 sqlite 0.22s / kuzu 169.46s / qdrant 26.78s；图 2-hop p95 **4.42ms**、聚合 p95 5.06ms、向量 top-10 p95 **155.45ms（>100ms 目标）**、sqlite p50 0.07ms；幂等重导计数零增长；删库重建 376.53s 且计数一致；磁盘合计 **64.9MB**（kuzu 12.89 / qdrant 49.06 / sqlite 2.95）；20000 边全走 MERGE；并行访问被拒（单写者） | `out/s3_storage.json`、`out/s3_run_5000.log`、`out/events.jsonl` | 是（新增 F7：Kuzu 单文件路径 / 仅 Database.close() 落盘 / 非 ASCII 路径；新增 E_STORE_NOT_EMPTY 与计数对账守卫；向量延迟进 Phase 1） | 2026-10-08 | ☑ 完成 |
 | 4 (S4) | — | — | — | — | — | ☐ |
 | 5 (S5) | — | — | — | — | — | ☐ |
 | 6 (S6) | — | — | — | — | — | ☐ |
@@ -235,8 +235,131 @@
 
 **证据文件（全部可追溯）**：`out/s1_coverage.csv`、`out/s1_coverage.json`、`out/s1_deep.log`、`out/s1b_records.csv`、`out/s1b_summary.json`、`out/s1b_run.log`；事件 `out/events.jsonl` 与日志 `logs/app.jsonl` 按 `run_id` 关联。
 
+## 2.8 Step 3（S3）记录：存储栈验证（2026-10-08）
+
+**状态：完成**（脚本 `steps/s3_storage_spike.py`，全量 5000 篇 + 重建校验；run_id `p0-s3-20261008084413`）
+
+**方法**：S1/S1b 抓到的 1089 条真实元数据 + 合成扰动补到 5000 篇；1024 维**伪向量**（只验证存储/检索链路，不代表 embedding 质量）；三库同源导入后跑四类查询各 30 轮，再重复导入一次验幂等，最后删 Kuzu/Qdrant 从 SQLite 重建验可恢复性。
+
+| 维度 | 实测 | 目标 | 判定 |
+|---|---|---|---|
+| 导入耗时 | sqlite 0.22s / kuzu 169.46s / qdrant 26.78s | ≤5min | ✅ |
+| 写入对账 | 5000 论文 / 1010 作者 / 10000 PAPER_AUTHOR / 10000 CITES / 5000 向量；`mismatches={}` | 一致 | ✅ |
+| 向量 top-10（含过滤） | p50 146.51ms / p95 **155.45ms** / max 179.98ms，0 错误 | p95 ≤100ms | ⚠️ 未达标 |
+| 图 2-hop | p50 3.96ms / p95 **4.42ms** | p95 ≤200ms | ✅ 远优 |
+| 作者近 3 年聚合 | p50 3.73ms / p95 5.06ms | — | ✅ |
+| SQLite 主键查询 | p50 0.07ms / p95 0.16ms | — | ✅ |
+| 幂等（重复导入） | 233.14s，计数零增长，0 失败 | 零增长 | ✅ |
+| 删库重建 | 376.53s；重建前空库哨兵 0/0；重建后计数一致 | 一致 | ✅ |
+| 磁盘 | kuzu 12.89MB / qdrant 49.06MB / sqlite 2.95MB = **64.9MB** | ≤500MB | ✅ |
+| 边写入 | 20000 边全走 `MATCH+MERGE`（回退 0 次） | MERGE 幂等可用 | ✅ |
+| 并发访问 | Qdrant 第二客户端被拒；Kuzu 第二连接拿不到锁 | 单写者成立 | ✅ |
+| 边界 | 非法维度被拒；非 ASCII/超长标题正常；未来日期与超短标题各 1 条被检出 | — | ✅ |
+
+**本步最有价值的是修掉的一个静默 bug（写进 F7）**
+
+1. **Kuzu 的数据库路径是单文件，不是目录**。早期清理代码写 `shutil.rmtree(path, ignore_errors=True)`：对文件抛 `NotADirectoryError` 被 `ignore_errors=True` **静默吞掉** → 旧库从未删除 → `MERGE` 跨运行累积节点。症状极具特征：`expected_authors=631 / actual=957`，差集**只多不少**（+326 / −0）。
+2. **两次 smoke 都是 500 篇论文**，论文数恰好对得上，把污染掩盖了——**只有"节点级对账"能发现它**。定位过程：先用独立最小实验排除"Kuzu 参数化 MERGE 会重复建点"（1000 次插入 → 唯一 742 = Kuzu 742，且重复插入不增长），再做集合差集诊断（`actual−expected` 非空且 `expected−actual` 为空 ⇒ 跨运行残留），最后由 `NotADirectoryError` 反证文件 vs 目录假设。
+3. **Kuzu 仅 `Database.close()` 触发 checkpoint**：导入 300 篇后 0.004MB → `conn.close()` 后仍 0.004MB → `db.close()` 后 2.426MB。磁盘统计必须放在关闭 DB 句柄之后，否则读到 **0.0MB 假值**（本步两次踩到）。
+4. 修复：`reset_store_path()`（文件/目录都能清 + 清 `.wal/.lock/.shm`）、`path_size_mb()`、**导入前空库哨兵** `store_is_empty()`（非空 → `E_STORE_NOT_EMPTY`）。
+
+**规模外推（Phase 1 参考）**：Kuzu 导入 34ms/篇（逐条 `conn.execute`）→ 2 万篇 ≈11min；周更增量数百篇为秒级，可接受；但首次全量导入应换 **`COPY FROM`** 批量路径。Qdrant 增量成本 ≈5.4ms/篇、磁盘 ≈9.8KB/点（1024 维，约为原始向量体积的 2.4 倍）→ 2 万篇 ≈196MB，仍宽裕。Kuzu 磁盘非线性（500 篇 10.86MB vs 5000 篇 12.89MB），固定开销占主导，容量估算应看边际斜率。
+
+**转入 Phase 1 的 backlog（不在 Phase 0 继续）**
+
+| 项 | 归属 | 触发条件 | 来源 |
+|---|---|---|---|
+| 向量检索延迟优化（**先做 Phase 1 部署形态三选一决策**，再谈参数调优） | `stores/vector.py`（Phase 1） | 真实语料 + 真实 bge-m3 向量就绪后重测；决策依据见 §2.9 | S3 §2.9 |
+| Kuzu 首导改 `COPY FROM` 批量导入 | `stores/graph.py`（Phase 1） | 首次全量建库前 | S3 外推 |
+| `E_STORE_NOT_EMPTY` / `E_DATA_COUNT_MISMATCH` 纳入守卫表 | `graph/guards.py` + 守卫文档 | S5/S6 落地 | S3 结论 3 |
+| 存储目录 ASCII 化（生产/部署路径规范） | 部署配置 | Phase 1 建仓时 | F7 |
+| 补测"检索结果正确性 / 删除更新路径 / 崩溃一致性 / 同进程并发" | `tests/integration/` + S4/S5 | S4/S5 期间 | §2.10 |
+
+**证据文件**：`out/s3_storage.json`、`out/s3_run_5000.log`、`out/s3b_vector_latency.json`（§2.9 归因）；事件 `out/events.jsonl`（按 run_id 关联），日志 `logs/app.jsonl`。
+
+## 2.9 S3 补充：向量 top-10 延迟归因（2026-10-08）
+
+**问题**：S3 全量测得 `vector_top10_filtered` p95 = 155.45 ms，未达"p95 ≤ 100 ms"的验收目标。需判定这是**设计问题**还是**优化/测法问题**。
+
+**先查源码（决定性事实）**：Qdrant **local 模式是纯 Python 实现**（`qdrant_client/local/local_collection.py`，140 KB），其中 `HNSW` 出现 **0** 次、`np.dot` **0** 次 —— 它**没有 ANN 索引**，是 Python/numpy 逐点扫描 + Python 层 payload 过滤；库自身在 `create_payload_index()` 时直接告警：`Payload indexes have no effect in the local Qdrant. Please use server Qdrant if you need payload indexes.`
+
+**再做归因探针**（`steps/s3b_vector_latency_probe.py`；写入路径复用 S3 的 `init_qdrant`/`qdrant_upsert` 保证同口径；证据 `out/s3b_vector_latency.json`）
+
+| 测法（5000 点，1024 维） | p50 | p95 |
+|---|---|---|
+| 纯算力下限：numpy 暴力点积 + argsort（不经 Qdrant 代码） | **0.65 ms** | 0.89 ms |
+| local 无过滤 top-10 | 49.91 ms | 67.80 ms |
+| local 过滤 `topic=T1` top-10 | 177.20 ms | 222.15 ms |
+| local 过滤 `year>=2020` top-10 | 161.58 ms | 170.75 ms |
+| local 过滤 `topic+year` top-10（**S3 基线测法**） | 198.63 ms | 296.65 ms |
+| local 同上、**建 payload 索引后** | 207.09 ms | 219.61 ms（**无改善**） |
+| local `retrieve` by id | 0.02 ms | 0.03 ms |
+
+> 绝对数与 S3 当时（p50 146.51 ms）同量级但不完全相同（本次 190–200 ms），差异来自机器负载与进程内存占用；探针结论以**同进程内的倍数关系**为准，不依赖绝对值。
+
+**规模曲线（同一测法）**
+
+| 点数 | 过滤命中 | local p50 | numpy 下限 p50 |
+|---|---|---|---|
+| 1250 | 672 | 51.93 ms | 0.42 ms |
+| 2500 | 1297 | 102.03 ms | 0.42 ms |
+| 5000 | 2547 | 189.32 ms | 0.65 ms |
+
+**归因（5000 点约 190 ms 的构成）**
+
+1. **纯算力 ~0.3%**（0.65 ms）：瓶颈不在维度、不在向量算法。
+2. **local 模式 Python 胶水 ~26%**（无过滤也要 49.91 ms）。
+3. **payload 过滤 ~74%**（+140 ms）：注意 `year>=2020` **命中全部 5000 点**却仍 +112 ms → **过滤开销与扫描点数成正比、与选择率无关**。故"把过滤写得更严"在 local 模式下**不提速**（反直觉但重要）。
+4. **payload 索引在 local 模式无效**（索引是 server 能力）。
+5. **线性增长 ≈0.038 ms/点**（无 ANN 的对数加速）→ 外推 **2 万篇 ≈ 0.76 s/查询**、5 万篇 ≈ 1.9 s/查询。
+
+**判定：不是架构设计问题，而是"部署形态选型 + 验收目标错配"**
+
+- 存储抽象本身健康：`retrieve` by id 0.02 ms、纯算力 0.65 ms，慢的全部来自 local 这一层。
+- `p95 ≤ 100 ms` 这个目标隐含假设"生产级 ANN 引擎"，而 S3 实际跑的是 local 模拟实现 → 目标与实现形态不匹配。
+- 但确有**一个真实的设计级岔路**需 Phase 1 显式决策：
+
+| 方案 | 收益 | 代价 | 对现有架构前提的影响 |
+|---|---|---|---|
+| A. 接受 local 暴力扫描 | 零改动、单进程、无外部服务 | 2 万篇 ~0.76 s/查询且线性增长 | 需按实现形态**重新标定验收目标** |
+| B. 起本地 Qdrant server 进程（仍单机、无 Docker） | HNSW + payload 索引 + 量化，预期个位数 ms | 多一个本地进程（端口/进程管理/崩溃恢复） | **改动架构 §8"无外部服务依赖"表述** |
+| C. 换嵌入式 ANN 库（hnswlib / FAISS / LanceDB） | 保留单进程且拿到 ANN | 需自实现 payload 过滤、持久化、并发语义 | 改 `stores/` 实现，接口不变 |
+
+**对功能实现的影响**
+
+1. **召回质量不受损反而更好**：local = 暴力扫描 = **精确 kNN**，召回率**高于** HNSW 近似 → "慢但准"，不会让报告出错。
+2. **周更批处理无感**：几十次查询 ×0.2 s 相对 LLM 分钟级可忽略。
+3. **对话 UI 是唯一有感知场景**：5k 时 +0.2 s/查询可接受；2 万篇外推 0.76 s/查询，一次提问若触发 3–5 次检索则累加 2–4 s，**届时必须解决**（即上述岔路）。
+4. **换 server/HNSW 不是免费提速**：从精确 kNN 变近似 ANN，且 ANN+过滤组合影响召回，须重测召回率 —— 是权衡不是纯优化。
+5. **接口零影响**：A/B/C 任一选择都不改上层调用（正是 S3 要验证的"存储栈可替换性"）。
+
+## 2.10 S3 的功能性测试覆盖边界（明确"测了什么 / 没测什么"）
+
+**已做（带对账，不是"跑通即过"）**：三库写入 + 节点/边/向量计数对账；幂等（重复导入零增长）；删库重建（从 SQLite 恢复且计数一致）；四类查询的延迟与错误率；单写者语义；磁盘占用；边界数据（非法向量维度、非 ASCII/超长标题、未来日期、超短标题）。
+
+**未做（功能性空洞，须在 S4/S5 或 Phase 1 补）**
+
+| 未覆盖项 | 风险 | 计划位置 |
+|---|---|---|
+| **检索结果正确性**（top-10 内容、过滤是否被严格遵守、payload 回读完整性） | 延迟达标但结果错 → 报告引用错论文 | P3（真实向量就绪后；伪向量无"正确"可言） |
+| **删除/更新路径**（论文合并 `merged_ids`、撤回、版本更新、作者改名） | 合并/纠错只能重建全库 | Phase 1 `stores/`（配合 D6 去重 ADR） |
+| **崩溃一致性**（写入中途进程被杀，三库是否半写、能否自愈） | 周更中断后索引与真相源不一致 | S4（部分）+ F1 投影重放 |
+| **正式 SQLite schema / 迁移 / 事务边界** | 契约变更无迁移路径 | Phase 1（Alembic） |
+| **全文字段与 `papers_dir` 文件存储**（PDF 落盘、命名、缓存去重） | 全文缓存是 grounding 前置 | S5.3 / Phase 1 `parsing/` |
+| **同进程并发查询**（FastAPI 读 + 周更写同时进行） | 对话期间周更导致读失败/阻塞 | S5（最小闭环内验证） |
+
+> 结论：**S3 完成的是"存储层"的功能性与可行性测试（且带对账）**；**整个系统的最小端到端功能测试尚未开始** —— 那是 S5（walking skeleton：topic → 报告 → claims → 事件）。两者不可互相替代。
+
 ## 3. 假设与发现
 
 | 日期 | 假设 | 结果（证实/证伪/待验证） | 依据 | 回写位置 |
 |---|---|---|---|---|
+| 2026-10-08 | Kuzu 的参数化 `MERGE` 在重复 key 下会建出重复节点 | **证伪** | 1000 次插入 → 唯一 id 742 = Kuzu 计数 742；重复插入计数不变 | 无需回写（排查记录见 §2.8） |
+| 2026-10-08 | 存储清理用 `rmtree(..., ignore_errors=True)` 是安全的 | **证伪** | Kuzu 路径是**文件**，`NotADirectoryError` 被静默吞掉 → 旧库残留（631 vs 957） | `design/agent-design-decisions.md` **F7** |
+| 2026-10-08 | 导入后可立即统计 Kuzu 磁盘占用 | **证伪** | 0.004MB（conn.close）→ 2.426MB（db.close）：仅 `Database.close()` 触发 checkpoint | 同上 F7 |
+| 2026-10-08 | Qdrant local + Kuzu 可多进程并发读写 | **证伪**（实测均被拒） | Qdrant "already accessed by another instance"；Kuzu "Could not set lock on file" | 支撑"单进程写入"架构（→ G 类/部署形态） |
+| 2026-10-08 | 5k 规模下向量检索 p95 可 ≤100ms（Qdrant local） | **证伪**（155.45ms） | `out/s3_storage.json` queries；`first_vector_query_ms=179.98` ⇒ 非冷启动 | `implementation/phase0-implementation-steps.md` Step 3 结论 4 + Phase 1 backlog |
+| 2026-10-08 | 向量检索慢是"高维/算法"问题 | **证伪** | 纯 numpy 算力下限 0.65ms（占 190ms 的 0.3%）；瓶颈是 local 模式 Python 扫描与 payload 过滤（§2.9） | 无需改算法；改为"部署形态三选一"决策（架构 §8） |
+| 2026-10-08 | 过滤条件写得越严，向量检索越快 | **证伪** | `year>=2020` 命中全部 5000 点仍 +112ms；开销与扫描点数成正比、与选择率无关 | §2.9；禁止把"加过滤"当 local 模式下的提速手段 |
+| 2026-10-08 | local 模式可用 payload 索引加速过滤 | **证伪** | 建索引后 207ms vs 198ms；库显式告警 "Payload indexes have no effect in the local Qdrant" | §2.9；索引属 server 能力 |
 | 待填 | 例：`.env` 作为兜底可满足 Phase 0 密钥管理 | 待验证 | `selfcheck` 输出 | `design/agent-design-decisions.md` H2 |

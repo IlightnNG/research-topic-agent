@@ -5,7 +5,7 @@ paths:
   out_dir: out
   data_dir: out/data
   sqlite_path: out/data/sqlite.db
-  kuzu_path: out/data/kuzu
+  kuzu_path: E:\lit-agent-data\kuzu      # Kuzu 在 Windows 不支持非 ASCII 路径（S3 实测）→ ASCII 目录
   qdrant_path: out/data/qdrant
   papers_dir: out/data/papers
   logs_dir: logs

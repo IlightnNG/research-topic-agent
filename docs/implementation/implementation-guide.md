@@ -92,6 +92,8 @@ agent/                         # 仓库根（= 项目根；docs/ 与代码平级
 单一 `config.yaml` + 环境变量覆盖；所有键有安全默认；`llm.*.api_key` 只从 env 读。
 ```yaml
 storage: {sqlite_path: data/app.db, kuzu_path: data/kuzu, qdrant_path: data/qdrant, papers_dir: data/papers}
+# 注意：`kuzu_path` 是 Kuzu 的**单文件**数据库；`qdrant_path` 是 Qdrant local 的**目录**。
+# Kuzu 打不开非 ASCII 路径（Windows 实测），`data/` 必须落在纯 ASCII 目录下。
 sources: {openalex: {mailto: you@example.com}, arxiv: {categories: [cs.AI, cs.LG]}, venues: []}
 providers:
   cloud: {name: deepseek, base_url: https://api.deepseek.com, model: deepseek-chat, api_key_env: DEEPSEEK_API_KEY}

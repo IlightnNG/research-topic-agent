@@ -1,7 +1,8 @@
 # Agent 设计细节与问题解决手册（Design Decisions & Edge Cases）
 
 > 用途：汇总"多智能体文献研究助手"在架构到细节层面**必然会遇到、必须解决**的问题与方案，供设计对照、组会问答、论文 system design 章节引用
-> 版本：v0.1（随项目推进逐条细化；每条都会演化为可落地规范或测试用例）
+> 版本：v0.2（随项目推进逐条细化；每条都会演化为可落地规范或测试用例）
+> v0.2 变更：新增 **F6**（引用元数据稀疏与反向构边，S1b 实测）与 **F7**（本地存储路径形态与生命周期，S3 实测）
 > 关联：选型 `project/framework-selection.md` · 架构 `design/architecture-overview.md` · 自愈预想 `design/challenges-and-self-healing.md` · 评测 `implementation/evaluation-plan.md`
 > 编号规则：类别字母 + 序号（如 A1），便于在组会/文档中相互引用
 
@@ -381,6 +382,15 @@
 - **细节级**：`Paper` 增加 `merged_ids`（去重合并的版本 id）与 `citers_checked_at`（反向抓取水位）；抓取时对"未来日期/缺字段"记录做合理性过滤（S1b 实测到 2050-02-21）。
 - **落地/验证**：`stores/graph.py` 的 `upsert_citation_edges()`；验证 = 抽样论文的"被引边数 > 0 的比例"（目标：白名单论文中 ≥60% 至少有 1 条入边）。
 - **备选**：若反向构边仍不足，评估 Crossref 补引用（列为待评估项，不在本轮实现）。
+
+## F7 · 本地存储的路径形态与生命周期（S3 实测后新增）
+- **现象与难点（三条实测约束，都会静默出错）**：
+  1. **路径形态不同**：Kuzu 的 `kuzu_path` 是**单文件**，Qdrant local 的 `qdrant_path` 是**目录**。用 `shutil.rmtree(path, ignore_errors=True)` 统一清理时，对 Kuzu 会抛 `NotADirectoryError` 并被 `ignore_errors=True` **静默吞掉** → 旧库从未删除 → `MERGE` 跨运行累积节点。实测症状：`expected_authors=631 / actual=957`，且差集"只多不少"（`actual−expected` 非空、`expected−actual` 为空）——这是"跨运行残留"的特征指纹；两次运行论文数恰好相同（都 500）会进一步掩盖污染。
+  2. **落盘时机**：Kuzu **只在 `Database.close()` 时 checkpoint 落盘**，`Connection.close()` 不触发。实测导入 300 篇后文件 0.004 MB，`conn.close()` 后仍 0.004 MB，`db.close()` 后 2.426 MB。因此磁盘占用必须在关闭 **DB 句柄**之后统计，否则读到 0.0 MB 假值。
+  3. **非 ASCII 路径**：Windows 上 Kuzu 无法打开含非 ASCII 的路径（`IO exception: Cannot open file … Error 3`），Qdrant local 无此限制。
+- **架构级**：存储路径统一经 `reset_store_path()`（文件/目录都能清，并顺带清 `.wal/.lock/.shm` 同级文件）；磁盘统计统一用 `path_size_mb()`（文件按自身大小、目录递归求和）。
+- **细节级**：**每次导入前必须做"空库哨兵"**（`store_is_empty()`：节点计数须为 0），非空即 `E_STORE_NOT_EMPTY` 报错——这是"旧库残留"这类静默 bug 唯一可靠的哨兵；生产环境的数据目录须为纯 ASCII 路径（开发机用 `E:\lit-agent-data\`）。
+- **落地/验证**：`steps/s3_storage_spike.py` 的 `pre_import_empty` 字段 + 写入后计数校验（`expected` vs `actual`，不一致 → `E_DATA_COUNT_MISMATCH`）；已在 500 篇 smoke 与 5000 篇全量两次运行中验证。
 
 ---
 
