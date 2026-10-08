@@ -21,11 +21,11 @@ docs/
 | `project/project-analysis.md` | v0.2 | 需求拆解、组会记录、确认过的决策、关联项目（Jetson）备注 | 每次组会后 |
 | `project/framework-selection.md` | v0.5 | 10 个模块选型、业界主流对照、未采用理由（含 LangChain 逐模块分析）、规模化迁移路径 | 选型变化（需 ADR） |
 | `design/architecture-overview.md` | v0.3 | 分层架构、周更/对话时序、三存储分工、埋点与路由策略（含 S3 存储约束） | 架构变化时 |
-| `design/state-machine-and-guards.md` | v0.1 | Topic/Run/Stage 状态机、条件边、**G1–G14 守卫判决表**（G14 数据完整性对账为 S3 实测新增）、阈值标定与验收目标 | Phase 0/1 实测后更新阈值 |
-| `design/agent-design-decisions.md` | v0.2 | 55 条设计问题与解法台账（A–K 类，含 MCP 校验管线、F7 本地存储路径与生命周期） | 持续追加条目 |
+| `design/state-machine-and-guards.md` | v0.2 | Topic/Run/Stage 状态机、条件边、**G1–G15 守卫判决表**（G14 数据完整性对账 = S3 实测新增；G15 运行身份与恢复一致性 = S4 实测新增）、阈值标定与验收目标 | Phase 0/1 实测后更新阈值 |
+| `design/agent-design-decisions.md` | v0.2 | 55 条设计问题与解法台账（A–K 类，含 MCP 校验管线、F7 本地存储路径与生命周期、G3 断点续跑实测语义） | 持续追加条目 |
 | `design/challenges-and-self-healing.md` | v0.1 | 重难点与自愈机制预想（三层防线、升级阶梯） | 与上一条联动 |
 | `implementation/implementation-guide.md` | v0.1 | 冻结契约（表/事件/模型/API）、10 模块实现方案、P1–P6 验收门、AI 生成工作流、§15.6 文档规范 | 契约变更走 ADR |
-| `implementation/phase0-implementation-steps.md` | v0.2 | **Phase 0 逐步施工清单**：Step 0.1–8、文件职责表、进度表、出口检查清单（含 S1/S1b/S3 实测结果） | 每完成一步更新进度与 RESULTS |
+| `implementation/phase0-implementation-steps.md` | v0.3 | **Phase 0 逐步施工清单**：Step 0.1–8、文件职责表、进度表、出口检查清单（含 S1/S1b/S3/S4 实测结果） | 每完成一步更新进度与 RESULTS |
 | `implementation/evaluation-plan.md` | v0.2 | 评测方案与数据集计划（D1–D7 规格、指标公式、实验设计、验收标准） | 评测口径变化时 |
 | `implementation/logging-and-observability.md` | v0.1 | **日志与可观测性规范**（三层模型、字段字典、级别与脱敏、轮转保留、调试开关、debug bundle、框架日志接管、慢点告警、运维反馈闭环） | 可观测口径变化时 |
 | `implementation/adr/README.md` | — | ADR 索引、触发条件与模板 | 首次契约变更时新增记录 |

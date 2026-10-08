@@ -1,7 +1,8 @@
 # Phase 0 实施步骤指导（项目初始化与可行性验证）
 
-> 状态：**v0.2 执行清单**——Phase 0 的逐步施工指导；每一步都写明"内容要求 / 交付物 / 执行命令 / 验收标准 / 时间盒 / 失败应对"
-> v0.2 变更：Step 1/1b 补 S1/S1b 实测结果；Step 3 补 S3 实测结果（5k 全量 + 三条存储约束）；§7/§9 状态同步；新增存储 track backlog
+> 状态：**v0.3 执行清单**——Phase 0 的逐步施工指导；每一步都写明"内容要求 / 交付物 / 执行命令 / 验收标准 / 时间盒 / 失败应对"
+> v0.3 变更：Step 4 补 S4 实测结果（6 场景全 PASS + 四条 S5 硬约束）；新增 G15（运行身份与恢复一致性）；§7/§9 状态同步
+> v0.2 变更：Step 1/1b 补 S1/S1b 实测结果；Step 3 补 S3 实测结果（5k 全量 + 三条存储约束 + 向量延迟归因）；新增存储 track backlog
 > 定位：**原型验证阶段**，代码只是实验，**不是**交付仓库；不做 UI、不做周更调度、不做多 agent 拆分、不做完整守卫框架
 > 总时间盒：**10.5 个工作日（约 2 周）**；出口 = 数字结论 + 最小闭环 demo + 埋点与守卫雏形 + 阶段决策门通过
 > 关联：`implementation/implementation-guide.md`（§2 契约、§15 工作流、附录 A Wave）· `design/state-machine-and-guards.md`（G1/G4 与预算）· `implementation/evaluation-plan.md`（指标口径）· `design/agent-design-decisions.md`（问题台账）
@@ -30,7 +31,7 @@
 | Web 前端 / Vue / ECharts | 与验证核心假设无关，最耗时 |
 | APScheduler 周更 / 多 topic 调度 | 依赖闭环稳定后再做 |
 | 多 agent 角色拆分（retrieval/mapper/analyst/critic 独立进程） | 先用单 agent + 显式函数步骤验证流程 |
-| G1–G14 完整守卫框架 | 只做 G1（漂移）+ G4（循环）+ G14（S3 存储对账，已在 spike 内实现），阈值先粗后精 |
+| G1–G15 完整守卫框架 | 只做 G1（漂移）+ G4（循环）+ G14（S3 存储对账）+ G15（S4 恢复一致性，部分已在 spike 内实现），阈值先粗后精 |
 | 完整 SQLite schema / Alembic 迁移 | Phase 0 用 JSONL 事件 + 最小 SQLite 表即可 |
 | 生产级错误处理与重试框架 | 只保证"失败可见 + 可重跑" |
 
@@ -364,6 +365,41 @@ uv run python steps/s4_checkpoint_spike.py --run-id p0-s4-001   # 中途 Ctrl+C 
 - 记录"恢复点粒度 = 节点边界"这一结论（写进守卫文档）。
 **失败应对**：恢复语义不符预期 → 记录框架行为（这本身是有价值结论），Phase 1 调整 checkpoint 配置或自管状态。
 
+**实测结果（2026-10-08，脚本 `steps/s4_checkpoint_spike.py`；6 场景 / 10 次进程调用 / 3 次硬杀 / 68 条事件**全部 PASS**）**
+
+**方法**：3 节点小图 `fetch → transform → emit`（状态仅 topic/步骤列表，每节点 sleep 0.2 s），`SqliteSaver` 持久化，`thread_id = run_id`。
+**崩溃用"一次性崩溃臂文件 + `os._exit(9)`"**（不是掐时间 Ctrl+C）：节点检查臂文件，命中则先写 `E_SIMULATED_CRASH` 事件再 `os._exit` 跳过一切清理 → 崩溃点**确定性可复现**，等价于 SIGKILL。全程本地、零网络、零 LLM、< 1 min。
+
+| 场景 | 说明 | 节点实际执行次数（事件为证） |
+|---|---|---|
+| A | 不崩溃（对照） | fetch 1 / transform 1 / emit 1 ✅ |
+| B | 崩于 `transform` → 带**完整输入**重启 | fetch **2** / transform 2 / emit 1（**从 START 重跑**）|
+| C | 连续两次崩溃（`transform` → `emit`） | fetch **3** / transform 3 / emit 2 |
+| D | 崩于 `transform`(T1) → 换 **T2-CHANGED** 重启 | 框架**接受新输入**：`topic_seen=['T1','T2-CHANGED','T2-CHANGED','T2-CHANGED']` |
+| E | 对**已完成**的 run 再次触发 | 三节点各重跑 → `steps_done` 3→**6** |
+| F | 崩于 `transform` → **`invoke(None)`** 重启 | fetch **1** / transform 2 / emit 1；最终状态与对照 A **完全一致** ✅ |
+
+**验收结论（4 项验收标准逐条对照）**
+
+| 验收标准 | 实测 | 判定 |
+|---|---|---|
+| 恢复后最终状态与"不中断跑完"一致 | 场景 F：`steps_done=['fetch','transform','emit']`、`topic_seen` 与 A 逐字段相等 | ✅ |
+| 已完成节点不重复执行（事件计数验证） | 场景 F：fetch 恰好 1 次；**但若不指定 `invoke(None)` 则会重跑 2–3 次**（场景 B/C） | ✅（附硬约束） |
+| 记录"恢复点粒度 = 节点边界" | `next_before=('transform',)`、状态停 `['fetch']` → 节点边界，已回写架构 §3 + G3 | ✅ |
+| 事件 seq 连续无重复 | 6 run / 3 次硬杀 / 68 条事件，seq 全部 1..N 连续、无重复 | ✅ |
+
+**四条必须带进 S5 的硬约束**
+1. **续跑调用固定为 `graph.invoke(None, config)`**：带完整输入 invoke 会让图**从 START 重跑已完成节点**（B/C 实测 fetch 重跑 2–3 次）——不报错、结果看着也对，只表现为**静默重复副作用**（重复抓取/重复 LLM 花费/重复写索引）。
+2. **节点副作用必须幂等**：崩溃节点**必然重跑**（at-least-once）→ 按 `(run_id,node,attempt)` 或业务幂等键去重；索引 upsert；LLM 结果落缓存；报告/claim 用确定性 id。
+3. **输入漂移必须自己拦**（框架不拦）：崩后改 topic 重启会被接受并覆盖状态（场景 D）→ 新增守卫 **G15**（`E_RUN_INPUT_MISMATCH` → abort；改参数须另起 `run_id`）。
+4. **触发前查 run 状态 + 持锁**：对已完成 run 再次触发会整图重跑（场景 E）→ `E_RUN_ALREADY_COMPLETED`（配合 G1/G2）。
+
+**附带结论**：`JsonlEventLog` 的 per-run `seq` 跨进程可续写（这是"事件溯源作为真相源"的前提，已实测）；3 节点 run 的 checkpoint 库仅 **28–37 KB**（≈4 KB/超级步），周更开销可忽略。
+
+**证据文件**：`out/events_s4.jsonl`、`out/s4_summary.json`、`out/s4/*.pre.json`/`*.post.json`、`out/data/s4_*.db`。
+
+**本步刻意不做**：多节点/带 LLM 的真实图续跑幂等性（含 rollback 与三库对账）留到 S5 验证——S4 只需回答"能否续跑 + 粒度 + 代价"，深挖等于提前写产品代码。
+
 ---
 
 ## 4. W2：最小闭环（Step 5）
@@ -460,7 +496,7 @@ uv run python steps/s7_metrics.py --events out/events.jsonl --out out/metrics_su
 | 1b | S1b 检索/去重/引用完整率 | 0.5–1 d | 1 | ☑ 完成（重叠 0.004–0.014；重复 19%；白名单 refs 1.5%/14.3%；updated 过滤付费） | |
 | 2 | S2 本地 vs 云基线 | 1 d | 0.2 | ⏸ 本轮不做（云-only） | |
 | 3 | S3 存储栈 | 1 d | 0.2 | ☑ 完成（5k 全量：kuzu/p95 图 4.42ms、幂等零增长、磁盘 64.9MB、可重建；向量 p95 155ms 未达标待 Phase 1） | |
-| 4 | S4 断点续跑 | 0.5 d | 0.2 | ☐ | |
+| 4 | S4 断点续跑 | 0.5 d | 0.2 | ☑ 完成（6 场景/3 次硬杀全 PASS；恢复粒度=节点边界；**续跑须 `invoke(None)`**，带输入会从 START 重跑已完成节点；新增 G15） | |
 | 5 | S5 最小闭环 | 2.5 d | 1、3、4（S2 跳过） | ☐ | |
 | 6 | S6 守卫与注入 | 2 d | 5 | ☐ | |
 | 7 | S7 指标聚合 | 1 d | 5, 6 | ☐ | |
@@ -490,7 +526,7 @@ uv run python steps/s7_metrics.py --events out/events.jsonl --out out/metrics_su
 - [x] S1b：检索策略（白名单主通道 + 多查询扩展）、去重键（DOI+标题+年份）、增量语义（publication_date 水位线）三项结论齐，引用覆盖缺口已量化；
 - [~] S2 **本轮豁免**：只用云端 DeepSeek API（本地档测试推迟，见 Step 2 注记）；
 - [x] S3：5k 导入与四类查询达标，**重复导入幂等**，给出是否需要换库的结论；——结论：**不需要换库**；向量 p95 155 ms 未达 100 ms 目标，但**已归因**：Qdrant local 是纯 Python 无 ANN 实现（纯算力仅占 0.3%，74% 是 payload 过滤）、随规模线性（2 万篇 ~0.76 s/查询）→ 判为「部署形态选型 + 验收目标错配」而非架构缺陷，S5 不受阻；Phase 1 先做部署形态三选一（A/B/C，见 Step 3 结论 4 + `prototype/RESULTS.md` §2.9）；附带 3 条存储约束（Kuzu 单文件、仅 `Database.close()` 落盘、非 ASCII 路径不可用）已回写 F7；功能测试覆盖边界见 §2.10（检索正确性/删除更新/崩溃一致性/并发待补）；
-- [ ] S4：中断恢复成功，已完成节点不重跑，恢复粒度结论已记录；
+- [x] S4：中断恢复成功，已完成节点不重跑，恢复粒度结论已记录；——结论：恢复粒度 = **节点边界**（`next=('transform',)`）；用 **`invoke(None)`** 续跑时最终状态与不中断对照**完全一致**、已完成节点不重跑（✅），而**带完整输入 invoke 会从 START 重跑**已完成节点（fetch 2–3 次，静默重复副作用）；崩溃节点**必然重跑**（at-least-once → S5 节点必须幂等）；输入漂移与"重复触发已完成 run"框架均**不拦**（新增 **G15**）；事件 seq 跨进程 1..N 连续无重复（68 条 / 3 次硬杀）；checkpoint 库 28–37 KB；
 - [ ] S5：单 topic 出报告（≥800 字、≥10 claim、100% 带 citation、事件 ≥30 条），重跑幂等；
 - [ ] S6：四类注入检出率 ≥ 90%、正常样本误报 0、事件链完整；
 - [ ] S7：5 个指标可从事件算出，与 `implementation/evaluation-plan.md` 口径一致；

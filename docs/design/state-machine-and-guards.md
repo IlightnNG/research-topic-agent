@@ -269,6 +269,17 @@ S0 scope_check ─► S1 plan ─► S2 retrieve ─► S3 ingest_parse ─► S
 | 测试要点 | 注入"边端点缺失"（`MATCH+MERGE` 会**静默不写**）必须被检出；注入"旧库残留"必须被空库哨兵拦下；正常写入零误报 |
 | 实测依据 | S3：20000 条边全部 `MATCH+MERGE` 成功时 `mismatches={}`（无假阳性）；旧库残留场景 `expected_authors=631 / actual=957` 被差集特征定位（详见 `agent-design-decisions.md` F7） |
 
+### G15 运行身份与恢复一致性（**S4 实测后新增**）
+| 项 | 内容 |
+|---|---|
+| 触发点 | 每次 run 启动（尤其"重启续跑"与"手动触发"两条入口） |
+| 信号 | ① 本次请求的输入指纹（topic 集/参数/配置版本）与 checkpoint 记录的不一致 → 输入漂移；② 目标 `run_id` 已处于 `succeeded`（已有终态）却被再次触发；③ checkpoint 存在但 `next` 为空（run 已跑完） |
+| 默认阈值 | 指纹不一致即触发；终态被再次触发即触发 |
+| 判决 | `E_RUN_INPUT_MISMATCH` → `abort`（**绝不静默用新输入覆盖旧状态**；要改参数须另起 `run_id`）；`E_RUN_ALREADY_COMPLETED` → 拒绝执行并提示（确需重跑走显式 `--force` + 新 `run_id`） |
+| 事件 | `guard_trigger{code=E_RUN_INPUT_MISMATCH, saved_fingerprint, request_fingerprint}` / `{code=E_RUN_ALREADY_COMPLETED, run_id, state}` |
+| 测试要点 | 崩溃后改 topic 续跑必须被拦；对已完成 run 再次触发必须被拦；正常续跑（同输入 + `invoke(None)`）零误报 |
+| 实测依据 | S4：带不同输入重启时框架**接受新输入并覆盖 checkpoint 状态**（`topic_seen=['T1','T2-CHANGED',…]`）且**从 START 重跑已完成节点**；对已完成 run 再次 invoke 会整图重跑并追加状态（`steps_done` 3→6）。框架层均无保护 |
+
 ---
 
 ## 8. 判决动作语义与升级阶梯

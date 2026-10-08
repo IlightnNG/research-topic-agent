@@ -14,7 +14,7 @@
 | 1b (S1b) | 检索策略/去重/引用完整率验证完成，出现 3 个反直觉但决定性的发现（见 §2.6） | 白名单 vs 宽召回重叠 Jaccard 仅 **0.004–0.014**；查询扩展新增 **126/155** 篇；重复率 **19.3–19.8%**（version copies 101/93）；白名单引用完整率 **1.5%/14.3%（低于**宽召回 27%/25%）；`from_updated_date` **付费专属（429）**，`from_publication_date` 可用且游标分页稳定（page2 overlap=0）；发现 2050 年未来日期记录 | `out/s1b_records.csv`、`out/s1b_summary.json`、`out/s1b_run.log` | 是（检索必须显式白名单+多查询；引用图需反向边/Crossref；增量改用 publication_date 水位线） | 2026-10-07 | ☑ 完成 |
 | 2 (S2) | **本轮不做**：项目当前只使用云端 DeepSeek API，本地模型不测试、不考虑 | — | — | 是（评测的 local vs cloud 对比维度延后；路由暂无本地分支） | 2026-10-07 | ⏸ 延后 |
 | 3 (S3) | 存储栈验证完成：**三库方案成立，不需要换 Neo4j/Milvus**；唯一未达标项是向量检索延迟 | 5k 导入 sqlite 0.22s / kuzu 169.46s / qdrant 26.78s；图 2-hop p95 **4.42ms**、聚合 p95 5.06ms、向量 top-10 p95 **155.45ms（>100ms 目标）**、sqlite p50 0.07ms；幂等重导计数零增长；删库重建 376.53s 且计数一致；磁盘合计 **64.9MB**（kuzu 12.89 / qdrant 49.06 / sqlite 2.95）；20000 边全走 MERGE；并行访问被拒（单写者） | `out/s3_storage.json`、`out/s3_run_5000.log`、`out/events.jsonl` | 是（新增 F7：Kuzu 单文件路径 / 仅 Database.close() 落盘 / 非 ASCII 路径；新增 E_STORE_NOT_EMPTY 与计数对账守卫；向量延迟进 Phase 1） | 2026-10-08 | ☑ 完成 |
-| 4 (S4) | — | — | — | — | — | ☐ |
+| 4 (S4) | 断点续跑验证完成：**checkpoint 可续跑，恢复粒度=节点边界；但"带输入重启"会从 START 重跑已完成节点**（必须用 `invoke(None)`） | 6 场景 / 3 次 `os._exit(9)` 硬杀 / 68 条事件全 PASS；崩溃后 `next=('transform',)`、状态停 `['fetch']`；正确姿势 `invoke(None)` → 最终状态与不中断对照**完全一致**（fetch 仅 1 次）；错误姿势 `invoke(输入)` → fetch 重跑 2–3 次；输入漂移被框架接受（`topic_seen=['T1','T2-CHANGED',…]`）；重复触发已完成 run → 整图重跑（`steps_done` 3→6）；事件 seq 跨进程 1..N 连续无重复；checkpoint 库 28–37 KB | `out/events_s4.jsonl`、`out/s4_summary.json`、`out/s4/*.json` | 是（新增 **G15** 守卫：输入漂移/重复触发；G3 补实测语义；S5 硬约束：节点副作用必须幂等 + 续跑固定 `invoke(None)`） | 2026-10-08 | ☑ 完成 |
 | 5 (S5) | — | — | — | — | — | ☐ |
 | 6 (S6) | — | — | — | — | — | ☐ |
 | 7 (S7) | — | — | — | — | — | ☐ |
@@ -350,6 +350,38 @@
 
 > 结论：**S3 完成的是"存储层"的功能性与可行性测试（且带对账）**；**整个系统的最小端到端功能测试尚未开始** —— 那是 S5（walking skeleton：topic → 报告 → claims → 事件）。两者不可互相替代。
 
+## 2.11 Step 4（S4）记录：断点续跑验证（2026-10-08）
+
+**状态：完成**（脚本 `steps/s4_checkpoint_spike.py`；6 场景 / 10 次进程调用 / 3 次硬杀 / 68 条事件全部 PASS；纯本地、零网络、零 LLM，全程 < 1 min）
+
+**方法**：3 节点小图 `fetch → transform → emit`（状态只有 topic/步骤列表，每节点 sleep 0.2 s），`SqliteSaver` 持久化，`thread_id = run_id`。
+**崩溃用"一次性崩溃臂文件 + `os._exit(9)`"模拟**（而不是掐时间 Ctrl+C）：节点开始后检查臂文件，命中则先写 `E_SIMULATED_CRASH` 事件再 `os._exit` 跳过一切清理 —— 崩溃点**确定性可复现**，且等价于 SIGKILL。
+
+| 场景 | 说明 | 结果 |
+|---|---|---|
+| A | 不崩溃（对照组） | `steps_done=['fetch','transform','emit']`，6 事件 |
+| B | 崩于 `transform` → 带**完整输入**重启 | fetch **2** 次 / transform 2 次 / emit 1 次（**从 START 重跑**） |
+| C | 连续两次崩溃（`transform` → `emit`） | fetch **3** 次 / transform 3 / emit 2，三进程后完成 |
+| D | 崩于 `transform`（topic=T1）→ 换 **T2-CHANGED** 重启 | 框架**接受新输入**：`topic_seen=['T1','T2-CHANGED','T2-CHANGED','T2-CHANGED']`，最终 `topic='T2-CHANGED'` |
+| E | 对**已完成**的 run 再次触发 | 三节点各重跑一遍，`steps_done` 3 → **6**（无幂等保护） |
+| F | 崩于 `transform` → **`invoke(None)`** 重启 | fetch **1** 次 / transform 2 / emit 1；最终状态与对照 A **完全一致** ✅ |
+
+**核心结论（7 条，均已回写文档）**
+
+1. **恢复粒度 = 节点边界**：崩溃后 `graph.get_state(config).next == ('transform',)`，状态停在最后一个**已完成**超级步（`steps_done=['fetch']`）→ 比"整 run 重跑"细、比"节点内断点"粗，**节点必须整体可重入**。
+2. **正确续跑姿势 = `invoke(None, config)`**（场景 F）：最终状态与不中断对照**完全一致**，已完成节点不重跑。
+3. **陷阱：`invoke({...完整输入...})` 会让图从 START 重跑已完成节点**（场景 B/C）——"能跑出结果"但**静默重复副作用**（重复抓取 / 重复 LLM 花费 / 重复写索引）。这条坑不报错、结果看着也对，只能靠**节点执行次数**发现（`fetch` 2–3 次），因此 S5 必须把"续跑调用固定为 `None`"写成硬约束。
+4. **崩溃节点必然重跑（at-least-once）**：节点"做到一半"被杀时状态更新未落盘 → 恢复后该节点重跑（场景 F 的 transform 2 次）。**对 S5 的硬约束**：每个节点副作用必须幂等（按 `(run_id,node,attempt)` 或业务幂等键去重；索引 upsert；LLM 结果落缓存；报告/claim 用确定性 id）。
+5. **输入漂移无内建保护**（场景 D）：崩溃后带不同 topic 重启，新输入**被接受并覆盖** checkpoint 状态，**同时**从 START 重跑 → 会生成"半新半旧"的混合状态。→ 新增守卫 **G15**（`E_RUN_INPUT_MISMATCH` → abort；改参数须另起 `run_id`）。
+6. **重复触发已完成的 run 会整图重跑并追加状态**（场景 E，`steps_done` 3→6）→ 框架层无幂等保护，触发前必须查 run 状态 + 持 per-topic 锁（G1/G2 + 新增 `E_RUN_ALREADY_COMPLETED`）。
+7. **事件跨进程可续写、checkpoint 开销可控**：`JsonlEventLog` 的 per-run `seq` 在 6 个 run、3 次 `os._exit(9)` 硬杀下**全部保持 1..N 连续、无重复**（共 68 条）→ 事件溯源可作为"崩溃后可重建真相"的基础，与框架 checkpoint 配套成立；3 节点 run 的 checkpoint 库仅 **28–37 KB**（≈4 KB/超级步），周更开销可忽略。
+
+**踩到并修掉的自身 bug（方法论价值）**：第一版崩溃臂写成"见到臂文件就删"，结果 `fetch` 先执行时把给 `transform` 的臂吃掉 → **崩溃点永不触发**，而进程正常退出、状态完整，看起来"全绿"。这类"臂被提前消费"的静默失效，说明**崩溃注入本身也必须用状态断言校验**（本脚本的 `node_attempts` 与 `crashes` 计数即为此设）。修复：只有命中本节点才消费臂文件。
+
+**证据文件**：`out/events_s4.jsonl`（6 run × 全部事件）、`out/s4_summary.json`（场景/校验汇总）、`out/s4/*.pre.json` / `*.post.json`（每次调用的 checkpoint 前后状态快照）、`out/data/s4_*.db`（各场景 checkpoint 库）。
+
+**为什么不再深挖**：S4 只需回答"能否续跑 + 粒度 + 代价"，已闭环。**真正的多节点/带 LLM 的续跑幂等性**要在 S5 的真实图里验证（含 rollback/对账），此处用 3 节点最小图足够——深挖等于提前写产品代码。
+
 ## 3. 假设与发现
 
 | 日期 | 假设 | 结果（证实/证伪/待验证） | 依据 | 回写位置 |
@@ -362,4 +394,8 @@
 | 2026-10-08 | 向量检索慢是"高维/算法"问题 | **证伪** | 纯 numpy 算力下限 0.65ms（占 190ms 的 0.3%）；瓶颈是 local 模式 Python 扫描与 payload 过滤（§2.9） | 无需改算法；改为"部署形态三选一"决策（架构 §8） |
 | 2026-10-08 | 过滤条件写得越严，向量检索越快 | **证伪** | `year>=2020` 命中全部 5000 点仍 +112ms；开销与扫描点数成正比、与选择率无关 | §2.9；禁止把"加过滤"当 local 模式下的提速手段 |
 | 2026-10-08 | local 模式可用 payload 索引加速过滤 | **证伪** | 建索引后 207ms vs 198ms；库显式告警 "Payload indexes have no effect in the local Qdrant" | §2.9；索引属 server 能力 |
+| 2026-10-08 | LangGraph 崩溃重启会**自动**从断点续跑，不会重跑已完成节点 | **部分证伪** | 恢复点确实精确到节点（`next=('transform',)`），但**带输入 invoke 会从 START 重跑**（fetch 2–3 次）；只有 `invoke(None)` 才等价于对照组 | §2.11；架构 §3 运行时 + G3 |
+| 2026-10-08 | checkpoint 会拒绝与已存状态不一致的新输入 | **证伪** | 崩溃后带不同 topic 重启，新输入被接受并覆盖（`topic_seen=['T1','T2-CHANGED',…]`） | §2.11；新增守卫 **G15** |
+| 2026-10-08 | 对已完成的 run 再次触发是无害的/幂等的 | **证伪** | 整图重跑且状态追加（`steps_done` 3→6） | §2.11；G1/G2 + `E_RUN_ALREADY_COMPLETED` |
+| 2026-10-08 | 崩溃后事件 seq 会断档或重复 | **证伪** | 6 run / 3 次硬杀 / 68 条事件，seq 全部 1..N 连续无重复 | §2.11；事件溯源可作真相源 |
 | 待填 | 例：`.env` 作为兜底可满足 Phase 0 密钥管理 | 待验证 | `selfcheck` 输出 | `design/agent-design-decisions.md` H2 |

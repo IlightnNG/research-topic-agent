@@ -76,6 +76,9 @@ scoping → planning → retrieval_agent → ingest_parse(确定性)
 - `quality_guard` 不达标 → 回 `analyze/report`（≤N 次）
 - 任何节点超时/看门狗触发 → 终止并 annotate（不阻塞下周）
 - checkpoint：LangGraph checkpointer(SQLite) 提供断点/恢复；进程重启后 queued/running 的 run 可续跑或标记 interrupted
+  - **实测语义（S4）**：恢复粒度 = **节点边界**（checkpoint 在超级步边界落盘，`next` 精确指向未完成节点）；崩溃节点**必然重跑**（at-least-once）→ **节点副作用必须幂等**；
+  - **正确续跑姿势是 `graph.invoke(None, config)`**；带完整输入 `invoke({...})` 会让图**从 START 重跑已完成节点**（实测 `fetch` 被重复执行 2–3 次），且**新输入会覆盖 checkpoint 里的状态**（输入漂移无内建保护）→ 需自研守卫（G15）；
+  - 对**已完成**的 run 再次 invoke 会整图重跑并追加状态 → 触发前必须查 run 状态/持锁（G1/G2/G15）。
 
 **角色 agent 划分**（LangGraph 内作为节点或子图，均受同一状态机约束）：
 | Agent | 职责 | 主要工具 |

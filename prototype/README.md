@@ -71,6 +71,7 @@ find . -type f -not -path './.venv/*' -not -path './out/*' -not -path './logs/*'
 | Step 1b (S1b) `python steps/s1b_retrieval_and_dedup.py --topics T1,T2 --per-page 100` | ✅ 白名单 vs 宽召回重叠 0.004–0.014；扩展查询 +126/155 篇；重复率 19.3–19.8%；白名单引用完整率 1.5%/14.3%；`from_updated_date` 不可用（付费），`from_publication_date`+cursor 可用且稳定 |
 | Step 3 (S3) `python steps/s3_storage_spike.py --papers 5000` | ✅ 5k 全量：kuzu 169.5s / qdrant 26.8s 导入，图 2-hop p95 4.42ms、聚合 p95 5.06ms、向量 p95 155.45ms、sqlite p50 0.07ms；幂等零增长；删库重建计数一致；磁盘 64.9MB；20000 边全 MERGE；单写者语义成立 |
 | Step 3b (S3b) `python steps/s3b_vector_latency_probe.py` | ✅ 归因：5000 点约 190ms 中纯算力仅 **0.65ms（0.3%）**、local 无过滤 49.91ms、payload 过滤 +140ms（占 74%）；**Qdrant local 无 ANN、payload 索引无效**；规模线性 ≈0.038ms/点（2 万篇外推 ~0.76s/查询）→ 判为"部署形态选型 + 验收目标错配"，非架构缺陷；local = 精确 kNN，召回不受损 |
+| Step 4 (S4) `python steps/s4_checkpoint_spike.py`（6 场景） | ✅ 断点续跑：恢复粒度 = **节点边界**；**`invoke(None)` 续跑**后最终状态与不中断对照**完全一致**（fetch 仅 1 次），而**带完整输入 invoke 会从 START 重跑**已完成节点（fetch 2–3 次）；崩溃节点**必然重跑**（at-least-once → 节点须幂等）；输入漂移与"重复触发已完成 run"框架**均不拦**（新增 G15）；事件 seq 跨进程 1..N 连续无重复（68 条 / 3 次 `os._exit(9)` 硬杀）；checkpoint 库 28–37 KB |
 
 > 依赖装在 `prototype/.venv`（由 `uv sync` 创建）；uv 缓存与托管解释器在 **uv 默认位置**（`uv cache dir` / `uv python dir`），因此**不需要任何自定义环境变量**，换机器只需 `uv sync`。
 > 若 Windows 终端把中文显示成乱码，属控制台编码问题（程序输出为 UTF-8），`chcp 65001` 可解决。
@@ -114,7 +115,8 @@ agent/                          # 仓库根 = Phase 1 的项目根
 | 2 (S2) | ~~`python steps/s2_model_baseline.py …`~~ | ⏸ 本轮不做（只用云端 DeepSeek API） |
 | 3 (S3) | `python steps/s3_storage_spike.py --papers 5000`（`--no-rebuild-check` 可跳过删库重建校验） | ✅ 已实现（导入/四类查询/幂等/可重建/边界探针 + 写入计数对账） |
 | 3b (S3b) | `python steps/s3b_vector_latency_probe.py` | ✅ 已实现（向量延迟归因：算力下限 / local 开销 / 过滤成本 / 规模曲线；**一次性探针，不迁移**） |
-| 4 (S4) | `python steps/s4_checkpoint_spike.py --run-id p0-s4-001`（可中断重跑） | ⏳ |
+| 4 (S4) | `python steps/s4_checkpoint_spike.py --mode {baseline,crash,resume,verify} …`（`crash` 预期非零退出；完整调用序列见脚本 docstring） | ✅ 已实现（6 场景：对照组/单崩/连崩/输入漂移/重复触发/`invoke(None)` 正确续跑；事件级校验全部 PASS） |
+| 4 (S4) | `python steps/s4_checkpoint_spike.py --run-id p0-s4-f --mode crash …` 再 `--mode resume --input-mode none` | ✅ 已实现（见下行结论） |
 | 5 (S5) | `python steps/s5_walking_skeleton.py --topic T1 --run-id p0-s5-001` | ⏳ |
 | 6 (S6) | `python steps/s6_guards_demo.py --topic T1 --inject drift --repeats 3` | ⏳ |
 | 7 (S7) | `python steps/s7_metrics.py --events out/events.jsonl --out out/metrics_summary.csv` | ⏳ |

@@ -410,6 +410,14 @@
 - **架构级**：启动时扫描 `running` 的 run，依据心跳判定"已死"→ 标记 `interrupted`，可续跑（checkpoint）或标记待重跑。
 - **细节级**：恢复策略可配置（自动续跑 / 仅标记）；事件补记。
 - **落地/验证**：kill -9 后重启，检查状态机正确。
+- **S4 实测结论（2026-10-08，`steps/s4_checkpoint_spike.py`，6 场景 / 3 次硬杀 / 68 条事件全 PASS）**：
+  1. **恢复粒度 = 节点边界**：崩溃后 `graph.get_state(config).next == ('transform',)`，状态停在最后一个**已完成**超级步（实测 `steps_done=['fetch']`）——粒度比"整个 run 重跑"细、比"节点内断点"粗，**节点必须整体可重入**。
+  2. **正确续跑姿势 = `invoke(None, config)`**：实测最终状态与"不中断对照"**完全一致**，已完成节点不重跑。若写成 `invoke({...完整输入...})`，LangGraph 会**从 START 重跑**已完成的节点（`fetch` 被重复执行 2–3 次；连续两次崩溃场景下三个节点各重跑）——"能跑出结果"但**静默重复副作用**（重复抓取/重复 LLM 花费/重复写索引），必须由 harness 固定为 `None`。
+  3. **崩溃节点必然重跑（at-least-once）**：节点"做到一半"被杀时其状态更新未落盘 → 恢复后该节点重跑。**推论（对 S5 的硬约束）**：每个节点的副作用必须幂等——按 `(run_id, node, attempt)` 或业务幂等键去重（写索引用 upsert、LLM 调用结果落缓存、报告/claim 用确定性 id）。
+  4. **输入漂移无内建保护**：崩溃后带**不同 topic** 重启，新输入会被接受并覆盖 checkpoint 状态（实测 `topic_seen=['T1','T2-CHANGED','T2-CHANGED','T2-CHANGED']`，最终 `topic='T2-CHANGED'`）。→ 必须自研守卫 G15（比对 run 身份/输入指纹）。
+  5. **重复触发已完成的 run 会整图重跑并追加状态**（实测 `steps_done` 变成 6 项）：框架层无幂等保护 → 触发前必须查 run 状态 + 持 per-topic 锁（G1/G2）。
+  6. **事件跨进程可续写**：`JsonlEventLog` 的 per-run `seq` 在 6 个 run、3 次 `os._exit(9)` 硬杀下**全部保持 1..N 连续且无重复**（共 68 条）→ 事件溯源可以作为"崩溃后可重建真相"的基础，与框架 checkpoint 配套成立。
+  7. **checkpoint 体积可控**：3 节点 run 的 SQLite checkpoint 库 28–37 KB（≈4 KB/超级步），周更 run 的 checkpoint 开销可忽略。
 
 ## G4 · 补跑 vs 顺延
 - **架构级**：默认"顺延不补跑"，缺周在报告历史中标注原因；可选补跑。
