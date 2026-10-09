@@ -47,6 +47,8 @@
 | `steps/s6_guards_demo.py` | 守卫 + 看门狗 + 注入演示（✅ 已交付）：6 场景 ×N 次 + 阈值扫描 | CLI：`--inject {none,drift,loop,stagnation,timeout,budget,all} --repeats --sweep --drift-warn/--drift-block --loop-window/--loop-repeat --no-progress-steps --budget-tokens` | → `out/s6_summary.json`、`out/s6_threshold_sweep.json`、`out/s6/guards_*.jsonl` | guards/scoring | 6 ✅ | 逻辑并入 `graph/guards.py` + `eval/faultinject.py` |
 | `tests/test_guards.py` | 守卫单测（✅ 已交付，18 用例，全离线） | G1 阈值两侧/相对口径/history、G4 签名稳定与窗口、停滞阶梯、预算 80/100 边界、恢复包结构、GuardRail 按需调用 | — | guards | 6 ✅ | → `tests/unit/` |
 | `tests/test_scoring.py` | 打分与标定单测（✅ 已交付，9 用例） | 分词/余弦/排序确定性、质心可分性、间隙标定（block=中点、warn<min(正)）、重叠时如实标注、空样本 | — | scoring | 6 ✅ | → `tests/unit/` |
+| `steps/s7_metrics.py` | 最小指标集与汇总（✅ 已交付）：**只读事件**聚合 5 指标 + 每 run 一行 CSV + 一页报告 | CLI：`--events`（支持通配）`--out/--aggregate/--report --explain <run_id> --last-per-scenario --last-reports --include-run --all-history` | 事件 JSONL → `out/metrics_summary.csv` / `out/metrics_aggregate.json` / `out/metrics_report.md` | 无（纯计算） | 7 ✅ | → `eval/metrics.py` |
+| `tests/test_metrics.py` | 指标聚合单测（✅ 已交付，12 用例） | 支持率/幻觉率（含 §5.5 分母口径）、多次尝试取最后一条、守卫事件计数、timeout 族靠 error 事件、TPR/FPR、成本均值含 0 与 max、campaign 筛选、空事件 | — | metrics | 7 ✅ | → `tests/unit/` |
 | `lit_agent_min/llm.py` | 云 LLM 网关（✅ 5.6 已交付） | `LLMGateway.chat_json()/chat()`：内容寻址缓存、超时+指数退避重试、**reasoning 截断检测**、token/cost 计量、预算熔断、事件回调 | 消息 → `LLMCall`（无正文入库） | litellm | 5.6 ✅ | → `llm/gateway.py`（P2 加路由与熔断） |
 | `tests/test_chunking.py` | 分块与 PDF 兜底单测（✅ 已交付，9 用例） | 预算上界严格 / 预算充足时 ≥0.9 利用率 / 超长句硬切 / 空文本 / 坏 PDF 不崩且记录错误 | — | chunking | 5.3 ✅ | → `tests/unit/` |
 | `tests/test_llm.py` | LLM 网关单测（✅ 已交付，9 用例，注入假 completer 不触网） | JSON 解析 / 截断重试并放大预算 / 空正文判失败 / 缓存不重复计费 / 禁用缓存 / 预算熔断 / 围栏剥离 | — | llm | 5.6 ✅ | → `tests/unit/` |

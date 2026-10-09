@@ -17,7 +17,7 @@
 | 4 (S4) | 断点续跑验证完成：**checkpoint 可续跑，恢复粒度=节点边界；但"带输入重启"会从 START 重跑已完成节点**（必须用 `invoke(None)`） | 6 场景 / 3 次 `os._exit(9)` 硬杀 / 68 条事件全 PASS；崩溃后 `next=('transform',)`、状态停 `['fetch']`；正确姿势 `invoke(None)` → 最终状态与不中断对照**完全一致**（fetch 仅 1 次）；错误姿势 `invoke(输入)` → fetch 重跑 2–3 次；输入漂移被框架接受（`topic_seen=['T1','T2-CHANGED',…]`）；重复触发已完成 run → 整图重跑（`steps_done` 3→6）；事件 seq 跨进程 1..N 连续无重复；checkpoint 库 28–37 KB | `out/events_s4.jsonl`、`out/s4_summary.json`、`out/s4/*.json` | 是（新增 **G15** 守卫：输入漂移/重复触发；G3 补实测语义；S5 硬约束：节点副作用必须幂等 + 续跑固定 `invoke(None)`） | 2026-10-08 | ☑ 完成 |
 | 5 (S5) | 单 topic 端到端闭环跑通：**云 LLM 路径可行**，报告/claims/事件/成本全部达标 | 24 篇真实 OpenAlex 语料 → 43 块 → 12 证据卡 → 报告 **8,946–9,189 字 / 16–18 claims / 100% 带 citation**；单 run **33 事件** seq 连续；冷启动成本 **$0.0036–0.0063**（90.9 s / 7 次网络调用）、**缓存重跑 $0 且 0.12 s**；重跑论文数新增 0、claims 文件 sha1 一致 | `out/reports/T1-*-p0-s5-*.md`、`out/claims_p0-s5-*.json`、`out/s5_summary.json`、`out/events.jsonl`、`out/llm_cache/` | 是（新增 `llm.py` 网关把 reasoning 截断/缓存/预算熔断固化；新增 schema 身份校验；确认 `deepseek-flash` 为 reasoning 模型；run_id 唯一性约束） | 2026-10-08 | ☑ 完成 |
 | 6 (S6) | 守卫与注入验证完成：**三守卫 + 预算看门狗全部达标**，并暴露修掉了"阈值口径"这一根本问题 | 6 场景 × 3 次：注入检出率 **1.00**（≥0.9）、正常 run 误报 **0/3**、全部恢复到完成态或按规则终止；G1 按分布间隙标定 **warn 0.0867 / block 0.0777**；分离度 min(正)=0.0885 > max(负)=0.0670（gap 0.0215）；G4 k=5×3；预算 80% warn → 100% stop 阶梯可见 | `out/s6_summary.json`、`out/s6_threshold_sweep.json`、`out/s6/guards_*.jsonl` | 是（新增 `guards.py`/`scoring.py`/`topics.py`；**scope 必须用种子语料质心而非关键词串**；warn 阈值必须按分布标定；S5 检索改用同一打分器） | 2026-10-09 | ☑ 完成 |
-| 7 (S7) | — | — | — | — | — | ☐ |
+| 7 (S7) | 最小指标集可从**事件**算出，且与原始记录一致（手工抽查通过）；口径对齐 §5 并回写文档 | 5 指标：grounding 支持率 **0.7949**（verifiable=39）/ 幻觉率 **0.2051**（严重 0.0513）/ 主题相关度 0.0699 / 漂移事件率 0.3333 + 注入 TPR **1.0** / 循环事件率 0.3333 / 成本均值 **$0.006294**、时延 p50 0.08s–p95 68.35s；FPR **0.0**、越界副作用率 **0.0**、处置正确率 **1.0**；手工核对 `p0-s5-cold`：事件侧 16/1/6/23 = claims 文件独立统计 | `out/metrics_summary.csv`、`out/metrics_aggregate.json`、`out/metrics_report.md` | 是（**补 3 处埋点**：S5 grounding 分级计数+主题相关度、S5 run_summary 字段、S6 timeout 的 ERROR 事件；新增 campaign 筛选；§5.5 口径修正：不可回查 claim 计入 unsupported 而非丢弃） | 2026-10-09 | ☑ 完成 |
 | 8 | — | — | — | — | — | ☐ |
 
 状态图例：☐ 待办 / ◐ 进行中 / ☑ 完成 / ⛔ 阻塞
@@ -471,6 +471,48 @@
 `out/s6/guards_<scenario>_<run_id>.jsonl`（18 条完整事件链）、`out/s6_offtopic_corpus.json`（真实离题语料）。
 **演示材料**：`docs/ppt/s6-guards-brief.md`。
 
+## 2.14 Step 7（S7）记录：最小指标集与汇总（2026-10-09）
+
+**状态：完成**（脚本 `steps/s7_metrics.py` + `tests/test_metrics.py` 12 例；**只读事件**，不读 summary 文件）
+
+**五个指标（口径严格对齐 `evaluation-plan.md` §5；campaign = 每场景最近 3 次 + 最近 2 个报告 run + 冷启动 run）**
+
+| # | 指标 | §5 公式 | 实测 |
+|---|---|---|---|
+| 1 | grounding 支持率 | `supported/verifiable` | **0.7949**（verifiable=39） |
+| 2 | 幻觉率 | `(contradicted+unsupported)/verifiable` | **0.2051** |
+| 2b | 严重幻觉率 | `contradicted/verifiable` | 0.0513 |
+| 2c | 主题相关度 | `mean(cos(claim, scope))` | 0.0699（语料质心口径） |
+| 2d | citation 可回查率 | 报告 run 中无越界引用占比 | **1.0** |
+| 3 | 漂移检出率 | `漂移事件/run` + 注入 TPR | 事件率 0.3333；**TPR 全类 1.0** |
+| 4 | 循环检出率 | `循环事件/run` + 注入 TPR | 事件率 0.3333；TPR 1.0 |
+| 5 | 单 run 成本与时延 | — | 均值 **$0.006294**（max $0.012589 冷启动）；p50 0.08s / p95 68.35s / 均值 34.2s |
+
+**守卫有效性（§5.3）**：drift/loop/stagnation/timeout/budget 五族**检出率均 1.0**、**处置正确率均 1.0**；
+自愈率：drift 1.0、timeout 1.0（恢复完成），loop/stagnation/budget 0.0（按规则 abort——**不是失败，是设计**）；
+**误报率 FPR 0.0**、**越界副作用率 0.0**（安全底线）。
+
+**手工抽查（spec 验收项）**：`--explain p0-s5-cold` 的事件侧
+`claims_supported=16 / contradicted=1 / unsupported=6 / verifiable=23`，与 `out/claims_p0-s5-cold.json` 的
+独立统计 `{supported:16, contradicted:1, unsupported:6}` **完全一致** → 指标可复算。
+
+**本步暴露并修掉的四个问题（「埋点先于指标」的实证）**
+
+1. **S5 丢弃不可回查 claim 会让 grounding 恒为 100%**：§5.5 规定这类 claim 计入 `unsupported`。
+   已改为：报告仍不发布不可回查引用（硬过滤），但**计入 `verifiable` 分母与幻觉率分子**并单独计数。
+2. **历史 run 缺埋点就算不出指标**：`topicality`、按 support 分级计数、`run_summary`（成本/时延）都是本步新补的埋点；
+   旧 run（如 `p0-s5-005`）因此只有部分指标 → 印证「补埋点后重跑对应 Step」。
+3. **S6 的 timeout 注入只写了日志、没写事件** → TPR 里 timeout 族恒为 0。已补 `ERROR` 事件（`E_PROVIDER_TIMEOUT`）并重跑 S6。
+4. **把全部历史 run 一起算指标毫无意义**（实测 92 个 run 里混着改阈值前的守卫行为，FPR 0.75 / TPR 0.625）→
+   新增 **campaign 筛选**（每场景最近 N 次 + 最近 N 个报告 run + `--include-run` 显式纳入冷启动）。
+
+**口径警示（已写进自动报告）**：Phase 0 的 `supported/contradicted/unsupported` 是**生成模型自报标签**
+（`support_label_source=llm_self_label`），**不等于** §5.1 要求的「claim 抽取 → 快照回查 → 三类判定」独立核验；
+后者需要 D2 gold 事实集，属 P3。本轮同时给出**确定性的** citation 可回查率（1.0）作为 grounding 的硬下界。
+
+**证据文件**：`out/metrics_summary.csv`（每 run 一行，32 列）、`out/metrics_aggregate.json`（含 by_fault 与完整性检查）、
+`out/metrics_report.md`（可粘进论文/组会的一页结论）。
+
 ## 3. 假设与发现
 
 | 日期 | 假设 | 结果（证实/证伪/待验证） | 依据 | 回写位置 |
@@ -496,4 +538,8 @@
 | 2026-10-09 | warn 阈值取 `block × 1.5` 即可 | **证伪** | warn=0.12 落进正样本分布内部（最低 0.0885）→ **3/3 正常 run 误报** | §2.13；warn 必须按分布标定（`min(正)×0.98`） |
 | 2026-10-09 | 配置里的 `scope_cosine_min: 0.60` 可直接用于词法打分器 | **证伪** | 词法代理余弦量纲不同（同主题仅 0.09–0.21），套用即全误报 | §2.13；Phase 1 换 bge-m3 后必须重新标定 |
 | 2026-10-09 | 检索与守卫各用自己的打分实现无妨 | **证伪** | G1 阈值是在打分器分布上标定的，两处口径不一致则阈值失效 | §2.13；S5 检索已改为委托 `lit_agent_min/scoring.py` |
+| 2026-10-09 | S5 丢弃不可回查 citation 的 claim 后，grounding 率仍有意义 | **证伪** | §5.5 要求计入 `unsupported`；丢弃会让指标恒为 100% | §2.14；改为计入分母并在报告中单列 |
+| 2026-10-09 | 事件目录里所有 run 一起算指标即可 | **证伪** | 混入改阈值前的历史尝试 → FPR 0.75 / TPR 0.625（错误结论） | §2.14；新增 campaign 筛选 |
+| 2026-10-09 | S6 的超时注入已写入事件流 | **证伪** | 只调用了 `log_event`（写日志），TPR 里 timeout 族恒为 0 | §2.14；补 `ERROR` 事件后重跑 S6 |
+| 2026-10-09 | 只要埋点齐全，历史 run 也能算出新指标 | **证伪** | 埋点是随时间补的，旧 run 无 `topicality`/`run_summary` | §2.14；只能对补埋点后的 run 计算 |
 | 待填 | 例：`.env` 作为兜底可满足 Phase 0 密钥管理 | 待验证 | `selfcheck` 输出 | `design/agent-design-decisions.md` H2 |

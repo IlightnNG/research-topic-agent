@@ -211,6 +211,31 @@ grounding 支持率 = |supported| / |verifiable_claims|
 ### 5.4 双引擎对比
 同一任务集分别在 local / cloud 生成 → **配对比较**：准确率、幻觉率、时延 P50/P95、token、成本、失败率。
 
+### 5.4b Phase 0 实测口径映射（S7 落地，2026-10-09）
+
+> 本节是 S7 的验收要求（口径不一致必须回写）。Phase 0 已按 §5.1/§5.3 从**事件**实现自动聚合
+> （`steps/s7_metrics.py` → `out/metrics_summary.csv` / `out/metrics_aggregate.json` / `out/metrics_report.md`）。
+
+| §5 指标 | Phase 0 事件来源 | 实测值（S7 campaign） | 与 §5 的差异 |
+|---|---|---|---|
+| grounding 支持率 | `metric{kind:grounding}.claims_supported / verifiable_claims` | **0.7949**（verifiable=39） | ⚠️ 分子来自**模型自报 support 标签**，非独立核验 |
+| 幻觉率 | `(contradicted + unsupported + 被丢弃的不可回查 claim) / verifiable` | **0.2051** | 同上；且按 §5.5 把不可回查 claim 计入 unsupported |
+| 严重幻觉率 | `contradicted / verifiable` | 0.0513 | 同上 |
+| 主题相关度 | `mean(cos(claim, scope))`，scope 用**语料质心** | 0.0699 | 用词法代理（无 embedding）；Phase 1 换 bge-m3 后需重标定 |
+| 漂移率 / 检出率 | `guard_trigger{code}` 计数 + S6 场景映射 | 事件率 0.3333 / **TPR 1.0** | 一致 |
+| 处置正确率 / 自愈成功率 | `guard_trigger.action` + `recovery.action` + `metric{recovered}` | 均 **1.0**（abort 类自愈率 0 属设计） | 一致（处置动作含 harness 级 recovery） |
+| 误报率 FPR | `scenario=none` 的 run 中触发守卫的比例 | **0.0** | 一致 |
+| 越界副作用率 | 报告 run 中 `ungrounded_citation_count > 0` 的比例 | **0.0** | 一致（S5 硬过滤不可回查引用） |
+| 单 run 成本/时延 | `metric{kind:run_summary}.cost_usd / seconds` | 均值 **$0.006294**；p50 0.08s / p95 68.35s | 时延含真实网络调用（reasoning 模型） |
+
+**两条必须记住的口径约定（S7 实测确立）**
+
+1. **「claim 无 citation」按 §5.5 计入 `unsupported`**，而不是从分母中丢弃——否则 grounding 率恒为 100%、指标失去意义。
+   Phase 0 的做法：报告仍不发布不可回查引用（硬过滤），但**该 claim 计入 `verifiable` 与幻觉率分子**并单独计数。
+2. **指标只能在"补埋点之后"的 run 上计算**：埋点（`topicality`、按 support 分级计数、`run_summary`）是随 S5/S6/S7 逐步补的，
+   旧 run 缺字段就算不出。同理，**必须按 campaign 圈定 run 集**（每场景最近 N 次 + 明确纳入的 run），
+   把全部历史尝试一起算会得到错误结论（实测混入改阈值前的行为后 FPR 0.75 / TPR 0.625）。
+
 ### 5.5 边界情况处理（必须预先定义，否则结果不可比）
 | 情况 | 处理 |
 |---|---|
@@ -220,6 +245,7 @@ grounding 支持率 = |supported| / |verifiable_claims|
 | gold 未覆盖该问题的方面 | 不计入召回分母（分母只算"期望覆盖"） |
 | 重复 claim | 先按语义去重再统计 |
 | 报告为空/失败 | 记为该 run 失败，不参与质量均值（单列失败率） |
+| 生成模型自报 support | Phase 0 只能用自报标签（`support_label_source=llm_self_label`）；**独立核验（P3）前不得把它当 §5.1 结论** |
 
 ---
 

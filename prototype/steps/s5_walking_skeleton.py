@@ -32,7 +32,6 @@ from __future__ import annotations
 
 import argparse
 import json
-import re
 import sys
 import time
 from collections import Counter
@@ -58,124 +57,9 @@ from lit_agent_min import (  # noqa: E402
 from lit_agent_min.chunking import chunk_text, count_tokens  # noqa: E402
 from lit_agent_min.llm import LLMBudgetExceeded, LLMCall, LLMError, LLMGateway  # noqa: E402
 from lit_agent_min.normalize import dedup_papers, openalex_work_to_paper  # noqa: E402
-from lit_agent_min.scoring import build_idf, rank  # noqa: E402
+from lit_agent_min.scoring import build_idf, rank, tokenize  # noqa: E402
 from lit_agent_min.stores import SqliteStore, StoreSchemaError, verify_counts  # noqa: E402
-
-TOPICS: dict[str, dict[str, str]] = {
-    "T1": {
-        "name": "多智能体 LLM 编排与可靠性",
-        "query": (
-            "multi-agent LLM orchestration reliability coordination failure detection "
-            "verification robustness agent communication benchmarks"
-        ),
-    },
-    "T2": {
-        "name": "边缘设备 VLM 量化与部署",
-        "query": (
-            "edge device vision language model quantization deployment inference "
-            "efficiency latency memory pruning distillation"
-        ),
-    },
-}
-
-STOPWORDS = frozenset(
-    [
-        "a",
-        "an",
-        "the",
-        "and",
-        "or",
-        "but",
-        "if",
-        "then",
-        "than",
-        "that",
-        "this",
-        "these",
-        "those",
-        "of",
-        "in",
-        "on",
-        "at",
-        "to",
-        "for",
-        "from",
-        "with",
-        "without",
-        "by",
-        "as",
-        "is",
-        "are",
-        "was",
-        "were",
-        "be",
-        "been",
-        "being",
-        "do",
-        "does",
-        "did",
-        "not",
-        "no",
-        "we",
-        "our",
-        "us",
-        "it",
-        "its",
-        "their",
-        "there",
-        "here",
-        "can",
-        "could",
-        "may",
-        "might",
-        "will",
-        "would",
-        "should",
-        "which",
-        "who",
-        "whom",
-        "whose",
-        "what",
-        "when",
-        "where",
-        "how",
-        "all",
-        "any",
-        "both",
-        "each",
-        "few",
-        "more",
-        "most",
-        "other",
-        "some",
-        "such",
-        "only",
-        "own",
-        "same",
-        "so",
-        "too",
-        "very",
-        "s",
-        "t",
-        "just",
-        "don",
-        "now",
-        "also",
-        "using",
-        "use",
-        "used",
-        "based",
-        "approach",
-        "method",
-        "results",
-        "show",
-        "shows",
-        "paper",
-        "propose",
-        "proposed",
-        "new",
-    ]
-)
+from lit_agent_min.topics import TOPICS, TopicSpec, get_topic  # noqa: E402
 
 CARD_FIELDS = ("problem", "method", "datasets", "metrics", "findings", "limitations")
 
@@ -184,9 +68,8 @@ CARD_FIELDS = ("problem", "method", "datasets", "metrics", "findings", "limitati
 # 5.5 检索：词法 TF-IDF 余弦（无本地 embedding 时的确定性替代）
 # --------------------------------------------------------------------------- #
 def _tokens(text: str) -> list[str]:
-    return [
-        t for t in re.findall(r"[a-z0-9][a-z0-9\-]+", (text or "").lower()) if t not in STOPWORDS
-    ]
+    """分词委托 `scoring.tokenize`（与检索、守卫共用同一停用词表，避免口径漂移）。"""
+    return tokenize(text)
 
 
 def lexical_scores(query: str, docs: dict[str, str]) -> dict[str, float]:
@@ -363,7 +246,7 @@ def main(argv: list[str] | None = None) -> int:
     clear_context()
     bind_context(run_id=run_id, stage="S5_walking_skeleton", agent="single")
 
-    topic = TOPICS[args.topic]
+    topic = get_topic(args.topic)
     corpus_path = Path(args.corpus)
     if not corpus_path.is_absolute():
         corpus_path = Path(__file__).resolve().parents[1] / corpus_path
@@ -403,7 +286,7 @@ def main(argv: list[str] | None = None) -> int:
         "s5_started",
         "S5 闭环开始",
         topic=args.topic,
-        topic_name=topic["name"],
+        topic_name=topic.name,
         model=model,
         max_usd=max_usd,
         corpus=str(corpus_path.name),
@@ -419,7 +302,7 @@ def main(argv: list[str] | None = None) -> int:
     summary: dict[str, Any] = {
         "run_id": run_id,
         "topic": args.topic,
-        "topic_name": topic["name"],
+        "topic_name": topic.name,
         "started_at": datetime.now(UTC).isoformat(),
         "model": model,
         "budget_usd": max_usd,
@@ -566,13 +449,13 @@ def main(argv: list[str] | None = None) -> int:
         EventType.PHASE_CHANGE, stage="5.5_retrieve", agent="single", payload={"phase": "start"}
     )
     docs = {p.paper_id: f"{p.title}. {p.abstract}" for p in papers}
-    scores = lexical_scores(topic["query"], docs)
+    scores = lexical_scores(topic.query, docs)
     ranked = sorted(scores.items(), key=lambda kv: (-kv[1], kv[0]))[: args.top_k]
     by_id = {p.paper_id: p for p in papers}
     cards: list[EvidenceCard] = []
     for paper_id, score in ranked:
         snippet_source = chunks_by_paper.get(paper_id) or [by_id[paper_id].title]
-        snippet = _best_snippet(snippet_source, topic["query"])
+        snippet = _best_snippet(snippet_source, topic.query)
         cards.append(
             EvidenceCard(
                 paper_id=paper_id,
@@ -704,7 +587,7 @@ def main(argv: list[str] | None = None) -> int:
     generated_at = datetime.now(UTC).strftime("%Y-%m-%d %H:%M UTC")
     report_md = render_report(
         topic=args.topic,
-        topic_name=topic["name"],
+        topic_name=topic.name,
         cards=cards,
         notes=notes,
         claims=claims,
@@ -725,6 +608,12 @@ def main(argv: list[str] | None = None) -> int:
 
     cited = {c.paper_id for claim in claims for c in claim.citations}
     ungrounded = sorted(pid for pid in cited if pid not in cards_by_id)
+    # 按 support 分级计数（evaluation-plan §5.1：支持率/幻觉率/严重幻觉率三者的分子分母都要能算出来）
+    by_support = Counter(str(c.support) for c in claims)
+    report_scope_scorer = _scope_scorer(topic, docs)
+    topicality = (
+        round(sum(report_scope_scorer(c.text) for c in claims) / len(claims), 6) if claims else 0.0
+    )
     summary["report"] = {
         "path": str(report_path.relative_to(settings.paths.out_dir.parent)),
         "claims_path": str(claims_path.relative_to(settings.paths.out_dir.parent)),
@@ -737,6 +626,9 @@ def main(argv: list[str] | None = None) -> int:
         "grounding_rate": round(sum(1 for c in claims if c.citations) / len(claims), 4)
         if claims
         else 0.0,
+        "by_support": dict(by_support),
+        "verifiable_claims": len(claims) + dropped,
+        "topicality_mean": topicality,
     }
     log.emit(
         EventType.REPORT_WRITTEN,
@@ -745,6 +637,28 @@ def main(argv: list[str] | None = None) -> int:
         payload={"path": str(report_path.name), "chars": len(report_md), "claims": len(claims)},
     )
     log_event(Severity.INFO, "s5_report_written", "5.6 报告已生成", **summary["report"])
+    # 指标事件：S7 只读事件即可算出 evaluation-plan §5.1 的四个指标
+    # （支持率 / 幻觉率 / 严重幻觉率 / 主题相关度），无需回头翻 summary 文件
+    log.emit(
+        EventType.METRIC,
+        stage="5.6_report",
+        agent="single",
+        payload={
+            "kind": "grounding",
+            "topic": args.topic,
+            "claims": len(claims),
+            "verifiable_claims": summary["report"]["verifiable_claims"],
+            "claims_dropped_ungrounded": dropped,
+            "claims_supported": by_support.get("supported", 0),
+            "claims_contradicted": by_support.get("contradicted", 0),
+            "claims_unsupported": by_support.get("unsupported", 0),
+            "claims_unverified": by_support.get("unverified", 0),
+            "distinct_cited_papers": len(cited),
+            "ungrounded_citation_count": len(ungrounded),
+            "report_chars": len(report_md),
+            "topicality_mean": topicality,
+        },
+    )
     log.emit(
         EventType.PHASE_CHANGE,
         stage="5.6_report",
@@ -774,11 +688,19 @@ def main(argv: list[str] | None = None) -> int:
         stage="5.7_events",
         agent="single",
         payload={
+            "kind": "run_summary",
+            "topic": args.topic,
             "event_count": len(events),
             "claims": len(claims),
             "report_chars": len(report_md),
             "cost_usd": llm_summary["cost_usd"],
             "seconds": summary["seconds_total"],
+            "llm_calls": llm_summary["calls"],
+            "network_calls": llm_summary["network_calls"],
+            "cache_hits": llm_summary["cache_hits"],
+            "prompt_tokens": llm_summary["prompt_tokens"],
+            "completion_tokens": llm_summary["completion_tokens"],
+            "cost_known": llm_summary["cost_unknown_calls"] == 0,
         },
     )
     log_event(
@@ -795,7 +717,7 @@ def main(argv: list[str] | None = None) -> int:
     _write_summary(settings, args.summary, summary, gateway)
 
     # 控制台摘要（导师演示用）
-    print(f"run_id      {run_id}   topic={args.topic} ({topic['name']})")
+    print(f"run_id      {run_id}   topic={args.topic} ({topic.name})")
     print(
         f"corpus      {summary['fetch']['items']} 篇 → 去重后 {summary['normalize']['unique']} 篇"
         f"（合并版本副本 {summary['normalize']['merged_version_copies']}，"
@@ -834,6 +756,25 @@ def _overlap(text: str, query: str) -> int:
     return len(set(_tokens(text)) & set(_tokens(query)))
 
 
+def _scope_scorer(topic: TopicSpec, docs: dict[str, str]) -> Any:
+    """主题相关度打分器（evaluation-plan §5.1 的 `cos(report_section, scope_statement)`）。
+
+    口径与 S6 的 G1 一致：**用"本次语料质心"表示 scope，而不是关键词字符串**
+    （关键词串表示下余弦量纲偏低、且只反映词汇重合；质心表示才反映"报告是否贴着本主题语料"）。
+    实现委托 `lit_agent_min/scoring.py`，保证与守卫、检索共用同一打分器。
+    """
+    from lit_agent_min.scoring import build_centroid, build_idf, cosine_to_vector
+
+    seed = list(docs.values()) or [topic.scope]
+    idf = build_idf([*seed, topic.scope])
+    centroid = build_centroid(seed, idf)
+
+    def scorer(text: str) -> float:
+        return cosine_to_vector(text, centroid, idf=idf)
+
+    return scorer
+
+
 def _extract_cards(
     gateway: LLMGateway, batch: list[EvidenceCard], topic: dict[str, str]
 ) -> dict[str, Any]:
@@ -842,7 +783,7 @@ def _extract_cards(
         {"paper_id": c.paper_id, "title": c.title, "year": c.year, "text": c.snippet} for c in batch
     ]
     prompt = (
-        f"研究主题：{topic['name']}（{topic['query']}）。\n"
+        f"研究主题：{topic.name}（{topic.query}）。\n"
         "下面是若干篇论文的标题与摘要片段。请**只依据给定文本**抽取信息，不要引入外部知识，"
         "不要编造数字。输出 JSON 对象，形如 "
         '{"cards":[{"paper_id":"...","problem":"...","method":"...","datasets":["..."],'
@@ -875,7 +816,7 @@ def _draft_report(
         for c in cards
     ]
     prompt = (
-        f"你是文献综述助手。主题：{topic['name']}（{topic['query']}）。\n"
+        f"你是文献综述助手。主题：{topic.name}（{topic.query}）。\n"
         "基于给定的证据（每篇有 paper_id 与已抽取要点），输出 JSON 对象：\n"
         '{"title":"...","claims":[{"text":"一句可核验的中文结论","citations":["paper_id",...],'
         '"support":"supported|contradicted|unsupported"}]}\n'

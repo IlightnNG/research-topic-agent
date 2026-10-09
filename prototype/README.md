@@ -119,7 +119,7 @@ agent/                          # 仓库根 = Phase 1 的项目根
 | 4 (S4) | `python steps/s4_checkpoint_spike.py --run-id p0-s4-f --mode crash …` 再 `--mode resume --input-mode none` | ✅ 已实现（见下行结论） |
 | 5 (S5) | `python steps/s5_walking_skeleton.py --topic T1 --run-id p0-s5-001` | ✅ 已实现（真实云 LLM 闭环：报告 8.9k 字 / 16–18 claims / 100% citation / 33 事件；冷启动 $0.006、缓存重跑 $0） |
 | 6 (S6) | `python steps/s6_guards_demo.py --inject all --repeats 3`（`--sweep` 做阈值标定） | ✅ 已实现（6 场景：注入检出率 1.00、正常误报 0；G1 阈值按分布间隙标定 0.0777/0.0867） |
-| 7 (S7) | `python steps/s7_metrics.py --events out/events.jsonl --out out/metrics_summary.csv` | ⏳ |
+| 7 (S7) | `python steps/s7_metrics.py --include-run p0-s5-cold`（`--explain <run_id>` 手工核对） | ✅ 已实现（5 指标：grounding 0.7949 / 幻觉率 0.2051 / TPR 1.0 / 成本均值 $0.0063；FPR 0） |
 
 ## 日志查看
 

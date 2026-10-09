@@ -25,8 +25,8 @@ docs/
 | `design/agent-design-decisions.md` | v0.2 | 55 条设计问题与解法台账（A–K 类，含 MCP 校验管线、F7 本地存储路径与生命周期、G3 断点续跑实测语义） | 持续追加条目 |
 | `design/challenges-and-self-healing.md` | v0.1 | 重难点与自愈机制预想（三层防线、升级阶梯） | 与上一条联动 |
 | `implementation/implementation-guide.md` | v0.1 | 冻结契约（表/事件/模型/API）、10 模块实现方案、P1–P6 验收门、AI 生成工作流、§15.6 文档规范 | 契约变更走 ADR |
-| `implementation/phase0-implementation-steps.md` | v0.5 | **Phase 0 逐步施工清单**：Step 0.1–8、文件职责表、进度表、出口检查清单（含 S1/S1b/S3/S4/S5/S6 实测结果） | 每完成一步更新进度与 RESULTS |
-| `implementation/evaluation-plan.md` | v0.2 | 评测方案与数据集计划（D1–D7 规格、指标公式、实验设计、验收标准） | 评测口径变化时 |
+| `implementation/phase0-implementation-steps.md` | v0.6 | **Phase 0 逐步施工清单**：Step 0.1–8、文件职责表、进度表、出口检查清单（含 S1/S1b/S3/S4/S5/S6/S7 实测结果） | 每完成一步更新进度与 RESULTS |
+| `implementation/evaluation-plan.md` | v0.3 | 评测方案与数据集计划（D1–D7 规格、指标公式、**§5.4b Phase 0 实测口径映射**、实验设计、验收标准） | 评测口径变化时 |
 | `implementation/logging-and-observability.md` | v0.1 | **日志与可观测性规范**（三层模型、字段字典、级别与脱敏、轮转保留、调试开关、debug bundle、框架日志接管、慢点告警、运维反馈闭环） | 可观测口径变化时 |
 | `implementation/adr/README.md` | — | ADR 索引、触发条件与模板 | 首次契约变更时新增记录 |
 | `ppt/framework-selection-brief.md` | v0.4 | 英文 15 页 PPT 分页稿（模块选型 + 重难点 + 评测预想） | 选型/架构更新后同步 |

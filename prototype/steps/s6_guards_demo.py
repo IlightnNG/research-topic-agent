@@ -236,6 +236,19 @@ def run_once(
                 stage=stage,
                 attempt=1,
             )
+            # 同时补一条**事件**：S7 的检出率(TPR)只读事件，缺这条埋点会让 timeout 族检出率恒为 0
+            log.emit(
+                EventType.ERROR,
+                stage=stage,
+                agent="retrieval",
+                severity=Severity.ERROR,
+                payload={
+                    "error_code": "E_PROVIDER_TIMEOUT",
+                    "injected": True,
+                    "attempt": 1,
+                    "note": "确定性注入：provider 超时（S6 --inject timeout）",
+                },
+            )
             # 处置：重试一次（模拟 harness 的 retry），第二次成功但降级换通道            degrade_count += 1
             log.emit(
                 EventType.RECOVERY,

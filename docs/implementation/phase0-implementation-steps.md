@@ -1,6 +1,7 @@
 # Phase 0 实施步骤指导（项目初始化与可行性验证）
 
-> 状态：**v0.5 执行清单**——Phase 0 的逐步施工指导；每一步都写明"内容要求 / 交付物 / 执行命令 / 验收标准 / 时间盒 / 失败应对"
+> 状态：**v0.6 执行清单**——Phase 0 的逐步施工指导；每一步都写明"内容要求 / 交付物 / 执行命令 / 验收标准 / 时间盒 / 失败应对"
+> v0.6 变更：Step 7 补 S7 实测结果（五指标 + 四处埋点/口径修正）；§7/§9 状态同步
 > v0.5 变更：Step 6 补 S6 实测结果（注入矩阵全绿 + 阈值标定过程 + scope 表示修正）；§7/§9 状态同步
 > v0.4 变更：Step 5 补 S5 实测结果（真实云 LLM 闭环：8.9k 字报告 / 16–18 claims / 100% citation / 33 事件；冷启动 $0.006、缓存重跑 $0；四条工程规则）；§7/§9 状态同步
 > v0.3 变更：Step 4 补 S4 实测结果（6 场景全 PASS + 四条 S5 硬约束）；新增 G15（运行身份与恢复一致性）；§7/§9 状态同步
@@ -545,6 +546,35 @@ uv run python steps/s7_metrics.py --events out/events.jsonl --out out/metrics_su
 - 指标口径与 `implementation/evaluation-plan.md` §5 一致（不一致要回写文档）。
 **失败应对**：事件字段缺失导致算不出 → 补埋点后重跑对应 Step（这正是"埋点先于指标"的价值）。
 
+**实测结果（2026-10-09，脚本 `steps/s7_metrics.py`；只读事件，不读 summary 文件；新增 12 例单测）**
+
+| # | 指标（§5 口径） | 实测 |
+|---|---|---|
+| 1 | grounding 支持率 `supported/verifiable` | **0.7949**（verifiable=39） |
+| 2 | 幻觉率 `(contradicted+unsupported)/verifiable` | **0.2051**（严重幻觉率 0.0513） |
+| 2c | 主题相关度 `mean(cos(claim, scope))` | 0.0699（语料质心口径） |
+| 2d | citation 可回查率 | **1.0** |
+| 3 | 漂移检出率（事件率 + 注入 TPR） | 0.3333 / **TPR 1.0** |
+| 4 | 循环检出率 | 0.3333 / TPR 1.0 |
+| 5 | 单 run 成本与时延 | 均值 **$0.006294**（冷启动 max $0.012589）；p50 0.08s / p95 68.35s |
+
+守卫有效性（§5.3）：五族**检出率 1.0**、**处置正确率 1.0**；自愈率 drift/timeout 1.0、loop/stagnation/budget 0.0（按规则 abort）；
+**FPR 0.0**、**越界副作用率 0.0**。
+
+**验收标准逐条对照**
+
+| 验收项 | 实测 | 判定 |
+|---|---|---|
+| 五个指标都能从事件算出 | 全部可从 `metric`/`guard_trigger`/`error` 事件算出 | ✅ |
+| 与 Step 5/6 原始记录一致（抽查 1 run 手工核对） | `p0-s5-cold`：事件侧 16/1/6/23 == `claims_p0-s5-cold.json` 独立统计 | ✅ |
+| 口径与 `evaluation-plan.md` §5 一致 | 一致；**已回写** §5 增加「Phase 0 实测口径映射」与自报标签警示 | ✅ |
+
+**本步暴露并修掉的四个问题（「埋点先于指标」的实证）**：①S5 丢弃不可回查 claim 会让 grounding 恒为 100%（§5.5 要求计入 unsupported）→ 已改；②历史 run 缺埋点（`topicality`/`run_summary`）就算不出 → 补埋点后重跑；③**S6 的 timeout 注入只写日志没写事件** → TPR 中 timeout 族恒为 0 → 补 `ERROR` 事件并重跑 S6；④把全部历史 run 一起算指标毫无意义（92 run 混入改阈值前的行为 → FPR 0.75）→ 新增 campaign 筛选（每场景最近 N 次 + `--include-run`）。
+
+**⚠️ 口径警示**：Phase 0 的 supported/contradicted/unsupported 是**模型自报标签**，**不等于** §5.1 的独立核验结论（需 D2 gold 事实集，P3）；报告里已明确标注，并给出确定性的「citation 可回查率 1.0」作为硬下界。
+
+**证据文件**：`out/metrics_summary.csv`、`out/metrics_aggregate.json`、`out/metrics_report.md`。
+
 ---
 
 ## 6. Step 8：阶段收尾与决策门（时间盒 0.5–1 天）
@@ -580,7 +610,7 @@ uv run python steps/s7_metrics.py --events out/events.jsonl --out out/metrics_su
 | 4 | S4 断点续跑 | 0.5 d | 0.2 | ☑ 完成（6 场景/3 次硬杀全 PASS；恢复粒度=节点边界；**续跑须 `invoke(None)`**，带输入会从 START 重跑已完成节点；新增 G15） | |
 | 5 | S5 最小闭环 | 2.5 d | 1、3、4（S2 跳过） | ☑ 完成（真实云 LLM：8.9k 字报告 / 16–18 claims / 100% citation / 33 事件；冷启动 $0.006、缓存重跑 $0；重跑幂等） | |
 | 6 | S6 守卫与注入 | 2 d | 5 | ☑ 完成（注入检出率 1.00 / 正常误报 0；G1 阈值按分布间隙标定 0.0777/0.0867；scope 表示改为种子语料质心） | |
-| 7 | S7 指标聚合 | 1 d | 5, 6 | ☐ | |
+| 7 | S7 指标聚合 | 1 d | 5, 6 | ☑ 完成（5 指标可算；grounding 0.7949 / 幻觉率 0.2051 / TPR 1.0 / 成本均值 $0.0063；FPR 0；手工抽查一致） | |
 | 8 | 收尾与决策门 | 0.5–1 d | 1–7 | ☐ | |
 
 **合计 ≈ 10.5 个工作日。** 节奏建议：每天结束时更新本表 + `RESULTS.md`；每完成一个 Step 提交一次 Git。
@@ -610,7 +640,7 @@ uv run python steps/s7_metrics.py --events out/events.jsonl --out out/metrics_su
 - [x] S4：中断恢复成功，已完成节点不重跑，恢复粒度结论已记录；——结论：恢复粒度 = **节点边界**（`next=('transform',)`）；用 **`invoke(None)`** 续跑时最终状态与不中断对照**完全一致**、已完成节点不重跑（✅），而**带完整输入 invoke 会从 START 重跑**已完成节点（fetch 2–3 次，静默重复副作用）；崩溃节点**必然重跑**（at-least-once → S5 节点必须幂等）；输入漂移与"重复触发已完成 run"框架均**不拦**（新增 **G15**）；事件 seq 跨进程 1..N 连续无重复（68 条 / 3 次硬杀）；checkpoint 库 28–37 KB；
 - [x] S5：单 topic 出报告（≥800 字、≥10 claim、100% 带 citation、事件 ≥30 条），重跑幂等；——实测：**8,946–9,189 字 / 16–18 claims / 100% citation / 33 事件**；重跑论文数新增 0、claims sha1 一致；冷启动成本 **$0.006**（7 次网络调用含 3 次重试，90.9 s），**缓存重跑 $0 / 0.12 s**；报告每条 claim 均可回查到证据卡（dropped=0）；本轮**未做** PDF 全文/bge-m3 向量/Kuzu 接线/守卫 G1G4（理由见 Step 5 实测结果）；
 - [x] S6：四类注入检出率 ≥ 90%、正常样本误报 0、事件链完整；——实测：5 类注入各 3 次**检出率 1.00**、正常 run **误报 0/3**、18/18 run 按规则恢复或终止；事件链 `tool_call → guard_trigger → recovery{packet} → metric` 完整；并顺带**证伪 spec 字面的「关键词 scope + 绝对阈值」**（正负分布重叠、无可用阈值）→ 改用种子语料质心后 TPR 1.0 / FPR 0.0；
-- [ ] S7：5 个指标可从事件算出，与 `implementation/evaluation-plan.md` 口径一致；
+- [x] S7：5 个指标可从事件算出，与 `implementation/evaluation-plan.md` 口径一致；——实测：grounding **0.7949**、幻觉率 **0.2051**、注入 TPR **1.0**、成本均值 **$0.006294**/run；手工抽查 `p0-s5-cold` 事件侧与 claims 文件**完全一致**；补了 3 处埋点（S5 grounding 分级计数+主题相关度、S5 run_summary、S6 timeout 的 ERROR 事件）并新增 campaign 筛选；⚠️ 自报标签口径需 P3 的 D2 gold 事实集做独立核验；
 - [ ] Step 8：`RESULTS.md` 定稿、六份文档回写、决策门材料就绪；
 - [ ] 导师确认 → 启动 Phase 1。
 
