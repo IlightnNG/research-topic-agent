@@ -15,7 +15,7 @@ providers:
   cloud:
     name: deepseek
     base_url: https://api.deepseek.com
-    model: deepseek-chat
+    model: deepseek-flash
     api_key_env: DEEPSEEK_API_KEY
   local:
     name: ollama
@@ -30,7 +30,8 @@ sources:
   venues: []                           # OpenAlex source id 白名单（人工确认的 Sxxxxxxx，勿用名字搜索）
 
 guards:
-  scope_cosine_min: 0.60
+  scope_cosine_min: 0.60        # ⚠️ embedding 口径（bge-m3 就位前勿直接用于词法打分器：S6 实测词法口径下
+                                #    同主题仅 0.09–0.21，标定值为 warn 0.0867 / block 0.0777，见 RESULTS §2.13）
   oos_share_max: 0.30
   loop_k: 5
   no_progress_steps: 2
@@ -47,3 +48,8 @@ logging:
   console: true
   max_field_chars: 500
   strict_contracts: true
+
+routing:                       # 路由与预算（run_cost_budget_usd = 网关侧预算熔断）
+  sensitivity: strict
+  complexity_threshold: 0.5
+  run_cost_budget_usd: 2.0

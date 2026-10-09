@@ -117,8 +117,8 @@ agent/                          # 仓库根 = Phase 1 的项目根
 | 3b (S3b) | `python steps/s3b_vector_latency_probe.py` | ✅ 已实现（向量延迟归因：算力下限 / local 开销 / 过滤成本 / 规模曲线；**一次性探针，不迁移**） |
 | 4 (S4) | `python steps/s4_checkpoint_spike.py --mode {baseline,crash,resume,verify} …`（`crash` 预期非零退出；完整调用序列见脚本 docstring） | ✅ 已实现（6 场景：对照组/单崩/连崩/输入漂移/重复触发/`invoke(None)` 正确续跑；事件级校验全部 PASS） |
 | 4 (S4) | `python steps/s4_checkpoint_spike.py --run-id p0-s4-f --mode crash …` 再 `--mode resume --input-mode none` | ✅ 已实现（见下行结论） |
-| 5 (S5) | `python steps/s5_walking_skeleton.py --topic T1 --run-id p0-s5-001` | ⏳ |
-| 6 (S6) | `python steps/s6_guards_demo.py --topic T1 --inject drift --repeats 3` | ⏳ |
+| 5 (S5) | `python steps/s5_walking_skeleton.py --topic T1 --run-id p0-s5-001` | ✅ 已实现（真实云 LLM 闭环：报告 8.9k 字 / 16–18 claims / 100% citation / 33 事件；冷启动 $0.006、缓存重跑 $0） |
+| 6 (S6) | `python steps/s6_guards_demo.py --inject all --repeats 3`（`--sweep` 做阈值标定） | ✅ 已实现（6 场景：注入检出率 1.00、正常误报 0；G1 阈值按分布间隙标定 0.0777/0.0867） |
 | 7 (S7) | `python steps/s7_metrics.py --events out/events.jsonl --out out/metrics_summary.csv` | ⏳ |
 
 ## 日志查看

@@ -79,6 +79,17 @@ class Guards(_Model):
     max_retries: int = 2
 
 
+class Routing(_Model):
+    """路由与预算（契约见 `implementation/implementation-guide.md` §1.3）。
+
+    本轮只用到 `run_cost_budget_usd`（网关侧预算熔断，S5）；敏感度/复杂度路由在 P2 启用。
+    """
+
+    sensitivity: str = "strict"
+    complexity_threshold: float = 0.5
+    run_cost_budget_usd: float = 2.0
+
+
 class Logging(_Model):
     level: str = "INFO"
     format: str = "json"
@@ -97,6 +108,7 @@ class Settings(_Model):
     providers: Providers
     sources: Sources = Field(default_factory=Sources)
     guards: Guards = Field(default_factory=Guards)
+    routing: Routing = Field(default_factory=Routing)
     logging: Logging = Field(default_factory=Logging)
     config_path: Path | None = None  # 实际使用的配置文件（由 load_settings 填充）
 

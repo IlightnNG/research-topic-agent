@@ -15,8 +15,8 @@
 | 2 (S2) | **本轮不做**：项目当前只使用云端 DeepSeek API，本地模型不测试、不考虑 | — | — | 是（评测的 local vs cloud 对比维度延后；路由暂无本地分支） | 2026-10-07 | ⏸ 延后 |
 | 3 (S3) | 存储栈验证完成：**三库方案成立，不需要换 Neo4j/Milvus**；唯一未达标项是向量检索延迟 | 5k 导入 sqlite 0.22s / kuzu 169.46s / qdrant 26.78s；图 2-hop p95 **4.42ms**、聚合 p95 5.06ms、向量 top-10 p95 **155.45ms（>100ms 目标）**、sqlite p50 0.07ms；幂等重导计数零增长；删库重建 376.53s 且计数一致；磁盘合计 **64.9MB**（kuzu 12.89 / qdrant 49.06 / sqlite 2.95）；20000 边全走 MERGE；并行访问被拒（单写者） | `out/s3_storage.json`、`out/s3_run_5000.log`、`out/events.jsonl` | 是（新增 F7：Kuzu 单文件路径 / 仅 Database.close() 落盘 / 非 ASCII 路径；新增 E_STORE_NOT_EMPTY 与计数对账守卫；向量延迟进 Phase 1） | 2026-10-08 | ☑ 完成 |
 | 4 (S4) | 断点续跑验证完成：**checkpoint 可续跑，恢复粒度=节点边界；但"带输入重启"会从 START 重跑已完成节点**（必须用 `invoke(None)`） | 6 场景 / 3 次 `os._exit(9)` 硬杀 / 68 条事件全 PASS；崩溃后 `next=('transform',)`、状态停 `['fetch']`；正确姿势 `invoke(None)` → 最终状态与不中断对照**完全一致**（fetch 仅 1 次）；错误姿势 `invoke(输入)` → fetch 重跑 2–3 次；输入漂移被框架接受（`topic_seen=['T1','T2-CHANGED',…]`）；重复触发已完成 run → 整图重跑（`steps_done` 3→6）；事件 seq 跨进程 1..N 连续无重复；checkpoint 库 28–37 KB | `out/events_s4.jsonl`、`out/s4_summary.json`、`out/s4/*.json` | 是（新增 **G15** 守卫：输入漂移/重复触发；G3 补实测语义；S5 硬约束：节点副作用必须幂等 + 续跑固定 `invoke(None)`） | 2026-10-08 | ☑ 完成 |
-| 5 (S5) | — | — | — | — | — | ☐ |
-| 6 (S6) | — | — | — | — | — | ☐ |
+| 5 (S5) | 单 topic 端到端闭环跑通：**云 LLM 路径可行**，报告/claims/事件/成本全部达标 | 24 篇真实 OpenAlex 语料 → 43 块 → 12 证据卡 → 报告 **8,946–9,189 字 / 16–18 claims / 100% 带 citation**；单 run **33 事件** seq 连续；冷启动成本 **$0.0036–0.0063**（90.9 s / 7 次网络调用）、**缓存重跑 $0 且 0.12 s**；重跑论文数新增 0、claims 文件 sha1 一致 | `out/reports/T1-*-p0-s5-*.md`、`out/claims_p0-s5-*.json`、`out/s5_summary.json`、`out/events.jsonl`、`out/llm_cache/` | 是（新增 `llm.py` 网关把 reasoning 截断/缓存/预算熔断固化；新增 schema 身份校验；确认 `deepseek-flash` 为 reasoning 模型；run_id 唯一性约束） | 2026-10-08 | ☑ 完成 |
+| 6 (S6) | 守卫与注入验证完成：**三守卫 + 预算看门狗全部达标**，并暴露修掉了"阈值口径"这一根本问题 | 6 场景 × 3 次：注入检出率 **1.00**（≥0.9）、正常 run 误报 **0/3**、全部恢复到完成态或按规则终止；G1 按分布间隙标定 **warn 0.0867 / block 0.0777**；分离度 min(正)=0.0885 > max(负)=0.0670（gap 0.0215）；G4 k=5×3；预算 80% warn → 100% stop 阶梯可见 | `out/s6_summary.json`、`out/s6_threshold_sweep.json`、`out/s6/guards_*.jsonl` | 是（新增 `guards.py`/`scoring.py`/`topics.py`；**scope 必须用种子语料质心而非关键词串**；warn 阈值必须按分布标定；S5 检索改用同一打分器） | 2026-10-09 | ☑ 完成 |
 | 7 (S7) | — | — | — | — | — | ☐ |
 | 8 | — | — | — | — | — | ☐ |
 
@@ -382,6 +382,95 @@
 
 **为什么不再深挖**：S4 只需回答"能否续跑 + 粒度 + 代价"，已闭环。**真正的多节点/带 LLM 的续跑幂等性**要在 S5 的真实图里验证（含 rollback/对账），此处用 3 节点最小图足够——深挖等于提前写产品代码。
 
+## 2.12 Step 5（S5）记录：单 topic 端到端最小闭环（2026-10-08）
+
+**状态：完成**（脚本 `steps/s5_walking_skeleton.py`；**真实云端 DeepSeek `deepseek-flash`**，无 mock；依赖 `lit_agent_min/{llm,normalize,chunking,stores}.py` 四个新模块，62 项单测覆盖）
+
+**方法**：用 S1b 的 410 篇 T1 候选里挑 24 篇，**1 次 HTTP（3.17 s）**取回 OpenAlex 真实响应（含 `abstract_inverted_index` 摘要）作为语料 fixture；随后纯本地跑 5.1→5.7（仅 5.6 调云 LLM）。崩溃/失败一律如实记录，**不产出假报告**。
+
+| 子步 | 实现 | 实测 |
+|---|---|---|
+| 5.1 fetch | OpenAlex fixture + SQLite `sync_state` 游标 | 24 篇 / 1 次请求 3.17 s |
+| 5.2 normalize | `canonical_id`(DOI→W→arxiv)、作者 `name_norm`、D6 三段式去重、**W→canonical 引用映射** | 24 → 24（本样本无重复） |
+| 5.3 chunk | 摘要按 token 预算 120 + 句子边界 + overlap | 43 块（2.4 块/篇） |
+| 5.4 store | SQLite 真相源 6 表 + 幂等 upsert + **计数对账** + **schema 身份校验** | papers 24 / authors 137 / citations 0 / `mismatches={}` |
+| 5.5 retrieve | 词法 TF-IDF 余弦 top-12 → `EvidenceCard`（句子边界截断片段） | 12 张卡，score 0.038–0.134 |
+| 5.6 report | 云 LLM ①批量抽卡片（3 次）②生成报告 JSON（1 次）→ 代码确定性渲染 markdown | **8,946–9,189 字，16–18 claims，100% 带 citation**，引用 12 篇 |
+| 5.7 events | phase/tool/llm/metric/report_written 全埋点 | **33 条/run**，seq 连续 |
+
+**成本与耗时（真实账单）**
+
+| 场景 | 调用 | tokens | 成本 | 耗时 |
+|---|---|---|---|---|
+| 冷启动 | 4 逻辑 / 7 网络（3 次重试） | 4,578 + 10,215 | **$0.006345** | 90.9 s |
+| 冷启动（改进片段截断后） | 4 / 4（2 次重试） | 3,008 + 5,920 | **$0.003608** | 60.1 s |
+| **缓存重跑** | 4 / **0**（4 命中） | 0 | **$0.0** | **0.12 s** |
+
+→ 单 run <$0.01，仅用配置预算 `run_cost_budget_usd: 2.0` 的 **0.3%**；平均单次调用 13–15 s。
+
+**四条关键发现（均已回写设计文档）**
+
+1. **`deepseek-flash` 是 reasoning 模型**：先产出 `reasoning_content`（该部分**计入 completion_tokens**）；`max_tokens` 给小了会出现 `content=''` 且 `finish_reason='length'` —— **静默返回空内容**。网关把 `length` 与空正文**一律判为失败**并放大预算重试（三次重试即源于此）。
+2. **`canonical_id` 用 DOI 优先 → 引用边必须做 W→canonical 映射**，否则 `citations=0`；本轮映射后 `references_total` 仍为 0，**证实这批 2026 新论文本身无 `referenced_works`**（与 S1b 的 1.5%/14.3% 引用完整率结论一致，非版本问题）。
+3. **存储的"身份"必须校验**：`out/data/sqlite.db` 是 S3 spike 写的旧结构，`CREATE TABLE IF NOT EXISTS` 不会重建 → 启动即 `no column named abstract`。现已加 schema 列校验，不匹配就 `E_STORE_SCHEMA_MISMATCH` 明确报错 + `--reset-store` 显式重建（与 S3 的"旧库残留"同族问题）。
+4. **`run_id` 必须唯一标识一次尝试**：事件流按 run_id 累加，复用同一 run_id 会把多次尝试合并成一条 seq 流（本轮 `p0-s5-004` 三个尝试 → 102 条事件）。这正是 S4 的 G15（`E_RUN_ALREADY_COMPLETED` / 输入漂移）要防的情形。
+
+**本轮刻意不做的（附理由）**：PDF 全文（需批量下载、网络密集；摘要已够支撑可回查证据，`extract_pdf_text` 已实现且坏文件兜底有单测）、bge-m3 向量 + Qdrant（无本地 embedding，塞词法向量是假向量）、Kuzu 接线（语料内引用边为 0，接了无数据；S3 已验证可用）、守卫 G1/G4（属 S6，本轮只做预算熔断）、离线档（按本轮要求只验云 API）。
+
+**证据文件**：`out/reports/T1-20261008-p0-s5-*.md`、`out/claims_p0-s5-*.json`、`out/s5_summary.json`、`out/events.jsonl`（按 run_id 过滤）、`out/llm_cache/*.json`（内容寻址缓存，保证重跑确定性与 $0 成本）、`out/s5_corpus.json`（语料 fixture）。
+
+**给导师的演示材料**：`docs/ppt/s5-closed-loop-demo.md`（单页 brief：闭环图、真实数字、成本表、验收对照、诚实边界、3 分钟讲稿）。
+
+## 2.13 Step 6（S6）记录：守卫 + 预算看门狗 + 注入（2026-10-09）
+
+**状态：完成**（脚本 `steps/s6_guards_demo.py` + `lit_agent_min/{guards,scoring,topics}.py`；全离线、确定性、秒级；30 个新单测）
+
+**方法**：守卫只做**纯判定**（吃观测值 → 吐 `Verdict`），因此注入只需改变喂给守卫的观测值 → 无需 LLM、可重复。
+正常态产物取 S5 的 T1 语料，漂移态用**真实离题语料**（`out/s6_offtopic_corpus.json`，1 次 HTTP 取回 8 篇 CRISPR 论文）。
+
+### 1) 阈值标定（本步最关键的发现）
+
+| scope 表示 | 正样本（同主题） | 负样本（离题） | 可分性 | 零误报阈值下的表现 |
+|---|---|---|---|---|
+| **关键词字符串**（spec 字面写法） | 0.000–0.165，mean 0.0499 | 0.000–0.029，mean 0.0037 | ❌ 重叠 | thr=0.02 → TPR 0.88 / **FPR 0.29**；**任何阈值都无法零误报** |
+| **种子语料质心**（改用） | **0.0885–0.2149**，mean 0.1405 | **0.0330–0.0670**，mean 0.0511 | ✅ min(正) > max(负) | **block 0.0777 / warn 0.0867 → TPR 1.0 / FPR 0.0** |
+
+- 配置里的 `scope_cosine_min: 0.60`（warn 0.45 之类）是 **embedding 口径**；词法代理打分器的量纲完全不同，
+  **直接套用会把全部正常样本判为漂移**。→ Phase 1 换 bge-m3 后**必须重新标定**，不能沿用本轮数字。
+- 标定用**诚实留出**：前 15 篇建质心（含种子的留一法），后 9 篇留出作被检产物，避免自相似抬分。
+- block 取**间隙中点**（最大间隔）；warn 取 `min(正)×0.98`。踩过的坑：第一版把 warn 拍成 `block×1.5 = 0.12`，
+  而正样本最低分是 0.0885 → **3/3 正常 run 误报**。教训：**warn 不能落进正样本分布内部**。
+  代价是 warn 带窄（0.0777→0.0867），但这正说明两级分布分离良好；若重叠则守卫需如实标注"检测能力受限"。
+
+### 2) 注入矩阵（6 场景 × 3 次，全部离线）
+
+| 场景 | 检出 | 检出率 | 处置与结果 |
+|---|---|---|---|
+| `none`（正常） | 0/3 | 0.00 | **误报 0**；3/3 正常完成 ✅ |
+| `drift`（越界产物） | 3/3 | 1.00 | G1 → REPLAN（回退检索 + 注入恢复包）→ 恢复完成 |
+| `loop`（重复调用签名） | 3/3 | 1.00 | G4 首次 REPLAN → 再次 **ABORT**（3/3 按规则终止） |
+| `stagnation`（连续零新增） | 3/3 | 1.00 | 停滞守卫首次 DEGRADE（换源）→ 持续 **ABORT** |
+| `timeout`（provider 超时） | 3/3 | 1.00 | 重试 + 降级换通道（`E_PROVIDER_TIMEOUT` 入事件链）→ 恢复完成 |
+| `budget`（token ×3 放大） | 3/3 | 1.00 | **80% `W_BUDGET_NEAR_LIMIT`（不阻断）→ 100% `E_BUDGET_EXCEEDED`（ABORT）** |
+
+**验收对照**：注入检出率 min = **1.00** ≥ 0.9 ✅；正常 run 误报 **0/3** ✅；全部"恢复到完成态或按规则终止" ✅。
+事件链读作"**起因 → 检出 → 处置 → 结果**"：`tool_call` → `guard_trigger{code,action,reasons}` →
+`recovery{recovery_packet}` → 后续 `metric{recovered,aborted}`。
+
+### 3) 本轮确立的工程规则
+
+1. **G1 的判据是"表示 + 阈值"两件事**：只有**种子语料质心**表示才让正负可分；关键词串表示下无论阈值怎么调都不行。
+2. **两级阈值都必须按分布标定**：block = 间隙中点（最大间隔），warn = 正样本下界 × (1−margin)；**禁止用 `block × 常数`**。
+3. **守卫与检索必须共用同一打分器**：S5 的检索已改为委托 `scoring.py`（复跑仍 4/4 命中缓存、$0、16 claims/100% citation）。
+4. **恢复包是可注入的最小结构**：`{guard{code,action}, failure{stage,attempt,reasons}, trusted_state, next_constraints, recent_actions}`。
+
+**本轮刻意不做**：embedding 版 G1（无本地模型）、G2/G3/G5–G15 的完整实现（本轮 spec 只要求两个守卫 + 看门狗 + 注入）、
+真实故障注入（provider 真超时/真断网）——本步验证的是**守卫逻辑与处置阶梯**，故障是确定性的模拟注入。
+
+**证据文件**：`out/s6_summary.json`（含每次 run 的逐步时间线）、`out/s6_threshold_sweep.json`（TPR/FPR 全表）、
+`out/s6/guards_<scenario>_<run_id>.jsonl`（18 条完整事件链）、`out/s6_offtopic_corpus.json`（真实离题语料）。
+**演示材料**：`docs/ppt/s6-guards-brief.md`。
+
 ## 3. 假设与发现
 
 | 日期 | 假设 | 结果（证实/证伪/待验证） | 依据 | 回写位置 |
@@ -398,4 +487,13 @@
 | 2026-10-08 | checkpoint 会拒绝与已存状态不一致的新输入 | **证伪** | 崩溃后带不同 topic 重启，新输入被接受并覆盖（`topic_seen=['T1','T2-CHANGED',…]`） | §2.11；新增守卫 **G15** |
 | 2026-10-08 | 对已完成的 run 再次触发是无害的/幂等的 | **证伪** | 整图重跑且状态追加（`steps_done` 3→6） | §2.11；G1/G2 + `E_RUN_ALREADY_COMPLETED` |
 | 2026-10-08 | 崩溃后事件 seq 会断档或重复 | **证伪** | 6 run / 3 次硬杀 / 68 条事件，seq 全部 1..N 连续无重复 | §2.11；事件溯源可作真相源 |
+| 2026-10-08 | `deepseek-flash` 是普通 chat 模型，`max_tokens` 给 16 也能拿到正文 | **证伪** | 3 次调用均 `content=''`、`finish_reason='length'`、`reasoning_content` 228–280 字 | §2.12；网关判截断失败并重试 |
+| 2026-10-08 | 引用边可直接由 `referenced_works` 建立（W id ↔ canonical id 可直连） | **证伪** | canonical 用 DOI，`referenced_works` 是 W id → 必须显式映射；映射后仍为 0，因这批论文本身无 references | §2.12；`_w_to_canonical()` + 与 S1b 结论互证 |
+| 2026-10-08 | `CREATE TABLE IF NOT EXISTS` 足以保证库结构正确 | **证伪** | S3 旧表已存在 → 不重建 → `no column named abstract` | §2.12；新增 schema 列校验 + `--reset-store` |
+| 2026-10-08 | 同一 run_id 可安全复用于多次尝试 | **证伪** | 3 次尝试共用 `p0-s5-004` → 事件合并为 102 条连续 seq | §2.12；run_id 唯一性约束（呼应 S4 G15） |
+| 2026-10-08 | 分块大小可稳定落在预算 ±10% 内 | **部分证伪** | 上界严格成立（≤budget）；非末块利用率 0.77（budget=30）～0.92（budget=60）→ ±10% 仅在预算 ≥ 约 3× 最长句时成立 | §2.12；`tests/test_chunking.py` 按实测性质断言 |
+| 2026-10-09 | 按 spec 写的"关键词串 scope + 绝对余弦阈值"可同时做到高检出与零误报 | **证伪** | 关键词串表示下正样本 0.000–0.165、负样本 0.000–0.029 分布重叠：thr=0.02 → TPR 0.88/FPR 0.29，**任何阈值都不行** | §2.13；改用**种子语料质心**表示后 min(正)=0.0885 > max(负)=0.0670 → TPR 1.0/FPR 0.0 |
+| 2026-10-09 | warn 阈值取 `block × 1.5` 即可 | **证伪** | warn=0.12 落进正样本分布内部（最低 0.0885）→ **3/3 正常 run 误报** | §2.13；warn 必须按分布标定（`min(正)×0.98`） |
+| 2026-10-09 | 配置里的 `scope_cosine_min: 0.60` 可直接用于词法打分器 | **证伪** | 词法代理余弦量纲不同（同主题仅 0.09–0.21），套用即全误报 | §2.13；Phase 1 换 bge-m3 后必须重新标定 |
+| 2026-10-09 | 检索与守卫各用自己的打分实现无妨 | **证伪** | G1 阈值是在打分器分布上标定的，两处口径不一致则阈值失效 | §2.13；S5 检索已改为委托 `lit_agent_min/scoring.py` |
 | 待填 | 例：`.env` 作为兜底可满足 Phase 0 密钥管理 | 待验证 | `selfcheck` 输出 | `design/agent-design-decisions.md` H2 |

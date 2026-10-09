@@ -128,15 +128,19 @@ S0 scope_check ─► S1 plan ─► S2 retrieve ─► S3 ingest_parse ─► S
 
 > 字段说明：**信号**＝如何计算；**默认阈值**＝配置项初值；**判决**＝`GuardVerdict`；**动作**＝条件边；**事件**＝埋点类型。
 
-### G1 主题漂移（scope drift）
+### G1 主题漂移（scope drift）——**S6 已实测并落地**
 | 项 | 内容 |
 |---|---|
 | 触发点 | S1/S2/S6/S7 出口（阶段性产物） |
-| 信号 | `cos(embed(summary_of_artifact), embed(scope_statement))`；辅助：越界关键词命中数 |
-| 默认阈值 | `< 0.60` → warn；`< 0.45` → block（按嵌入模型标定） |
-| 判决 | warn: `action=retry`（携带修复提示）；block: `action=replan` |
+| 信号 | `cos(artifact, scope)`；辅助：越界关键词命中数 |
+| **scope 表示（S6 修正）** | **必须用"种子语料质心"，不能用关键词字符串**：关键词串表示下正/负样本余弦分布重叠（0.000–0.165 vs 0.000–0.029），**任何阈值都无法兼顾召回与误报**；改用质心后 min(正)=0.0885 > max(负)=0.0670，才真正可分 |
+| 默认阈值 | ① `scope_cosine_min: 0.60`（配置值，**embedding 口径**）；② **实测标定值（词法代理口径）：warn `0.0867` / block `0.0777`** |
+| **阈值标定规则（S6 确立）** | block = 分布间隙中点 `(max(负)+min(正))/2`（最大间隔）；warn = `min(正)×(1−margin)`。**禁止 `warn = block × 常数`**：实测 `0.12` 落进正样本分布内部 → 3/3 正常 run 误报。warn 带窄（0.0777→0.0867）是分离良好的表现 |
+| 判决 | warn: `action=retry`（携带修复提示）；block: `action=replan`（回退检索 + 注入恢复包） |
 | 事件 | `guard_trigger{code=E_GUARD_DRIFT, score, threshold}` |
 | 测试要点 | 阈值 ±ε 两侧；同义改写不误报；明显越界样本必触发 |
+| 实测依据（S6） | 6 场景 × 3 次：漂移注入 **3/3 检出**（真实离题语料：CRISPR 论文），首次 REPLAN 后恢复完成；正常 run **0/3 误报**；实现 `lit_agent_min/guards.py: DriftGuard` + `scoring.calibrate_drift_thresholds()` |
+| ⚠️ Phase 1 待办 | 换 bge-m3 embedding 后**必须重新标定**（量纲与词法代理完全不同，沿用本轮数字会全误报） |
 
 ### G2 检索越界（retrieval out-of-scope share）
 | 项 | 内容 |
@@ -158,15 +162,16 @@ S0 scope_check ─► S1 plan ─► S2 retrieve ─► S3 ingest_parse ─► S
 | 事件 | `guard_trigger{code=E_GUARD_INTENT, query_hash}` |
 | 测试要点 | 明显越界查询拦截率；正常查询零误拦 |
 
-### G4 死循环（loop）
+### G4 死循环（loop）——**S6 已实测并落地**
 | 项 | 内容 |
 |---|---|
 | 触发点 | 每次工具调用后 |
 | 信号 | 工具调用签名（工具名 + 规范化参数哈希）滑动窗口成环；或状态哈希连续重复 |
-| 默认阈值 | 窗口 `k=5` 内出现重复环；或同一状态哈希连续 3 次 |
-| 判决 | `replan`（清局部子状态）；再次触发且累计超限 → `abort` |
+| 默认阈值 | **窗口 `k=5` 内同一签名重复 ≥3 次**（S6 实测参数）；或同一状态哈希连续 3 次 |
+| 判决 | `replan`（清局部子状态）；再次命中 → `abort` |
 | 事件 | `guard_trigger{code=E_GUARD_LOOP, signature}` |
 | 测试要点 | 注入重复序列必触发；正常多步检索不误报 |
+| 实测依据（S6） | 注入"重复同一查询签名" 3/3 检出；首次 `replan`、再次 `abort`；6 步内即终止（不空转烧预算）；正常 run 0 误报。实现：`lit_agent_min/guards.py: LoopGuard`，参数哈希对键序不敏感（`sort_keys`） |
 
 ### G5 停滞（no progress）
 | 项 | 内容 |
@@ -177,6 +182,7 @@ S0 scope_check ─► S1 plan ─► S2 retrieve ─► S3 ingest_parse ─► S
 | 判决 | warn: `retry`（换查询策略）；block: `degrade`（换 provider）→ 仍无进展 `abort` |
 | 事件 | `guard_trigger{code=E_GUARD_STAGNATION, delta}` |
 | 测试要点 | 注入无新增状态必触发；正常低产阶段不误报（用历史分布标定） |
+| 实测依据（S6） | 停滞注入 3/3 检出：连续 2 步零新增 → 首次 `degrade`（换源）→ 持续 → `abort`；实现 `guards.py: ProgressGuard`，参数 `no_progress_steps=2` |
 
 ### G6 结构化违规（schema）
 | 项 | 内容 |
@@ -198,15 +204,16 @@ S0 scope_check ─► S1 plan ─► S2 retrieve ─► S3 ingest_parse ─► S
 | 事件 | `guard_trigger{code=E_GROUND_UNRESOLVED_CITATION, claim_id}` |
 | 测试要点 | 伪造 citation 必被拦截；正确 citation 零误报 |
 
-### G8 预算（budget）
+### G8 预算（budget）——**S6 已实测并落地**
 | 项 | 内容 |
 |---|---|
 | 触发点 | 每次 LLM 调用后 + 定时（看门狗） |
-| 信号 | run 级 token/时长/成本累计；stage 级超时 |
-| 默认阈值 | token 80% / time 80% / cost 80% → warn；100% → block |
+| 信号 | run 级 token/时长/成本/步数累计；stage 级超时 |
+| 默认阈值 | 任一维度 **≥80% → warn（`W_BUDGET_NEAR_LIMIT`，不阻断）**；**≥100% → stop（`E_BUDGET_EXCEEDED`）** |
 | 判决 | warn: 降级（小模型、缩短检索批）；block: `abort`（提前收尾 + annotate） |
 | 事件 | `metric{budget_used}`、`guard_trigger{code=E_BUDGET_*}` |
 | 测试要点 | 恰好 80%/100% 边界；超限后确实停止继续调用 |
+| 实测依据（S6） | token 放大注入 3/3 检出，完整阶梯可见：80% warn（继续）→ 100% stop（按规则终止）；实现 `guards.py: BudgetWatchdog`，4 维（tokens/seconds/cost/steps）+ 单测覆盖 80/100 边界 |
 
 ### G9 provider 健康（circuit breaker）
 | 项 | 内容 |

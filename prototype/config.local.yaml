@@ -14,7 +14,7 @@ providers:
   cloud:
     name: deepseek
     base_url: https://api.deepseek.com
-    model: deepseek-chat
+    model: deepseek-flash
     api_key_env: DEEPSEEK_API_KEY      # 只存环境变量名，绝不在此写密钥
   local:
     name: ollama
@@ -41,7 +41,8 @@ sources:
     - S7407086679                      # ICSE  — IEEE/ACM International Conference on Software Engineering
 
 guards:
-  scope_cosine_min: 0.60               # G1 主题漂移 warn 阈值（Phase 0 初值，待标定）
+  scope_cosine_min: 0.60        # ⚠️ embedding 口径（bge-m3 就位前勿直接用于词法打分器：S6 实测词法口径下
+                                #    同主题仅 0.09–0.21，标定值为 warn 0.0867 / block 0.0777，见 RESULTS §2.13）               # G1 主题漂移 warn 阈值（Phase 0 初值，待标定）
   oos_share_max: 0.30                  # G2 检索越界占比阈值
   loop_k: 5                            # G4 循环检测窗口
   no_progress_steps: 2                 # G5 停滞检测步数
@@ -58,3 +59,8 @@ logging:
   console: true                        # 同时输出到控制台
   max_field_chars: 500                 # info 及以上单字段长度上限，超出转 sha1 摘要（禁止正文入日志）
   strict_contracts: true               # ERROR 级缺 error_code 等契约违规直接报错
+
+routing:                       # 路由与预算（run_cost_budget_usd = 网关侧预算熔断）
+  sensitivity: strict
+  complexity_threshold: 0.5
+  run_cost_budget_usd: 2.0
