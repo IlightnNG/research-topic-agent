@@ -1,6 +1,6 @@
 # 整体架构设计（Architecture Overview）
 
-> 版本 v0.3 · 与《project/framework-selection.md v0.5》配套（编排内核 = LangGraph，成熟框架优先）
+> 版本 v0.4 · Phase 0 收尾（新增 §8b 摩擦点、§8 部署岔路、§9 待确认项） · 与《project/framework-selection.md v0.5》配套（编排内核 = LangGraph，成熟框架优先）
 > 状态：结构定稿，待导师确认项见 §9；Jetson 关联项目仅作背景备注（见 §8），未纳入正式架构
 > v0.3 变更：§8 补充 S3 实测的三条本地存储约束（Kuzu 单文件路径 / 仅 `Database.close()` 落盘 / 非 ASCII 路径不可用）
 
@@ -232,11 +232,29 @@ APScheduler 触发(topic_i, cron) → 创建 run(queued) → 广播事件
   - **⚠️ 待决策（S3 §2.9 实测引出）**：向量检索的**部署形态**存在三选一岔路，会影响到本行的"无外部服务依赖"表述——**A** 接受 Qdrant local（嵌入式）的暴力扫描（纯 Python、无 ANN；实测 ≈0.038 ms/点 → 2 万篇 ≈0.76 s/查询；优点是**精确 kNN、召回更高**且仍是单进程）；**B** 起本地 Qdrant **server 进程**（仍单机、不需 Docker，可拿到 HNSW + payload 索引 + 量化，代价是端口/进程管理与崩溃恢复）；**C** 换嵌入式 ANN 库（hnswlib/FAISS/LanceDB，保留单进程但需自实现 payload 过滤与持久化）。Phase 1 先决策、后调参；S5（最小闭环）不受阻。
 - 备注（非正式路径）：本地推理后端未来可能多一个"Jetson 本地服务"档位（导师另一项目，设备/进度未定，见 project/project-analysis.md"关联项目"，届时仅需在网关 provider 注册表中加一条）。
 
+## 8b. Phase 0 实测暴露的接口/schema 摩擦点（2026-10-09 收尾）
+
+> 逐条都是"实现时才暴露、且必须影响接口/契约"的问题；已在 §8 与 ADR 中给出处置。
+
+| # | 摩擦点 | 证据 | 处置 |
+|---|---|---|---|
+| 1 | **事件 ≠ 日志**：指标只读事件，但埋点容易只写日志 | S6 超时只写日志 → TPR 中 timeout 族恒为 0 | ADR-0002：`metric{kind}` 契约 + "会被指标/回放消费的事实必须写事件" |
+| 2 | **契约缺口**：去重合并关系无处安放（`Paper` 无 `merged_ids`） | S5 只能把合并关系落到独立表 | ADR-0001（Phase 1 加字段 + 迁移） |
+| 3 | **`run_id` 语义**：事件按 run_id 累加，复用会把多次尝试合并 | `p0-s5-004` 三次尝试 → 102 条事件 | K5/G15；指标侧取"最后一条同类事件"并暴露 `metric_events` |
+| 4 | **续跑调用语义**：带输入 `invoke` 会从 START 重跑已完成节点 | S4 场景 B/C（fetch 重跑 2–3 次） | §3 运行时约定：续跑固定 `invoke(None)`；节点副作用必须幂等 |
+| 5 | **存储身份**：不能假设目标库是我们以为的那个库 | S3 旧库残留、S5 旧结构缺列 | ADR-0003：空库哨兵 + 列级 schema 校验 + 显式 reset |
+| 6 | **topic 定义位置**：scope statement 需要"唯一来源" | S5 与 S6 各写一份会漂移 | `lit_agent_min/topics.py`（Phase 1 进 `config.yaml` 的 `topics:` 段） |
+| 7 | **打分器口径**：检索、守卫、主题相关度必须同源 | G1 阈值在打分器分布上标定 | 统一到 `lit_agent_min/scoring.py`（Phase 1 → `eval/scoring.py`） |
+| 8 | **未覆盖路径**：删除/更新、崩溃一致性、同进程并发 | S3 §2.10 覆盖边界清单 | Phase 1 `stores/` + `tests/integration/`；S5 内验证并发读写 |
+| 9 | **向量部署形态**：local 无 ANN（0.038 ms/点、线性） | S3 §2.9 归因 | §8 的三选一（A/B/C），Phase 1 决策 |
+
 ## 9. 待导师/组会确认项（承接选型文档 §14）
 1. 编排内核 LangGraph 认可度（备选 AutoGen / OpenAI Agents SDK）；贡献重定位口径（§2.5 选型文档）
 2. 部署机/GPU 形态（本地引擎主档）
 3. 前端 React or Vue
 4. 测试 topic 集与评测周数
+5. **向量检索部署形态三选一**（A 接受 local 暴力扫描 / B 本地 Qdrant server 进程 / C 嵌入式 ANN 库；见 §8 与 `../prototype/RESULTS.md` §5）
+6. Phase 0 结论确认：是否按 §0 一页摘要与决策门建议进入 Phase 1
 5. 是否设 DSH / Jetson 对照章节（评测维度是否加第三引擎）
 
 ## 10. 演进路线与里程碑验收

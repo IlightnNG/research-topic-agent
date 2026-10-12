@@ -99,7 +99,7 @@ agent/                          # 仓库根 = Phase 1 的项目根
    ├─ tests/test_config.py                  # ✅ 0.1（7 用例）
    ├─ tests/test_contracts.py               # ✅ 0.2（19 用例）
    ├─ tests/test_logging.py                 # ✅ 0.3（9 用例）
-   ├─ steps/                                # S1 ✅ / S1b ✅ / S3 ✅ 已交付；S2 本轮不做；S4–S7 待做
+   ├─ steps/                                # S1/S1b/S3/S3b/S4/S5/S6/S7 ✅ 全部交付；S2 本轮不做
    └─ out/ + logs/                          # 运行产物（gitignored）
 ```
 
@@ -120,6 +120,7 @@ agent/                          # 仓库根 = Phase 1 的项目根
 | 5 (S5) | `python steps/s5_walking_skeleton.py --topic T1 --run-id p0-s5-001` | ✅ 已实现（真实云 LLM 闭环：报告 8.9k 字 / 16–18 claims / 100% citation / 33 事件；冷启动 $0.006、缓存重跑 $0） |
 | 6 (S6) | `python steps/s6_guards_demo.py --inject all --repeats 3`（`--sweep` 做阈值标定） | ✅ 已实现（6 场景：注入检出率 1.00、正常误报 0；G1 阈值按分布间隙标定 0.0777/0.0867） |
 | 7 (S7) | `python steps/s7_metrics.py --include-run p0-s5-cold`（`--explain <run_id>` 手工核对） | ✅ 已实现（5 指标：grounding 0.7949 / 幻觉率 0.2051 / TPR 1.0 / 成本均值 $0.0063；FPR 0） |
+| 8 | 收尾与决策门（文档工作，无脚本） | ✅ 完成：`RESULTS.md` v1.0 定稿、六份主文档回写、3 份 ADR（`docs/implementation/adr/0001–0003`）、决策门一页纸 `docs/ppt/phase0-decision-gate.md`；§9 除"导师确认"外全绿 |
 
 ## 日志查看
 

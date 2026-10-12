@@ -1,6 +1,6 @@
 # 系统实现指导方案（Implementation Guide）
 
-> 版本 v0.1 · 用途：把选型与架构落成**可被 AI 逐步生成、可验收、可回归**的工程方案
+> 版本 v0.2 · Phase 0 收尾：新增 §2.9（结论固化为 Phase 1 契约） · 用途：把选型与架构落成**可被 AI 逐步生成、可验收、可回归**的工程方案
 > 关联：选型 `project/framework-selection.md` v0.5 · 架构 `design/architecture-overview.md` · 设计问题手册 `design/agent-design-decisions.md` · 自愈预想 `design/challenges-and-self-healing.md` · 评测方案 `implementation/evaluation-plan.md`
 > 已定范围（v0.1 决策）：首版只做 **Web 三界面**（CLI 延后）· **代码直接放仓库根**（`src/`、`config/`、`tests/`、`web/` 与 `docs/` 平级；Phase 0 实验区为 `prototype/`）· 前端 **Vue3 + TS + Vite + Element Plus** · 工具层**内置工具为主、预留 MCP 接口** · 部署环境**全部参数化** · 工程规范按推荐默认
 > 技术栈：Python 3.11+ · uv · FastAPI · SQLAlchemy 2.0 + Alembic · LangGraph(+SQLite checkpointer) · LiteLLM · Kuzu · Qdrant(local) · DeepEval · APScheduler · Vue3
@@ -432,6 +432,52 @@ uv run pytest -q tests/integration -m "not slow"     # 涉及 DB/存储时
 **理由**：文件职责表让后续优化能**定位到具体文件**（避免重复实现与职责漂移），也是 AI 生成代码时的文件边界依据；范式模板见 `implementation/phase0-implementation-steps.md` §1.1–§1.1.2。
 
 ---
+
+## 2.9 Phase 0 结论固化（Phase 1 契约补充，2026-10-09）
+
+> Phase 0（Step 0–7）实测后固化的契约与约定。**§2.1–§2.8 的冻结契约保持有效**，本节是**增量**。
+> 变更理由与迁移步骤见 `adr/0001–0003`。
+
+### 2.9.1 模型变更（ADR-0001）
+- `Paper.merged_ids: list[str] = []`（被合并到本记录的其他 canonical id）。
+- 新表 `paper_merges(primary_id, merged_id, run_id, reason)`；**去重不删除任何原始记录**；
+  主记录选择必须确定性（有摘要 > 有 DOI > 作者多 > id 字典序）。
+
+### 2.9.2 事件契约（ADR-0002）
+- `metric` 事件统一带 `kind`，Phase 0 冻结三类：
+  `grounding`（claims 分级计数 + `verifiable_claims` + `topicality_mean` + `ungrounded_citation_count`）、
+  `run_summary`（`cost_usd`/`seconds`/`llm_calls`/`network_calls`/`cache_hits`/tokens/`cost_known`）、
+  守卫 run（`scenario`/`guard_hits`/`recovered`/`aborted`/`budget`）。
+- **事实双写**：凡被指标或回放消费的事实必须写事件；`log_event` 只用于人读日志。
+- 错误类事实在事件与日志中**都**带 `error_code`。
+
+### 2.9.3 存储与部署（ADR-0003）
+- `kuzu_path` 是**单文件**、`qdrant_path` 是**目录**；清理统一 `reset_store_path()`（含 `.wal/.lock/.shm`）。
+- 磁盘统计 `path_size_mb()` 且**必须在关闭 DB 句柄后**执行（Kuzu 只在 `Database.close()` 落盘）。
+- 启动自检：①目标库为空哨兵 ②列级 schema 身份校验（不一致 → `E_STORE_SCHEMA_MISMATCH`，只允许显式 reset）。
+- 生产数据目录必须**纯 ASCII**；向量检索部署形态 A/B/C 待 Phase 1 决策。
+
+### 2.9.4 LLM 网关契约（H5 + F8）
+- `LLMGateway.chat_json()` 返回 `LLMCall`（text/data/usage/cost/cached/attempts/latency），
+  **不含请求或响应正文**（日志规范）。
+- 失败判定：`finish_reason == "length"` 或正文为空 → `LLMTruncated` → 放大预算重试（×2，上限 8192）。
+- **内容寻址缓存**（`sha1(model+messages+params)`）：命中不发请求、不计本次成本，单列 avoided 成本。
+- 预算熔断：token/秒/成本/步数四维，80% warn / 100% stop（`E_BUDGET_EXCEEDED`）。
+
+### 2.9.5 运行与续跑约定（K5 + G15）
+- `run_id` 唯一标识**一次完整尝试**；续跑复用同一 run_id 时必须在事件里标注 attempt。
+- **续跑固定 `graph.invoke(None, config)`**；**节点副作用必须幂等**（崩溃节点必然重跑）。
+- 触发前查 run 状态 + 持 per-topic 锁：`E_RUN_ALREADY_COMPLETED` / `E_RUN_INPUT_MISMATCH`。
+
+### 2.9.6 错误码清单（Phase 0 累计，Phase 1 沿用）
+`E_DATA_COUNT_MISMATCH`、`E_STORE_NOT_EMPTY`、`E_STORE_SCHEMA_MISMATCH`、`E_INSUFFICIENT_EVIDENCE`、
+`E_LLM_CALL_FAILED`、`E_BUDGET_EXCEEDED`、`W_BUDGET_NEAR_LIMIT`、`E_GUARD_DRIFT`、`E_GUARD_LOOP`、
+`E_GUARD_STAGNATION`、`E_RUN_INPUT_MISMATCH`、`E_RUN_ALREADY_COMPLETED`、`E_PROVIDER_TIMEOUT`、`E_SIMULATED_CRASH`。
+
+### 2.9.7 配置面增量
+`routing: {sensitivity, complexity_threshold, run_cost_budget_usd}`（本轮用预算熔断）；
+`topics:` 段（Phase 1 承接 `lit_agent_min/topics.py` 的 scope/query 定义）。
+`guards.scope_cosine_min` **是 embedding 口径**，词法代理下按分布标定值使用（见 `design/state-machine-and-guards.md` G1）。
 
 ## 附录 A：文件级生成顺序（Wave）
 

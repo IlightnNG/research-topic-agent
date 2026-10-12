@@ -1,6 +1,6 @@
 # 各模块框架选型调查（Module Framework Selection Survey）
 
-> 版本 v0.5 · 第五轮修订：§2.6 展开为"**LangChain 包架构拆解 + 逐模块不采用理由**"（含 v1 重组事实、灵活性缺口、按需单包边界与对导师口径）
+> 版本 v0.6 · Phase 0 实测后校验见 §14b · 第五轮修订：§2.6 展开为"**LangChain 包架构拆解 + 逐模块不采用理由**"（含 v1 重组事实、灵活性缺口、按需单包边界与对导师口径）
 > 版本 v0.4 · 第四轮修订：① 数据源定为 **OpenAlex 为主、arXiv 为辅**（NUS·英文文献·CS/软硬件/工科）；② 补存储引擎"选定 vs 主流"的**架构级优劣**（Kuzu vs Neo4j、Qdrant vs Milvus、SQLite 角色）；③ 补"为什么不选经典 LangChain"（分模块拆分后职责被单点组件承接）
 > v0.3：每模块补业界主流对照（采用/未采用、优劣、规模化切换）；v0.2：成熟框架优先（导师意见）；v0.1 曾主推自研薄 harness，已废弃
 > 适用范围：EE5003 硕士项目《智能多智能体文献研究助手（Context & Harness Engineering）》
@@ -483,6 +483,26 @@ Vue3|React + TS + Vite + Element Plus/AntD + ECharts；SSE 实时；作者节点
 5. 前端 React 或 Vue；
 6. 是否需要"与 DeepSeek Harness 对照章节"；
 7. 测试 topic 集（3–5 个，英文、可核验事实密集）与评测周数。
+
+## 14b. Phase 0 实测后的选型校验（2026-10-09 收尾）
+
+> 依据：`../prototype/RESULTS.md` §0（一页摘要）与 §2.5–§2.14（分步记录）。逐模块核对"选型是否需要调整"。
+
+| 模块 | Phase 0 证据 | 结论 |
+|---|---|---|
+| 数据源（OpenAlex 主 + arXiv 辅） | 白名单 3 年 386 篇（≈129/年，下限）；arXiv 收录率 91.7%；白名单↔宽召回 Jaccard 0.004–0.014 → **白名单必须作主通道**；引用完整率 1.5%/14.3% → 需反向构边 | **维持**；补两条硬约束：venue 必须用 OpenAlex `source.id`；增量用 `publication_date` 水位线（`updated` 为付费能力） |
+| 编排内核（LangGraph） | 断点续跑可用、恢复粒度=节点边界、checkpoint 仅 4 KB/超级步 | **维持**；风险已明确（见 K5/G15：续跑必须 `invoke(None)`、节点必须幂等） |
+| 图库（Kuzu） | 5k 全量：图 2-hop p95 **4.42 ms**、聚合 5.06 ms、幂等零增长、删库重建一致、磁盘 12.9 MB | **维持**；三条实测约束入 ADR-0003（单文件路径 / 仅 `Database.close()` 落盘 / ASCII 路径） |
+| 向量库（Qdrant local） | 5k → 向量 top-10 p95 **155 ms**（>100 ms 目标，**未达标**）；归因：local 模式**无 ANN**（纯算力仅占 0.3%，74% 是 payload 过滤），随规模线性（2 万篇 ≈0.76 s/查询）；payload 索引在 local 无效 | **选型本身保留**，但**部署形态待决策（A/B/C）**：A 接受暴力扫描并重标定目标 / B 起本地 server 进程（改动"无外部服务依赖"表述）/ C 换嵌入式 ANN 库。Phase 1 第一周决策 |
+| LLM 网关（LiteLLM + 云 DeepSeek） | 闭环实测：`deepseek-flash` 可用、JSON 模式稳定、成本 <$0.013/run、缓存重跑 $0；**该模型是 reasoning 模型**，存在截断静默空输出风险 | **维持**；网关必须做截断检测 + 缓存 + 预算熔断（已实现，见 H5/F8） |
+| 本地模型（Ollama/vLLM） | S2 本轮**豁免**（云-only 决策） | 维持豁免；依赖项保留但不安装、不测试 |
+| 存储分工（SQLite 真相源 + 图 + 向量） | 6 表幂等 upsert、计数对账、schema 身份校验；`Paper.merged_ids` 缺口暴露 | **维持**；新增 ADR-0001（合并关系入契约）、ADR-0002（指标事件契约） |
+| 调度（APScheduler） | **未验证**（Phase 0 不做调度） | 选型不变，证据待 Phase 1（P4） |
+| Web 后端/前端（FastAPI/Vue3） | **未验证**（Phase 0 不做 UI） | 选型不变，证据待 Phase 1（P5） |
+| 评测（DeepEval + 事件指标） | 5 指标可从事件算出并手工复算；但 support 标签当前为**模型自报** | **维持**；Phase 1 需 D2 gold 事实集 + 异源 judge 才能报 §5.1 的忠实度 |
+
+**依赖基线变更**：无新增第三方库（`langgraph-checkpoint-sqlite` 已在基线内；`numpy` 仅出现在一次性探针 `steps/s3b_vector_latency_probe.py`）。
+**阈值/提示词版本变更**：G1 漂移阈值已按分布重新标定（词法口径 warn 0.0867 / block 0.0777），属 ADR 触发条件，已记录在 `../design/state-machine-and-guards.md` G1。
 
 ## 15. 参考来源（部分）
 

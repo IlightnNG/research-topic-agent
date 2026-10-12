@@ -25,7 +25,7 @@
 
 | 对象 | 核心指标 | 方法 | 数据来源 |
 |---|---|---|---|
-| 周报 | grounding 支持率、幻觉率、主题相关度、claim 覆盖度 | claim 抽取 → citation 回查 → 三类判定 | `reports` + `run_events` |
+| 周报 | grounding 支持率、幻觉率、主题相关度、claim 覆盖度 | claim 抽取 → citation 回查 → 三类判定 | `reports` + `run_events`（Phase 0 已实现，见 §5.4b；**当前 support 标签为模型自报**） |
 | 对话 | 准确率、召回率、引用正确率、拒答恰当性 | 问题集 + judge + gold 比对 | `chat_messages` |
 | Agent 行为 | 漂移率、循环/停滞检出、自愈成功率、异常终止率 | 守卫事件统计 + 故障注入 | `run_events` + `metrics` |
 | 工程表现 | 时延、token、成本、失败率（local vs cloud） | 配对 A/B | `llm_calls` |
@@ -248,6 +248,18 @@ grounding 支持率 = |supported| / |verifiable_claims|
 | 生成模型自报 support | Phase 0 只能用自报标签（`support_label_source=llm_self_label`）；**独立核验（P3）前不得把它当 §5.1 结论** |
 
 ---
+
+### 5.6 全文可得性对 grounding 的影响（Phase 0 实测）
+
+| 证据（S1/S1b） | 数字 | 对 grounding 的含义 |
+|---|---|---|
+| 白名单（目标会议）论文 OA 率 | **100%** | 目标语料的全文可得性最好 → 忠实度核验（§5.1）在**白名单主通道**上可行 |
+| 宽召回样本 OA 率 | 90–93% | 宽召回通道也可用，但需为不可得全文的样本定义降级（只用摘要 → 只能核验摘要级断言） |
+| 引用元数据完整率（白名单） | 1.5% / 14.3%（宽召回 25–27%） | **引用图不能只靠正向 references**；需 `cited_by` 反向构边（F6），否则"引用覆盖"类指标无意义 |
+| 本期语料构成（S5） | 24 篇真实摘要（未下 PDF） | Phase 0 的 grounding 只能到"摘要级"；**全文级核验属 Phase 1**（`parsing/`） |
+
+**因此**：Phase 1 的 D5 语料快照必须记录每篇的"可得层级"（全文 / 仅摘要 / 仅元数据），
+§5.1 的 `verifiable_claims` 分母按层级分别统计 —— 否则"摘要级可核验"与"全文级可核验"会混在一起，指标不可比。
 
 ## 6. 评测执行流程
 

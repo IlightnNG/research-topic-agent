@@ -1,6 +1,7 @@
 # Phase 0 实施步骤指导（项目初始化与可行性验证）
 
-> 状态：**v0.6 执行清单**——Phase 0 的逐步施工指导；每一步都写明"内容要求 / 交付物 / 执行命令 / 验收标准 / 时间盒 / 失败应对"
+> 状态：**v1.0 定稿**（Phase 0 收尾完成）——Phase 0 的逐步施工指导；每一步都写明"内容要求 / 交付物 / 执行命令 / 验收标准 / 时间盒 / 失败应对"
+> v1.0 变更（Step 8 收尾）：六份主文档回写完成、3 份 ADR、`RESULTS.md` v1.0 定稿、决策门一页纸就绪、§9 除导师确认外全绿
 > v0.6 变更：Step 7 补 S7 实测结果（五指标 + 四处埋点/口径修正）；§7/§9 状态同步
 > v0.5 变更：Step 6 补 S6 实测结果（注入矩阵全绿 + 阈值标定过程 + scope 表示修正）；§7/§9 状态同步
 > v0.4 变更：Step 5 补 S5 实测结果（真实云 LLM 闭环：8.9k 字报告 / 16–18 claims / 100% citation / 33 事件；冷启动 $0.006、缓存重跑 $0；四条工程规则）；§7/§9 状态同步
@@ -591,6 +592,28 @@ uv run python steps/s7_metrics.py --events out/events.jsonl --out out/metrics_su
 3. **决策门材料**：一页数字摘要 + 一个 5 分钟 demo（跑一次 S5 + 注入一次 S6）；
 4. **Phase 1 启动条件确认**：见 §9。
 
+**实测结果（2026-10-09，Phase 0 收尾）**
+
+**① `RESULTS.md` 定稿（v1.0）**：新增 §0 一页摘要（7 个维度的结论/数字/证据索引）、
+§4 **12 条静默错误清单**（每条含发现方式与固化处）、§5 决策门结论（6 项决策表 + Phase 1 首批 backlog + 诚实边界）。
+
+**② 六份主文档回写（逐项完成）**
+
+| 文档 | 回写内容 |
+|---|---|
+| `project/framework-selection.md` | **§14b Phase 0 实测后的选型校验**：10 个模块逐条给出证据与"是否调整"结论；明确向量库"选型保留、部署形态待决策"；依赖基线无新增；G1 阈值重标定记录 |
+| `design/architecture-overview.md` | **§8b 接口/schema 摩擦点**（9 条：事件≠日志、merged_ids 缺口、run_id 语义、续跑调用、存储身份、topic 唯一来源、打分器同源、未覆盖路径、向量部署）；§9 待确认项 +2 条 |
+| `design/state-machine-and-guards.md` | **§12 Phase 0 实测小结**：G1/G4/G5/G8/G14/G15 的实测阈值与检出/误报；三条由实测修正的判据（质心表示、两级阈值按分布标定、embedding 阈值不可沿用）；恢复包已实现但 **A/B 有效性未做**；未实现守卫清单 |
+| `implementation/evaluation-plan.md` | **§5.4b 口径映射**（§5 指标 ↔ 事件字段 ↔ 实测值 ↔ 差异）、**§5.6 全文可得性对 grounding 的影响**（白名单 OA 100% vs 宽召回 90–93%；引用完整率 1.5%/14.3% → 必须反向构边；D5 快照需记录"可得层级"） |
+| `design/agent-design-decisions.md` | 新增 **F8**（LLM 缓存与可复现的真实来源）、**F9**（阈值按打分器分布标定）、**H5**（reasoning 截断与静默空输出）、**I8**（日志≠事件）、**J6**（指标口径与 campaign 圈定）、**K5**（run_id 唯一性与续跑约定）→ 台账 **71 条** |
+| `implementation/implementation-guide.md` | **§2.9 Phase 0 结论固化**（Phase 1 契约增量）：merged_ids/paper_merges、metric{kind} 事件契约与双写义务、存储路径与身份校验、LLM 网关契约、运行与续跑约定、**14 个错误码清单**、配置面增量（routing/topics） |
+
+**③ 决策门材料**：`docs/ppt/phase0-decision-gate.md` —— 一页数字摘要 + **5 分钟 demo（3 条命令）** + 6 项待导师确认 + Phase 1 首批 backlog 10 项 + 诚实边界。
+
+**④ 3 份 ADR**（Phase 0 触发的契约/部署变更）：`adr/0001-paper-merged-ids.md`、`adr/0002-metric-event-contract.md`、`adr/0003-local-store-path-and-identity.md`；索引已更新。
+
+**⑤ 出口检查**：§9 清单**除"导师确认"外全绿**（S2 为豁免项 `[~]`）。
+
 **交付物**：`RESULTS.md` 定稿 + 文档更新提交 + 决策门一页纸。
 **验收标准**：出口检查清单（§9）全绿；导师确认进入 Phase 1（或给出调整意见）。
 
@@ -632,17 +655,17 @@ uv run python steps/s7_metrics.py --events out/events.jsonl --out out/metrics_su
 
 ## 9. Phase 0 出口检查清单（逐项勾选）
 
-- [ ] Step 0：环境可复现（README + uv.lock）；事件 JSONL 格式与 §2.2 对齐；**日志可用 `run_id` 与事件三向定位、错误行 100% 带 `error_code`、info 无正文**；
+- [x] Step 0：环境可复现（README + uv.lock）；事件 JSONL 格式与 §2.2 对齐；**日志可用 `run_id` 与事件三向定位、错误行 100% 带 `error_code`、info 无正文**；——实测：`uv sync` 托管 CPython 3.11.17；pytest 26→112 项全过；`demo-events` seq 1/2/3；`demo-logging` 互查 OK（`run_id` 三向定位）；ruff check+format 干净；
 - [x] S1：四项数字齐，且白名单 venue 3 年召回 386 篇（≈129/年，下限）、arXiv 收录率 91.7%、抽查 10/10；
 - [x] S1b：检索策略（白名单主通道 + 多查询扩展）、去重键（DOI+标题+年份）、增量语义（publication_date 水位线）三项结论齐，引用覆盖缺口已量化；
 - [~] S2 **本轮豁免**：只用云端 DeepSeek API（本地档测试推迟，见 Step 2 注记）；
 - [x] S3：5k 导入与四类查询达标，**重复导入幂等**，给出是否需要换库的结论；——结论：**不需要换库**；向量 p95 155 ms 未达 100 ms 目标，但**已归因**：Qdrant local 是纯 Python 无 ANN 实现（纯算力仅占 0.3%，74% 是 payload 过滤）、随规模线性（2 万篇 ~0.76 s/查询）→ 判为「部署形态选型 + 验收目标错配」而非架构缺陷，S5 不受阻；Phase 1 先做部署形态三选一（A/B/C，见 Step 3 结论 4 + `prototype/RESULTS.md` §2.9）；附带 3 条存储约束（Kuzu 单文件、仅 `Database.close()` 落盘、非 ASCII 路径不可用）已回写 F7；功能测试覆盖边界见 §2.10（检索正确性/删除更新/崩溃一致性/并发待补）；
 - [x] S4：中断恢复成功，已完成节点不重跑，恢复粒度结论已记录；——结论：恢复粒度 = **节点边界**（`next=('transform',)`）；用 **`invoke(None)`** 续跑时最终状态与不中断对照**完全一致**、已完成节点不重跑（✅），而**带完整输入 invoke 会从 START 重跑**已完成节点（fetch 2–3 次，静默重复副作用）；崩溃节点**必然重跑**（at-least-once → S5 节点必须幂等）；输入漂移与"重复触发已完成 run"框架均**不拦**（新增 **G15**）；事件 seq 跨进程 1..N 连续无重复（68 条 / 3 次硬杀）；checkpoint 库 28–37 KB；
-- [x] S5：单 topic 出报告（≥800 字、≥10 claim、100% 带 citation、事件 ≥30 条），重跑幂等；——实测：**8,946–9,189 字 / 16–18 claims / 100% citation / 33 事件**；重跑论文数新增 0、claims sha1 一致；冷启动成本 **$0.006**（7 次网络调用含 3 次重试，90.9 s），**缓存重跑 $0 / 0.12 s**；报告每条 claim 均可回查到证据卡（dropped=0）；本轮**未做** PDF 全文/bge-m3 向量/Kuzu 接线/守卫 G1G4（理由见 Step 5 实测结果）；
+- [x] S5：单 topic 出报告（≥800 字、≥10 claim、100% 带 citation、事件 ≥30 条），重跑幂等；——实测：**8,941–10,821 字 / 16–23 claims / 100% citation / 33–34 事件**；重跑论文数新增 0、缓存命中时 claims sha1 一致；冷启动成本 **$0.0036–0.0126**（6–7 次网络调用含重试，60–91 s），**缓存重跑 $0 / 0.08–0.12 s**；报告每条 claim 均可回查到证据卡；本轮**未做** PDF 全文/bge-m3 向量/Kuzu 接线/守卫 G1G4（理由见 Step 5 实测结果）；
 - [x] S6：四类注入检出率 ≥ 90%、正常样本误报 0、事件链完整；——实测：5 类注入各 3 次**检出率 1.00**、正常 run **误报 0/3**、18/18 run 按规则恢复或终止；事件链 `tool_call → guard_trigger → recovery{packet} → metric` 完整；并顺带**证伪 spec 字面的「关键词 scope + 绝对阈值」**（正负分布重叠、无可用阈值）→ 改用种子语料质心后 TPR 1.0 / FPR 0.0；
 - [x] S7：5 个指标可从事件算出，与 `implementation/evaluation-plan.md` 口径一致；——实测：grounding **0.7949**、幻觉率 **0.2051**、注入 TPR **1.0**、成本均值 **$0.006294**/run；手工抽查 `p0-s5-cold` 事件侧与 claims 文件**完全一致**；补了 3 处埋点（S5 grounding 分级计数+主题相关度、S5 run_summary、S6 timeout 的 ERROR 事件）并新增 campaign 筛选；⚠️ 自报标签口径需 P3 的 D2 gold 事实集做独立核验；
-- [ ] Step 8：`RESULTS.md` 定稿、六份文档回写、决策门材料就绪；
-- [ ] 导师确认 → 启动 Phase 1。
+- [x] Step 8：`RESULTS.md` 定稿（v1.0：新增 §0 一页摘要、§4 十二条静默错误清单、§5 决策门结论）、**六份主文档全部回写**（framework-selection §14b 选型校验 / architecture-overview §8b 摩擦点 + §9 待确认项 / state-machine-and-guards §12 实测小结与未验证项 / evaluation-plan §5.4b 口径映射 + §5.6 全文可得性 / agent-design-decisions 新增 F8/F9/H5/I8/J6/K5 共 6 条 → 71 条 / implementation-guide §2.9 Phase 1 契约补充）、**决策门材料就绪**（`docs/ppt/phase0-decision-gate.md` 一页数字 + 5 分钟 demo 脚本 + 6 项待确认）、**3 份 ADR**（0001 merged_ids / 0002 指标事件契约 / 0003 本地存储路径与身份）；
+- [ ] 导师确认 → 启动 Phase 1。（**唯一未勾选项**：属导师动作，材料已备：`docs/ppt/phase0-decision-gate.md`；需确认 ①是否进入 Phase 1 ②向量检索部署形态三选一 ③测试 topic 集与评测周数 ④前端框架 ⑤grounding 口径升级 ⑥是否恢复本地模型档）
 
 ---
 

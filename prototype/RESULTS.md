@@ -2,6 +2,28 @@
 
 > 用途：Phase 0 每步的**结论台账**——结论 / 关键数字 / 证据文件 / 是否影响设计。
 > 规则：数字必须可追溯到证据文件；"结论为负"同样记录并给出替代方案；被推翻的假设同步回写主文档。
+> **状态：v1.0 定稿（2026-10-09，Step 0–8 全部完成；S2 本轮豁免）**。一页摘要见 §0；决策门结论见 §5。
+> 复现入口：`prototype/README.md` 的 Step 命令索引；全部 spike 脚本在 `prototype/steps/`，全部产物在 `prototype/out/`（gitignored）。
+
+## 0. 一页摘要（Phase 0 定稿）
+
+**项目**：智能多 agent 文献研究助手（NUS EE5003）。**Phase 0 目标**：验证选型可行性 + 跑通最小闭环 + 埋点与守卫雏形。
+**结论：三个目标全部达成，建议进入 Phase 1**；唯一需要先决策的是**向量检索的部署形态**（见 §5）。
+
+| 维度 | 结论 | 关键数字 | 证据 |
+|---|---|---|---|
+| 数据源 | OpenAlex 为主 + arXiv 补时效；**白名单过滤是主通道** | 白名单 3 年 386 篇（≈129/年，下限）；arXiv 收录率 91.7%；白名单↔宽召回 Jaccard 0.004–0.014；重复率 19.3–19.8% | §2.5–§2.7 |
+| 存储 | **三库方案成立，不需换 Neo4j/Milvus** | 图 2-hop p95 4.42 ms；幂等零增长；删库重建计数一致；磁盘 64.9 MB / 5k；**向量 p95 155 ms 未达 100 ms 目标（已归因：local 模式无 ANN）** | §2.8–§2.10 |
+| 编排 | LangGraph 断点续跑可用；**恢复粒度 = 节点边界** | 3 次硬杀全部恢复；`invoke(None)` 后状态与不中断对照**逐字段一致**；带输入 invoke 会从 START 重跑（fetch 2–3 次） | §2.11 |
+| 闭环 | **单 topic 端到端跑通（真实云 LLM）** | 报告 8.9k–10.8k 字 / 16–23 claims / **100% 带可回查引用**；冷启动 **$0.0036–0.0126**；缓存重跑 **$0 且 0.08 s** | §2.12 |
+| 守卫 | 三守卫 + 预算看门狗达标；**阈值必须按分布标定** | 5 类注入 ×3 次**检出率 1.00**、正常 run **误报 0**；G1 阈值 0.0777/0.0867（质心表示，TPR 1.0/FPR 0.0） | §2.13 |
+| 指标 | 5 指标可从事件算出且可手工复算 | grounding **0.7949**、幻觉率 **0.2051**、TPR **1.0**、FPR **0**、成本均值 **$0.006294**/run | §2.14 |
+| 工程约束 | 累计抓出 **12 个"静默错误"** 并固化为代码/守卫/ADR | 见 §4 清单；新增 3 份 ADR | §4、ADR 0001–0003 |
+
+**成本与规模画像（供 Phase 1 排期）**：单 run 闭环 <$0.013（冷启动）/ $0（缓存）；Kuzu 导入 34 ms/篇（2 万篇 ≈11 min，Phase 1 应改 `COPY FROM`）；
+Qdrant local 检索 0.038 ms/点（2 万篇 ≈0.76 s/查询，精确 kNN）；checkpoint 库 4 KB/超级步。
+
+---
 
 ## 1. 进度记录
 
@@ -18,7 +40,7 @@
 | 5 (S5) | 单 topic 端到端闭环跑通：**云 LLM 路径可行**，报告/claims/事件/成本全部达标 | 24 篇真实 OpenAlex 语料 → 43 块 → 12 证据卡 → 报告 **8,946–9,189 字 / 16–18 claims / 100% 带 citation**；单 run **33 事件** seq 连续；冷启动成本 **$0.0036–0.0063**（90.9 s / 7 次网络调用）、**缓存重跑 $0 且 0.12 s**；重跑论文数新增 0、claims 文件 sha1 一致 | `out/reports/T1-*-p0-s5-*.md`、`out/claims_p0-s5-*.json`、`out/s5_summary.json`、`out/events.jsonl`、`out/llm_cache/` | 是（新增 `llm.py` 网关把 reasoning 截断/缓存/预算熔断固化；新增 schema 身份校验；确认 `deepseek-flash` 为 reasoning 模型；run_id 唯一性约束） | 2026-10-08 | ☑ 完成 |
 | 6 (S6) | 守卫与注入验证完成：**三守卫 + 预算看门狗全部达标**，并暴露修掉了"阈值口径"这一根本问题 | 6 场景 × 3 次：注入检出率 **1.00**（≥0.9）、正常 run 误报 **0/3**、全部恢复到完成态或按规则终止；G1 按分布间隙标定 **warn 0.0867 / block 0.0777**；分离度 min(正)=0.0885 > max(负)=0.0670（gap 0.0215）；G4 k=5×3；预算 80% warn → 100% stop 阶梯可见 | `out/s6_summary.json`、`out/s6_threshold_sweep.json`、`out/s6/guards_*.jsonl` | 是（新增 `guards.py`/`scoring.py`/`topics.py`；**scope 必须用种子语料质心而非关键词串**；warn 阈值必须按分布标定；S5 检索改用同一打分器） | 2026-10-09 | ☑ 完成 |
 | 7 (S7) | 最小指标集可从**事件**算出，且与原始记录一致（手工抽查通过）；口径对齐 §5 并回写文档 | 5 指标：grounding 支持率 **0.7949**（verifiable=39）/ 幻觉率 **0.2051**（严重 0.0513）/ 主题相关度 0.0699 / 漂移事件率 0.3333 + 注入 TPR **1.0** / 循环事件率 0.3333 / 成本均值 **$0.006294**、时延 p50 0.08s–p95 68.35s；FPR **0.0**、越界副作用率 **0.0**、处置正确率 **1.0**；手工核对 `p0-s5-cold`：事件侧 16/1/6/23 = claims 文件独立统计 | `out/metrics_summary.csv`、`out/metrics_aggregate.json`、`out/metrics_report.md` | 是（**补 3 处埋点**：S5 grounding 分级计数+主题相关度、S5 run_summary 字段、S6 timeout 的 ERROR 事件；新增 campaign 筛选；§5.5 口径修正：不可回查 claim 计入 unsupported 而非丢弃） | 2026-10-09 | ☑ 完成 |
-| 8 | — | — | — | — | — | ☐ |
+| 8 | 阶段收尾与决策门完成：`RESULTS.md` 定稿、六份主文档回写、3 份 ADR、决策门一页纸就绪 | §9 出口清单**除「导师确认」外全绿**；新增 ADR 0001–0003；台账扩到 71 条；测试 **112 项通过** | `docs/ppt/phase0-decision-gate.md`、`docs/implementation/adr/0001–0003` | 是（结论固化：三条 ADR + 六份文档回写；Phase 1 首张任务卡与 backlog 就绪） | 2026-10-09 | ☑ 完成 |
 
 状态图例：☐ 待办 / ◐ 进行中 / ☑ 完成 / ⛔ 阻塞
 
@@ -543,3 +565,47 @@
 | 2026-10-09 | S6 的超时注入已写入事件流 | **证伪** | 只调用了 `log_event`（写日志），TPR 里 timeout 族恒为 0 | §2.14；补 `ERROR` 事件后重跑 S6 |
 | 2026-10-09 | 只要埋点齐全，历史 run 也能算出新指标 | **证伪** | 埋点是随时间补的，旧 run 无 `topicality`/`run_summary` | §2.14；只能对补埋点后的 run 计算 |
 | 待填 | 例：`.env` 作为兜底可满足 Phase 0 密钥管理 | 待验证 | `selfcheck` 输出 | `design/agent-design-decisions.md` H2 |
+
+## 4. Phase 0 抓出的"静默错误"清单（12 条，全部已固化为代码/守卫/ADR）
+
+> 判据：**不报错、结果看起来正常、但结论是错的**。这类问题只能靠"对账/断言/分布检查"发现，
+> 也正是 harness engineering 与"调通 API"的分界线。
+
+| # | 静默错误 | 发现方式 | 固化处 |
+|---|---|---|---|
+| 1 | Kuzu 库路径是**文件**，`rmtree(ignore_errors=True)` 静默不删 → 旧库跨运行累积 | 节点级**计数对账**（expected 631 / actual 957，差集"只多不少"） | ADR-0003、`reset_store_path()` |
+| 2 | Kuzu 仅在 `Database.close()` 落盘 → 关闭前统计得到 0.0 MB 假值 | 落盘前后文件大小对比（0.004 → 2.426 MB） | ADR-0003、`path_size_mb()` + 关闭顺序 |
+| 3 | 边端点缺失时 `MATCH+MERGE` **静默不写** | 写入后计数对账（`mismatches`） | G14 守卫、`E_DATA_COUNT_MISMATCH` |
+| 4 | 崩溃臂被提前消费 → 崩溃注入**永不触发**但进程正常退出 | 崩溃计数断言（`crashes=0` 而预期 ≥1） | S4 脚本的 `node_attempts/crashes` 校验 |
+| 5 | 带输入 `invoke()` 会**从 START 重跑已完成节点**，结果看着对但副作用重复 | 用**节点执行次数**（事件）而非最终状态判断 | K5、S5 硬约束、架构 §3 |
+| 6 | 输入漂移被框架接受并覆盖 checkpoint 状态（无内建保护） | 主动注入不同 topic 后检查 `topic_seen` | G15、`E_RUN_INPUT_MISMATCH` |
+| 7 | 重复触发已完成 run → 整图重跑并追加状态（无幂等保护） | 主动重复触发并比对 `steps_done`（3→6） | G15、`E_RUN_ALREADY_COMPLETED` |
+| 8 | reasoning 模型 `max_tokens` 偏小 → `content=''` 且 `finish_reason='length'`（空正文当成功） | 首次调用即出现空内容；显式检查 finish_reason | H5、网关判失败 + 放大预算重试 |
+| 9 | `CREATE TABLE IF NOT EXISTS` 不修正旧结构 → 启动即缺列崩溃 | 换库重跑时立即暴露；改为**列级校验** | ADR-0003、`E_STORE_SCHEMA_MISMATCH` |
+| 10 | S6 超时注入只写**日志**未写**事件** → TPR 中 timeout 族恒为 0 | 指标算不出（假阴性） | I8、ADR-0002、补 `ERROR` 事件 |
+| 11 | warn 阈值拍成 `block × 常数` → 落进正样本分布内部 → 正常 run 全误报 | 3/3 正常 run 误报 | F9、`calibrate_drift_thresholds()` |
+| 12 | 全历史 run 一起算指标 → 混入改阈值前的行为（FPR 0.75 / TPR 0.625 全假） | campaign 对照（筛选前后结论矛盾） | J6、campaign 筛选 |
+
+## 5. 决策门结论（2026-10-09）
+
+**建议：进入 Phase 1（P1 骨架 + P2 harness）**，但**先决策向量检索部署形态**。
+
+| 决策项 | Phase 0 证据 | 建议 |
+|---|---|---|
+| 是否进入 Phase 1 | §9 出口清单除"导师确认"外全绿；闭环、守卫、指标三项均有可复现证据 | **进入** |
+| 向量检索部署形态（A/B/C） | local 模式 ≈0.038 ms/点（2 万篇 ≈0.76 s/查询），但**无 ANN、payload 索引无效**；纯算力仅占 0.3% | **Phase 1 第一周内决策**：A 接受（改验收目标）/ B 本地 Qdrant server（改"无外部服务依赖"表述）/ C 嵌入式 ANN 库 |
+| 是否换图库/向量库 | 图 2-hop p95 4.42 ms、幂等、可重建 | **不换** |
+| 本地模型（S2） | 本轮豁免（云-only） | 维持豁免；恢复时按 Step 2 定义执行 |
+| 编排框架 | 断点续跑可用，但语义有坑（K5/G15） | **沿用 LangGraph**，把"续跑=`invoke(None)` + 节点幂等"写成硬约束 |
+| grounding 口径可信度 | 现为**模型自报标签**（`llm_self_label`） | Phase 1 建 D2 gold 事实集 + 异源 judge 后才能报 §5.1 的忠实度 |
+| 评测 campaign 规模 | 本轮：1 topic / 24 篇 / 6 场景 ×3 | Phase 1 起按 D1（3–5 topic）× ≥4 周周更 |
+
+**Phase 1 首批 backlog（按优先级）**：①向量部署形态决策 → `stores/vector.py`；②`Paper.merged_ids` + `paper_merges`（ADR-0001）；
+③Kuzu 首导改 `COPY FROM`；④PDF 全文 + `parsing/`；⑤`cited_by` 反向构边 + 引用覆盖率；⑥事件落 SQLite `run_events`（ADR-0002）；
+⑦`reset_store_path`/schema 校验/启动自检（ADR-0003）；⑧D2 gold 事实集与独立 judge；⑨UI（Topic/Report/Chat）与调度（P4/P5）。
+
+**未验证/未做（诚实边界）**：调度与周更（APScheduler）、三 UI、多 agent 拆分、完整守卫 G2/G3/G5–G13、
+恢复包 A/B 有效性、真实故障注入（真断网/真超时/真 kill）、PDF 全文解析、bge-m3 向量、跨主题泛化（仅 T1 实测）。
+
+---
+

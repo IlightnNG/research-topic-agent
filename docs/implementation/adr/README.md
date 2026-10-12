@@ -1,4 +1,4 @@
-﻿# ADR 索引（Architecture Decision Records）
+# ADR 索引（Architecture Decision Records）
 
 > 用途：记录**冻结契约与关键设计**的变更决策，保证"为什么改"可追溯（详见 `../implementation-guide.md` §15.4 与附录 C）
 > 命名：`NNNN-<kebab-title>.md`（四位序号，如 `0001-switch-graph-store.md`）
@@ -26,4 +26,11 @@ Verification: 回归与验收命令
 
 ## 当前记录
 
-（暂无。首次契约变更时在此追加，例如 `0001-*.md`。）
+| ADR | 标题 | 状态 | 触发来源 |
+|---|---|---|---|
+| [0001](0001-paper-merged-ids.md) | `Paper.merged_ids` 与 `paper_merges` 表（去重合并关系入契约） | accepted | S1b 重复率 19.3–19.8% + S5 契约缺口 |
+| [0002](0002-metric-event-contract.md) | 指标事件契约（`metric{kind}`）与"事件即真相源"的埋点义务 | accepted | S7 三次因埋点缺失算不出指标 + S6 日志≠事件 |
+| [0003](0003-local-store-path-and-identity.md) | 本地存储的路径形态、生命周期与"库身份"校验 | accepted | S3 旧库残留/落盘时机/非 ASCII 路径 + S5 schema 漂移 |
+
+> Phase 0（Step 0–7）实测中共触发上述 3 项契约/部署变更；其余 Phase 0 结论属"实现与阈值标定"，
+> 已写入 `design/` 与 `implementation/` 相应文档，无需 ADR（判据见上表"何时必须写 ADR"）。

@@ -412,3 +412,35 @@ S0 scope_check ─► S1 plan ─► S2 retrieve ─► S3 ingest_parse ─► S
 4. 回退预算的全局次数（6 次）与单边次数需按真实 run 分布调整；
 5. "降级占比 > 30%" 的阈值是否合理，需评测分桶数据支撑；
 6. 恢复包注入是否会干扰后续模型输出（需 A/B 验证）。
+
+---
+
+## 12. Phase 0 实测小结与未验证项（2026-10-09 收尾）
+
+**已实测并落地（有数字与复现命令）**
+
+| 守卫 | 实测阈值 | 检出/误报 | 实现 |
+|---|---|---|---|
+| G1 主题漂移 | **warn 0.0867 / block 0.0777**（词法代理 + 种子语料质心，按分布间隙标定） | 注入 3/3 检出；正常 run **0/3 误报** | `guards.py: DriftGuard` + `scoring.calibrate_drift_thresholds()` |
+| G4 死循环 | 窗口 **k=5**，同签名重复 **≥3** | 3/3 检出；首次 replan、再次 abort（6 步内终止） | `guards.py: LoopGuard` |
+| G5 停滞 | 连续 **2** 步零新增 | 3/3 检出；首次 degrade、持续 abort | `guards.py: ProgressGuard` |
+| G8 预算 | 4 维（tokens/seconds/cost/steps），**80% warn / 100% stop** | 3/3 检出，阶梯可见 | `guards.py: BudgetWatchdog` |
+| G14 数据完整性对账 | 计数必须精确相等；导入前必须为空 | S3 实测发现"边静默丢失"与"旧库残留" | `E_DATA_COUNT_MISMATCH` / `E_STORE_NOT_EMPTY` |
+| G15 运行身份与恢复一致性 | 输入指纹不一致即拦；终态再次触发即拦 | S4 实测：框架层**均无保护** | `E_RUN_INPUT_MISMATCH` / `E_RUN_ALREADY_COMPLETED` |
+
+**三条由实测修正的判据（重要）**
+1. **scope 表示必须是种子语料质心**：关键词串表示下正/负分布重叠（0.000–0.165 vs 0.000–0.029），
+   **任何阈值都无法兼顾召回与误报**；改质心后 min(正)=0.0885 > max(负)=0.0670。
+2. **两级阈值都按分布标定**：block = 间隙中点（最大间隔）；warn = `min(正)×(1−margin)`。
+   **禁止 `warn = block × 常数`**（实测 0.12 落进正样本分布内部 → 正常 run 全误报）。
+3. **配置里的 `scope_cosine_min: 0.60` 是 embedding 口径**：换 bge-m3 后**必须重新标定**，不可沿用本轮数字。
+
+**恢复包（§9）现状**：结构已实现并被注入（`{guard, failure, trusted_state, next_constraints, recent_actions}`），
+事件链可读作"起因 → 检出 → 处置 → 结果"；但**"注入恢复包 vs 不注入"的 A/B 有效性对比未做**（需要对照组样本量），列入 Phase 1 评测（`evaluation-plan.md` J2/§7）。
+
+**未实现/未验证（Phase 1 范围）**：G2 检索越界份额、G3 查询意图、G6 schema 违规、G7 引用可回查（S5 已做硬过滤但未做成守卫）、
+G9 provider 熔断、G10–G13、**真实故障注入**（真断网/真超时/真 kill；本轮是确定性模拟注入）；
+跨主题泛化（仅 T1 实测）。
+
+> 复现命令：`cd prototype && uv run python steps/s6_guards_demo.py --sweep`（阈值标定）与
+> `uv run python steps/s6_guards_demo.py --inject all --repeats 3`（6 场景 × 3 次，离线秒级）。

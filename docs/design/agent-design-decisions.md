@@ -1,7 +1,10 @@
 # Agent 设计细节与问题解决手册（Design Decisions & Edge Cases）
 
 > 用途：汇总"多智能体文献研究助手"在架构到细节层面**必然会遇到、必须解决**的问题与方案，供设计对照、组会问答、论文 system design 章节引用
-> 版本：v0.2（随项目推进逐条细化；每条都会演化为可落地规范或测试用例）
+> 版本：v0.3（Phase 0 收尾定稿；共 71 条，A–K 类）
+> v0.3 变更（Phase 0 收尾）：新增 **F8**（LLM 缓存与可复现的真实来源）、**F9**（阈值按打分器分布标定）、
+> **H5**（reasoning 模型截断与静默空输出）、**I8**（日志≠事件：指标只读事件）、**J6**（指标口径与 campaign 圈定）、
+> **K5**（run_id 唯一性与续跑调用约定）；G3 补 S4 实测语义；G14/G15 为 S3/S4 新增守卫
 > v0.2 变更：新增 **F6**（引用元数据稀疏与反向构边，S1b 实测）与 **F7**（本地存储路径形态与生命周期，S3 实测）
 > 关联：选型 `project/framework-selection.md` · 架构 `design/architecture-overview.md` · 自愈预想 `design/challenges-and-self-healing.md` · 评测 `implementation/evaluation-plan.md`
 > 编号规则：类别字母 + 序号（如 A1），便于在组会/文档中相互引用
@@ -392,6 +395,26 @@
 - **细节级**：**每次导入前必须做"空库哨兵"**（`store_is_empty()`：节点计数须为 0），非空即 `E_STORE_NOT_EMPTY` 报错——这是"旧库残留"这类静默 bug 唯一可靠的哨兵；生产环境的数据目录须为纯 ASCII 路径（开发机用 `E:\lit-agent-data\`）。
 - **落地/验证**：`steps/s3_storage_spike.py` 的 `pre_import_empty` 字段 + 写入后计数校验（`expected` vs `actual`，不一致 → `E_DATA_COUNT_MISMATCH`）；已在 500 篇 smoke 与 5000 篇全量两次运行中验证。
 
+## F8 · LLM 响应缓存与"可复现"的真实来源（S5 实测后新增）
+- **现象与难点**：S5 同一输入（`temperature=0`）连跑两次，claims 数分别是 **16 与 23** —— 云侧 reasoning 模型**不是逐字节确定**的。若把"可复现"寄托在模型上，评测与回归都不可信。
+- **架构级**：网关内置**内容寻址缓存**（key = sha1(model + messages + params)），命中即复用，不再计费。
+- **细节级**：缓存落 `out/llm_cache/<sha1>.json`（含 usage/cost/finish_reason）；`--no-cache` 强制真实调用；
+  缓存命中要计 `cache_hits` 但**不计入本次成本**（钱在第一次就花了），单列 `avoided_cost_usd_by_cache`。
+- **落地/验证**：实测重跑 **4/4 命中 → $0 / 0.08–0.12 s**，`claims_<run_id>.json` 的 **sha1 完全一致**；
+  即"确定性由缓存保证，而不是靠模型"（与 K2 录制式单测同源）。
+- **推论**：评测 campaign 必须固定缓存策略并在报告中声明是否命中缓存，否则成本与内容都不可比。
+
+## F9 · 阈值必须按"打分器 + 分布"标定（S6 实测后新增）
+- **现象与难点**：spec 写的 `cos(embed(产物), embed(scope))` 配 `<0.60 warn / <0.45 block`；实测两处都不成立：
+  ①**scope 表示**用关键词串时正/负样本余弦分布**重叠**（正 0.000–0.165 vs 负 0.000–0.029），任何阈值都无法兼顾召回与误报；
+  ②阈值本身是 **embedding 口径**，词法代理打分器的量纲完全不同（同主题仅 0.09–0.21）。
+- **架构级**：**表示与阈值解耦**——打分器由调用方注入（`guards.DriftGuard(scorer=...)`），阈值必须在该打分器的分布上标定。
+- **细节级**：scope 表示用**种子语料质心**（而非关键词串）；block = 分布间隙中点 `(max(负)+min(正))/2`（最大间隔）；
+  warn = `min(正)×(1−margin)`；**禁止 `warn = block × 常数`**（实测 0.12 落进正样本分布内部 → 3/3 正常 run 误报）。
+- **落地/验证**：`scoring.calibrate_drift_thresholds()` + `steps/s6_guards_demo.py --sweep`；
+  实测 质心表示下 min(正)=0.0885 > max(负)=0.0670 → **TPR 1.0 / FPR 0.0**（阈值 0.0777/0.0867）。
+- **推论**：**换成 bge-m3 后必须重新标定**（配置里的 0.60 不能沿用）；检索与守卫必须共用同一打分器（`scoring.py`）。
+
 ---
 
 # G 类：调度与运行
@@ -455,6 +478,18 @@
 
 ---
 
+## H5 · reasoning 模型的截断与"静默空输出"（S5 实测后新增）
+- **现象与难点**：`deepseek-flash` 是 reasoning 模型：先产出 `reasoning_content`，**该部分同样计入 `completion_tokens`**。
+  `max_tokens` 给小了会出现 `content=''` 且 `finish_reason='length'` —— **调用"成功"但正文为空**（首次测试 16 token 即如此）。
+  这类错误不会抛异常，会把空卡片/空报告一路带进下游。
+- **架构级**：网关把 `finish_reason == "length"` 与"正文为空"**一律判为失败**（`LLMTruncated`），并放大预算重试（×2，上限 8192）。
+- **细节级**：预算按 reasoning 模型给足（抽取类 ≥1200、报告类 ≥3000）；记录 `reasoning_chars` 以便诊断；
+  预算熔断按 token/时长/成本/步数四维（80% warn / 100% stop）。
+- **落地/验证**：`lit_agent_min/llm.py` + `tests/test_llm.py`（截断重试、空正文判失败、预算熔断）；
+  实测单次调用 1.2–15 s（真实抽取 ~2.1 s），单 run 成本 $0.0036–0.0126。
+
+---
+
 # I 类：可观测与可复现
 
 ## I1 · 事件 schema 与真相源
@@ -497,6 +532,18 @@
 
 ---
 
+## I8 · 日志 ≠ 事件：指标只读事件（S7 实测后新增）
+- **现象与难点**：S6 的 provider 超时只调用了 `log_event`（写 `logs/app.jsonl`），**没写事件** →
+  S7 的 §5.3 检出率里 timeout 族**恒为 0**（假阴性、不报错）。另有三处埋点缺失导致 grounding/主题相关度/成本时延算不出。
+- **架构级**：**"日志给人看，事件给指标与回放用"**——任何会被指标/回放消费的事实**必须写事件**。
+- **细节级**：`metric` 事件带 `kind`（`grounding` / `run_summary` / 守卫 run）与必需字段（见 ADR-0002）；
+  错误类事实**双写**：事件 payload 与日志行都带 `error_code`。
+- **落地/验证**：S7 三次"算不出指标"都通过补埋点 + 重跑对应 Step 解决（spec 的"埋点先于指标"）；
+  实测手工核对 `p0-s5-cold`：事件侧 `supported/contradicted/unsupported/verifiable = 16/1/6/23`
+  与 `claims_*.json` 独立统计**完全一致**。
+
+---
+
 # J 类：评测与质量闭环
 
 ## J1 · 故障注入与自愈可测
@@ -523,6 +570,21 @@
 - **架构级**：提示模板与模型版本纳入版本管理；变更跑固定测试集回归。
 - **细节级**：用录制式 fixtures 做确定性回归（K2）；关键指标劣化则阻断发布。
 - **落地/验证**：回归报告对比基线。
+
+---
+
+## J6 · 指标口径与 campaign 圈定（S7 实测后新增）
+- **现象与难点**：①把事件目录里**全部历史 run** 一起算指标会得到错误结论——实测 92 个 run 里混着改阈值前的守卫行为，
+  得到 FPR 0.75 / TPR 0.625（都是假的）；②S5 原先**丢弃**不可回查 citation 的 claim，会让 grounding 恒为 100%。
+- **架构级**：指标必须区分"**本次 campaign 的 run 集**"与"历史尝试"；口径以 `evaluation-plan.md` §5 为准并回写。
+- **细节级**：campaign = 每场景最近 N 次（`--last-per-scenario`）+ 最近 N 个报告 run（`--last-reports`）
+  + 显式纳入（`--include-run`，用于把冷启动 run 纳入成本统计）；
+  不可回查 citation 的 claim 按 §5.5 **计入 `unsupported`**（报告仍不发布它），计入 `verifiable` 分母与幻觉率分子。
+- **落地/验证**：`steps/s7_metrics.py` + `tests/test_metrics.py`（12 例）；
+  实测 grounding **0.7949**、幻觉率 **0.2051**、TPR **1.0**、FPR **0.0**、成本均值 **$0.006294**/run。
+- **⚠️ 未完成**：Phase 0 的 support 标签来自**生成模型自报**（`support_label_source=llm_self_label`），
+  **不等于** §5.1 的独立核验；后者需 D2 gold 事实集 + 异源 judge（P3）。当前以确定性的
+  "citation 可回查率 1.0"作为 grounding 硬下界。
 
 ---
 
@@ -569,3 +631,14 @@
 5. **演进了怎么办？** —— 所有组件有迁移路径（K4），接口隔离，业务代码不随底层更换。
 
 > 本手册与四份主文档互引：选型决策 → `project/framework-selection.md`；系统结构 → `design/architecture-overview.md`；自愈机制细节 → `design/challenges-and-self-healing.md`；评测数据与指标 → `implementation/evaluation-plan.md`。后续每条问题在工程化时展开为规范或测试用例。
+
+## K5 · `run_id` 唯一性与续跑调用约定（S4/S5 实测后新增）
+- **现象与难点**：①事件按 `run_id` 累加，**复用同一 run_id 的多次尝试会被合并成一条 seq 流**
+  （实测 `p0-s5-004` 三次尝试 → 102 条事件），指标与成本会被算大；②S4 实测：带完整输入
+  `invoke({...})` 会让图**从 START 重跑已完成节点**（fetch 2–3 次），而 `invoke(None)` 才等价于不中断对照。
+- **架构级**：`run_id` 唯一标识**一次完整尝试**（续跑时复用是"有意为之"，需在事件里标注 attempt）；
+  harness 固定"续跑 = `graph.invoke(None, config)`"。
+- **细节级**：节点副作用必须**幂等**（崩溃节点必然重跑，at-least-once）：按 `(run_id,node,attempt)`
+  或业务幂等键去重；索引 upsert；LLM 结果落缓存；报告/claim 用确定性 id。
+- **落地/验证**：`steps/s4_checkpoint_spike.py`（6 场景，F 场景最终状态与对照**逐字段一致**）；
+  G15 守卫（`E_RUN_INPUT_MISMATCH` / `E_RUN_ALREADY_COMPLETED`）；S7 的 `metric_events` 计数用于暴露多尝试 run。
