@@ -1,7 +1,7 @@
 ﻿# PPT Master 提示词 — 组会 PPT（Module & Framework Selection）
 
 > 用法：把下面 `===== PROMPT =====` 之间的内容整体复制给模型（或在 DSH 里直接说
-> "按 docs/ppt/ppt-master-prompt-group-meeting.md 生成"）。第一轮只出 Slide 1–5 供检查，
+> "按 docs/ppt/2026-10-14-group-meeting/ppt-master-prompt-group-meeting.md 生成"）。第一轮只出 Slide 1–5 供检查，
 > 通过后再用同一套设定续完全部 15 页。
 >
 > 源文件：`docs/ppt/framework-selection-brief.md`（分页 deck brief，每 `## Slide N` = 一页）

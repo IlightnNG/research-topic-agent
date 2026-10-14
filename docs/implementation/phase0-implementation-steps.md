@@ -1,4 +1,4 @@
-# Phase 0 实施步骤指导（项目初始化与可行性验证）
+﻿# Phase 0 实施步骤指导（项目初始化与可行性验证）
 
 > 状态：**v1.0 定稿**（Phase 0 收尾完成）——Phase 0 的逐步施工指导；每一步都写明"内容要求 / 交付物 / 执行命令 / 验收标准 / 时间盒 / 失败应对"
 > v1.0 变更（Step 8 收尾）：六份主文档回写完成、3 份 ADR、`RESULTS.md` v1.0 定稿、决策门一页纸就绪、§9 除导师确认外全绿
@@ -467,7 +467,7 @@ uv run python steps/s5_walking_skeleton.py --topic T1 --run-id p0-s5-001
 **本轮刻意不做**：PDF 全文（需批量下载；`extract_pdf_text` 已实现且坏文件兜底有单测）、bge-m3 + Qdrant（无本地 embedding，塞词法向量是假向量）、Kuzu 接线（语料内引用边为 0；S3 已验证可用）、守卫 G1/G4（S6 范围，本轮只做预算熔断）、离线档。
 
 **证据文件**：`out/reports/T1-*-p0-s5-*.md`、`out/claims_p0-s5-*.json`、`out/s5_summary.json`、`out/events.jsonl`、`out/llm_cache/`、`out/s5_corpus.json`。
-**导师演示材料**：`docs/ppt/s5-closed-loop-demo.md`（单页 brief + 3 分钟讲稿）。
+**导师演示材料**：`docs/ppt/2026-10-14-group-meeting/s5-closed-loop-demo.md`（单页 brief + 3 分钟讲稿）。
 
 ---
 
@@ -531,7 +531,7 @@ uv run python steps/s6_guards_demo.py --topic T1 --repeats 3      # 正常样本
 **本轮刻意不做**：embedding 版 G1（无本地模型）、G2/G3/G5–G15 全量实现（本步 spec 只要两个守卫 + 看门狗 + 注入）、真实故障注入（验证的是守卫逻辑与处置阶梯，故障为确定性模拟）、恢复包 A/B 有效性对比（列入 S7/Phase 1）。
 
 **证据文件**：`out/s6_summary.json`（含逐步时间线）、`out/s6_threshold_sweep.json`（TPR/FPR 全表）、`out/s6/guards_*.jsonl`（18 条完整事件链）、`out/s6_offtopic_corpus.json`（真实离题语料）。
-**演示材料**：`docs/ppt/s6-guards-brief.md`（与 S5 brief 合起来即 Step 8 的 5 分钟 demo）。
+**演示材料**：`docs/ppt/2026-10-14-group-meeting/s6-guards-brief.md`（与 S5 brief 合起来即 Step 8 的 5 分钟 demo）。
 
 ### Step 7（S7）最小指标集与汇总（时间盒 1 天）
 **内容要求**
@@ -608,7 +608,7 @@ uv run python steps/s7_metrics.py --events out/events.jsonl --out out/metrics_su
 | `design/agent-design-decisions.md` | 新增 **F8**（LLM 缓存与可复现的真实来源）、**F9**（阈值按打分器分布标定）、**H5**（reasoning 截断与静默空输出）、**I8**（日志≠事件）、**J6**（指标口径与 campaign 圈定）、**K5**（run_id 唯一性与续跑约定）→ 台账 **71 条** |
 | `implementation/implementation-guide.md` | **§2.9 Phase 0 结论固化**（Phase 1 契约增量）：merged_ids/paper_merges、metric{kind} 事件契约与双写义务、存储路径与身份校验、LLM 网关契约、运行与续跑约定、**14 个错误码清单**、配置面增量（routing/topics） |
 
-**③ 决策门材料**：`docs/ppt/phase0-decision-gate.md` —— 一页数字摘要 + **5 分钟 demo（3 条命令）** + 6 项待导师确认 + Phase 1 首批 backlog 10 项 + 诚实边界。
+**③ 决策门材料**：`docs/ppt/2026-10-14-group-meeting/phase0-decision-gate.md` —— 一页数字摘要 + **5 分钟 demo（3 条命令）** + 6 项待导师确认 + Phase 1 首批 backlog 10 项 + 诚实边界。
 
 **④ 3 份 ADR**（Phase 0 触发的契约/部署变更）：`adr/0001-paper-merged-ids.md`、`adr/0002-metric-event-contract.md`、`adr/0003-local-store-path-and-identity.md`；索引已更新。
 
@@ -664,8 +664,8 @@ uv run python steps/s7_metrics.py --events out/events.jsonl --out out/metrics_su
 - [x] S5：单 topic 出报告（≥800 字、≥10 claim、100% 带 citation、事件 ≥30 条），重跑幂等；——实测：**8,941–10,821 字 / 16–23 claims / 100% citation / 33–34 事件**；重跑论文数新增 0、缓存命中时 claims sha1 一致；冷启动成本 **$0.0036–0.0126**（6–7 次网络调用含重试，60–91 s），**缓存重跑 $0 / 0.08–0.12 s**；报告每条 claim 均可回查到证据卡；本轮**未做** PDF 全文/bge-m3 向量/Kuzu 接线/守卫 G1G4（理由见 Step 5 实测结果）；
 - [x] S6：四类注入检出率 ≥ 90%、正常样本误报 0、事件链完整；——实测：5 类注入各 3 次**检出率 1.00**、正常 run **误报 0/3**、18/18 run 按规则恢复或终止；事件链 `tool_call → guard_trigger → recovery{packet} → metric` 完整；并顺带**证伪 spec 字面的「关键词 scope + 绝对阈值」**（正负分布重叠、无可用阈值）→ 改用种子语料质心后 TPR 1.0 / FPR 0.0；
 - [x] S7：5 个指标可从事件算出，与 `implementation/evaluation-plan.md` 口径一致；——实测：grounding **0.7949**、幻觉率 **0.2051**、注入 TPR **1.0**、成本均值 **$0.006294**/run；手工抽查 `p0-s5-cold` 事件侧与 claims 文件**完全一致**；补了 3 处埋点（S5 grounding 分级计数+主题相关度、S5 run_summary、S6 timeout 的 ERROR 事件）并新增 campaign 筛选；⚠️ 自报标签口径需 P3 的 D2 gold 事实集做独立核验；
-- [x] Step 8：`RESULTS.md` 定稿（v1.0：新增 §0 一页摘要、§4 十二条静默错误清单、§5 决策门结论）、**六份主文档全部回写**（framework-selection §14b 选型校验 / architecture-overview §8b 摩擦点 + §9 待确认项 / state-machine-and-guards §12 实测小结与未验证项 / evaluation-plan §5.4b 口径映射 + §5.6 全文可得性 / agent-design-decisions 新增 F8/F9/H5/I8/J6/K5 共 6 条 → 71 条 / implementation-guide §2.9 Phase 1 契约补充）、**决策门材料就绪**（`docs/ppt/phase0-decision-gate.md` 一页数字 + 5 分钟 demo 脚本 + 6 项待确认）、**3 份 ADR**（0001 merged_ids / 0002 指标事件契约 / 0003 本地存储路径与身份）；
-- [ ] 导师确认 → 启动 Phase 1。（**唯一未勾选项**：属导师动作，材料已备：`docs/ppt/phase0-decision-gate.md`；需确认 ①是否进入 Phase 1 ②向量检索部署形态三选一 ③测试 topic 集与评测周数 ④前端框架 ⑤grounding 口径升级 ⑥是否恢复本地模型档）
+- [x] Step 8：`RESULTS.md` 定稿（v1.0：新增 §0 一页摘要、§4 十二条静默错误清单、§5 决策门结论）、**六份主文档全部回写**（framework-selection §14b 选型校验 / architecture-overview §8b 摩擦点 + §9 待确认项 / state-machine-and-guards §12 实测小结与未验证项 / evaluation-plan §5.4b 口径映射 + §5.6 全文可得性 / agent-design-decisions 新增 F8/F9/H5/I8/J6/K5 共 6 条 → 71 条 / implementation-guide §2.9 Phase 1 契约补充）、**决策门材料就绪**（`docs/ppt/2026-10-14-group-meeting/phase0-decision-gate.md` 一页数字 + 5 分钟 demo 脚本 + 6 项待确认）、**3 份 ADR**（0001 merged_ids / 0002 指标事件契约 / 0003 本地存储路径与身份）；
+- [ ] 导师确认 → 启动 Phase 1。（**唯一未勾选项**：属导师动作，材料已备：`docs/ppt/2026-10-14-group-meeting/phase0-decision-gate.md`；需确认 ①是否进入 Phase 1 ②向量检索部署形态三选一 ③测试 topic 集与评测周数 ④前端框架 ⑤grounding 口径升级 ⑥是否恢复本地模型档）
 
 ---
 

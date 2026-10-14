@@ -1,4 +1,4 @@
-# Phase 0 结果记录（RESULTS）
+﻿# Phase 0 结果记录（RESULTS）
 
 > 用途：Phase 0 每步的**结论台账**——结论 / 关键数字 / 证据文件 / 是否影响设计。
 > 规则：数字必须可追溯到证据文件；"结论为负"同样记录并给出替代方案；被推翻的假设同步回写主文档。
@@ -40,7 +40,7 @@ Qdrant local 检索 0.038 ms/点（2 万篇 ≈0.76 s/查询，精确 kNN）；c
 | 5 (S5) | 单 topic 端到端闭环跑通：**云 LLM 路径可行**，报告/claims/事件/成本全部达标 | 24 篇真实 OpenAlex 语料 → 43 块 → 12 证据卡 → 报告 **8,946–9,189 字 / 16–18 claims / 100% 带 citation**；单 run **33 事件** seq 连续；冷启动成本 **$0.0036–0.0063**（90.9 s / 7 次网络调用）、**缓存重跑 $0 且 0.12 s**；重跑论文数新增 0、claims 文件 sha1 一致 | `out/reports/T1-*-p0-s5-*.md`、`out/claims_p0-s5-*.json`、`out/s5_summary.json`、`out/events.jsonl`、`out/llm_cache/` | 是（新增 `llm.py` 网关把 reasoning 截断/缓存/预算熔断固化；新增 schema 身份校验；确认 `deepseek-flash` 为 reasoning 模型；run_id 唯一性约束） | 2026-10-08 | ☑ 完成 |
 | 6 (S6) | 守卫与注入验证完成：**三守卫 + 预算看门狗全部达标**，并暴露修掉了"阈值口径"这一根本问题 | 6 场景 × 3 次：注入检出率 **1.00**（≥0.9）、正常 run 误报 **0/3**、全部恢复到完成态或按规则终止；G1 按分布间隙标定 **warn 0.0867 / block 0.0777**；分离度 min(正)=0.0885 > max(负)=0.0670（gap 0.0215）；G4 k=5×3；预算 80% warn → 100% stop 阶梯可见 | `out/s6_summary.json`、`out/s6_threshold_sweep.json`、`out/s6/guards_*.jsonl` | 是（新增 `guards.py`/`scoring.py`/`topics.py`；**scope 必须用种子语料质心而非关键词串**；warn 阈值必须按分布标定；S5 检索改用同一打分器） | 2026-10-09 | ☑ 完成 |
 | 7 (S7) | 最小指标集可从**事件**算出，且与原始记录一致（手工抽查通过）；口径对齐 §5 并回写文档 | 5 指标：grounding 支持率 **0.7949**（verifiable=39）/ 幻觉率 **0.2051**（严重 0.0513）/ 主题相关度 0.0699 / 漂移事件率 0.3333 + 注入 TPR **1.0** / 循环事件率 0.3333 / 成本均值 **$0.006294**、时延 p50 0.08s–p95 68.35s；FPR **0.0**、越界副作用率 **0.0**、处置正确率 **1.0**；手工核对 `p0-s5-cold`：事件侧 16/1/6/23 = claims 文件独立统计 | `out/metrics_summary.csv`、`out/metrics_aggregate.json`、`out/metrics_report.md` | 是（**补 3 处埋点**：S5 grounding 分级计数+主题相关度、S5 run_summary 字段、S6 timeout 的 ERROR 事件；新增 campaign 筛选；§5.5 口径修正：不可回查 claim 计入 unsupported 而非丢弃） | 2026-10-09 | ☑ 完成 |
-| 8 | 阶段收尾与决策门完成：`RESULTS.md` 定稿、六份主文档回写、3 份 ADR、决策门一页纸就绪 | §9 出口清单**除「导师确认」外全绿**；新增 ADR 0001–0003；台账扩到 71 条；测试 **112 项通过** | `docs/ppt/phase0-decision-gate.md`、`docs/implementation/adr/0001–0003` | 是（结论固化：三条 ADR + 六份文档回写；Phase 1 首张任务卡与 backlog 就绪） | 2026-10-09 | ☑ 完成 |
+| 8 | 阶段收尾与决策门完成：`RESULTS.md` 定稿、六份主文档回写、3 份 ADR、决策门一页纸就绪 | §9 出口清单**除「导师确认」外全绿**；新增 ADR 0001–0003；台账扩到 71 条；测试 **112 项通过** | `docs/ppt/2026-10-14-group-meeting/phase0-decision-gate.md`、`docs/implementation/adr/0001–0003` | 是（结论固化：三条 ADR + 六份文档回写；Phase 1 首张任务卡与 backlog 就绪） | 2026-10-09 | ☑ 完成 |
 
 状态图例：☐ 待办 / ◐ 进行中 / ☑ 完成 / ⛔ 阻塞
 
@@ -441,7 +441,7 @@ Qdrant local 检索 0.038 ms/点（2 万篇 ≈0.76 s/查询，精确 kNN）；c
 
 **证据文件**：`out/reports/T1-20261008-p0-s5-*.md`、`out/claims_p0-s5-*.json`、`out/s5_summary.json`、`out/events.jsonl`（按 run_id 过滤）、`out/llm_cache/*.json`（内容寻址缓存，保证重跑确定性与 $0 成本）、`out/s5_corpus.json`（语料 fixture）。
 
-**给导师的演示材料**：`docs/ppt/s5-closed-loop-demo.md`（单页 brief：闭环图、真实数字、成本表、验收对照、诚实边界、3 分钟讲稿）。
+**给导师的演示材料**：`docs/ppt/2026-10-14-group-meeting/s5-closed-loop-demo.md`（单页 brief：闭环图、真实数字、成本表、验收对照、诚实边界、3 分钟讲稿）。
 
 ## 2.13 Step 6（S6）记录：守卫 + 预算看门狗 + 注入（2026-10-09）
 
@@ -491,7 +491,7 @@ Qdrant local 检索 0.038 ms/点（2 万篇 ≈0.76 s/查询，精确 kNN）；c
 
 **证据文件**：`out/s6_summary.json`（含每次 run 的逐步时间线）、`out/s6_threshold_sweep.json`（TPR/FPR 全表）、
 `out/s6/guards_<scenario>_<run_id>.jsonl`（18 条完整事件链）、`out/s6_offtopic_corpus.json`（真实离题语料）。
-**演示材料**：`docs/ppt/s6-guards-brief.md`。
+**演示材料**：`docs/ppt/2026-10-14-group-meeting/s6-guards-brief.md`。
 
 ## 2.14 Step 7（S7）记录：最小指标集与汇总（2026-10-09）
 

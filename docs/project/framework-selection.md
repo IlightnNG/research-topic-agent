@@ -151,7 +151,6 @@
 | **LiteLLM**（SDK Router 进程内 或 proxy） | 统一 100+ 家、内置 fallback/重试/负载均衡/成本与预算、活跃维护；OpenAI 兼容端点(DeepSeek/Ollama/vLLM)直接注册 | 抽象一层、需锁版本；敏感度等**业务路由仍在代码层**（薄） | ★★★★★ 主推 |
 | 自研薄网关（~300 行） | 零依赖、全可控、与事件溯源天然一体 | 重试/熔断/成本/多厂商适配全要自己维护——**工程化后可维护性弱**，与本人"框架优先"取向冲突 | ★★★ 仅在"拒绝任何第三方抽象"时选 |
 | OpenRouter | 免运维聚合 | 第三方中转、数据出境、不支持本地引擎 | ★★ |
-| LangChain LCEL | 生态整合 | 抽象重、版本耦合、网关职责被稀释 | ★★ |
 
 ### 3.4 推荐：**LiteLLM（SDK Router 模式，进程内）**
 - Router 注册 providers：`local-ollama / local-vllm / deepseek`（均 OpenAI 兼容）；利用其 fallback/重试/健康冷却做**熔断降级**第一层。

@@ -12,6 +12,11 @@ docs/
 ├─ design/                        # 架构、状态机与守卫规范、设计问题手册、重难点预想
 ├─ implementation/                # 实现指导、Phase 0 步骤、评测方案、adr/
 └─ ppt/                           # 汇报演示材料
+   ├─ README.md                    # ppt 目录索引（组会文件夹 / 工具链 / 跨会议材料）
+   ├─ 2026-10-14-group-meeting/    # 本次组会：底稿 + 提示词 + 决策门 + 成品 PPTX + S5/S6 演示 brief
+   ├─ scripts/                     # 成品再生成与校验工具链（重生成 SVG / 版式自检 / 导出实测）
+   ├─ framework-selection-brief.md # 选型主题分页稿（跨会议复用）
+   └─ ppt-master-usage-guide.md    # ppt-master 用法与提示词范式（工具文档）
 ```
 
 ## 2. 文档地图
@@ -29,12 +34,19 @@ docs/
 | `implementation/evaluation-plan.md` | v0.3 | 评测方案与数据集计划（D1–D7 规格、指标公式、**§5.4b Phase 0 实测口径映射**、实验设计、验收标准） | 评测口径变化时 |
 | `implementation/logging-and-observability.md` | v0.1 | **日志与可观测性规范**（三层模型、字段字典、级别与脱敏、轮转保留、调试开关、debug bundle、框架日志接管、慢点告警、运维反馈闭环） | 可观测口径变化时 |
 | `implementation/adr/README.md` | v0.1 | ADR 索引、触发条件与模板；**已收录 0001–0003**（merged_ids / 指标事件契约 / 本地存储路径与身份） | 契约变更时追加 |
-| `ppt/framework-selection-brief.md` | v0.4 | 英文 15 页 PPT 分页稿（模块选型 + 重难点 + 评测预想） | 选型/架构更新后同步 |
-| `ppt/ppt-master-usage-guide.md` | — | ppt-master 使用说明与提示词范式 | 按需 |
-| `ppt/ppt-master-prompt-group-meeting.md` | — | 组会 PPT 生成用完整提示词 | 按需 |
-| `ppt/phase0-decision-gate.md` | v1.0 | **Phase 0 决策门一页纸**（一页数字 + 5 分钟 demo 脚本 + 6 项待导师确认 + Phase 1 backlog + 诚实边界） | 决策门后归档 |
-| `ppt/s6-guards-brief.md` | v0.1 | **S6 守卫演示 brief**（阈值标定过程、注入矩阵、事件链、工程规则、3 分钟讲法） | 每次守卫实测后更新数字 |
-| `ppt/s5-closed-loop-demo.md` | v0.1 | **S5 最小闭环演示 brief**（闭环流程图、真实运行数字、成本表、验收对照、诚实边界、3 分钟讲稿） | 每次闭环实测后更新数字 |
+| `ppt/README.md` | v0.1 | **ppt 目录索引**：组会文件夹 / 工具脚本 / 跨会议材料各自的位置与用途 | 结构变化时 |
+| `ppt/framework-selection-brief.md` | v0.4 | 英文 15 页 PPT 分页稿（模块选型 + 重难点 + 评测预想）；跨会议复用的选型素材 | 选型/架构更新后同步 |
+| `ppt/ppt-master-usage-guide.md` | — | ppt-master 使用说明与提示词范式（工具文档，与具体会议无关） | 按需 |
+| `ppt/scripts/` | — | **成品再生成与校验工具链**：`build-deck-pages.py` + `deck_content.py`（由内容数据重生成 21 页 SVG）、`svg-layout-check.py`（版式/列碰撞自检）、`verify-pptx.py`（导出后实测页数/备注/最小字号）、`svg-render-preview.py` + `build-contact-sheet.py`（渲染预览）、`roster-quota-check.py`（roster 配额与模块规则） | 工具或版式变化时 |
+| `ppt/2026-10-14-group-meeting/` | v1.0 | **本次组会材料文件夹**（入口见其 `README.md`）：思路底稿 + ppt-master 提示词 + 决策门一页纸 + **成品 PPTX** + S5/S6 演示 brief + 问题页双语参考 | 每次组会新建日期文件夹 |
+| `ppt/2026-10-14-group-meeting/group-meeting-outline.md` | v1.1 | **组会汇报整体思路（详细底稿）**：①选型补充（LangChain 拆解 + 编排/网关多选一 + Q&A 预案）②重难点设计方案（三层防线 + **6 个代表性问题** + 周更状态图节点表 + 验证方式表）③初步可行性验证（6 组验证：为什么验/数字/结论）+ 数字速查与证据索引 | 每次组会前更新 |
+| `ppt/2026-10-14-group-meeting/group-meeting-ppt-prompt.md` | v1.5 | 给 ppt-master 的生成提示词：**21 页 Roster**（开场 2 + 选型 4 + **周更状态图 1** + 代表性问题 **6 页一页一问** + 可行性验证 **8 页一页一验**）；**每页内容详实并逐条标注重要度层级**（`[H]` hero 唯一 · `[1]` 1–4 条论证主干 · `[2]` ≤8 条支撑细节 · `[3]` ≤6 条脚注，含空格不足时的舍取顺序）+ **层次规范**（L1→L5）+ 每页底部 takeaway；**英文为主、中文为辅** | 汇报结构变化时同步 |
+| `ppt/2026-10-14-group-meeting/2026-10-14-group-meeting.pptx` | v4 | **成品 deck**：21 页 + 演讲备注（实测最小字号 **14.2 pt**、notes 21/21），由 `ppt/scripts/` 从上面的提示词 md 生成 | 汇报后冻结 |
+| `ppt/2026-10-14-group-meeting/phase0-decision-gate.md` | v1.0 | **Phase 0 决策门一页纸**（一页数字 + 5 分钟 demo 脚本 + 6 项待导师确认 + Phase 1 backlog + 诚实边界） | 决策门后归档 |
+| `ppt/2026-10-14-group-meeting/problem-pages-bilingual.md` | v0.1 | 问题页（8–13）中英对照参考；**注：内容对应改版前的 8–13 页，与成品 deck 不一致** | 问题页改版后同步或归档 |
+| `ppt/2026-10-14-group-meeting/s6-guards-brief.md` | v0.1 | **S6 守卫演示 brief**（阈值标定过程、注入矩阵、事件链、工程规则、3 分钟讲法） | 每次守卫实测后更新数字 |
+| `ppt/2026-10-14-group-meeting/s5-closed-loop-demo.md` | v0.1 | **S5 最小闭环演示 brief**（闭环流程图、真实运行数字、成本表、验收对照、诚实边界、3 分钟讲稿） | 每次闭环实测后更新数字 |
+| `ppt/2026-10-14-group-meeting/ppt-master-prompt-group-meeting.md` | — | 组会 PPT 生成提示词的**第一版**（已被 `group-meeting-ppt-prompt.md` 取代，留作过程记录） | 归档 |
 
 ## 3. 引用与维护约定
 
@@ -57,7 +69,7 @@ docs/
 | 准备动手实现 | `implementation/implementation-guide.md` → `implementation/phase0-implementation-steps.md` → `design/state-machine-and-guards.md` → `design/agent-design-decisions.md` |
 | 设计评测 | `implementation/evaluation-plan.md` → `design/state-machine-and-guards.md`（自愈指标口径） |
 | 排障与运维 | `implementation/logging-and-observability.md` → `design/agent-design-decisions.md` I 类（可观测问题）→ `implementation/phase0-implementation-steps.md` Step 0.3 |
-| 做汇报 PPT | `ppt/framework-selection-brief.md`（+ `ppt/ppt-master-usage-guide.md`） |
+| 做汇报 PPT | `ppt/2026-10-14-group-meeting/README.md`（材料入口）→ `ppt/ppt-master-usage-guide.md`（怎么生成）→ `ppt/scripts/`（再生成与校验） |
 
 ## 6. 与 docs 之外的关系
 
