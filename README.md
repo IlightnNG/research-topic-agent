@@ -47,3 +47,42 @@ on brittle single-prompt wrappers.
 
 Single machine, no external services required — all stores are embedded or local.
 
+
+## Phase 1 quick start (this machine)
+
+> Phase 1 builds the full-system skeleton. Everything that grows is centralised on
+> `D:\lit-agent-store` (C: was full); the repository itself stays where it is.
+
+```powershell
+# 1) environment: sets UV/PIP/HF/TORCH/TEMP to D: and PYTHONPATH=<repo>\src
+. .\scripts\env.ps1
+
+# 2) dependencies + self-check
+uv sync
+.\scripts\lit-agent.ps1 doctor --strict
+
+# 3) database (24 tables) + structure check
+.\scripts\lit-agent.ps1 db upgrade
+.\scripts\lit-agent.ps1 db status
+python scripts/check_structure.py
+
+# 4) quality gates
+uv run ruff check . ; uv run ruff format --check .
+uv run pytest -q
+```
+
+Where things live:
+
+- `docs/implementation/phase1-implementation-steps.md` - the plan (steps, depth matrix, acceptance).
+- `docs/implementation/RESULTS-P1.md` - measured numbers (single source of truth).
+- `docs/implementation/adr/0004-*.md` - vector store + embedding model.
+- `docs/implementation/adr/0005-*.md` - 24 tables, event seq allocation, idempotency keys.
+
+Known environment constraints:
+
+- The repository path contains non-ASCII characters, so the project is **not installed editable**
+  (`[tool.uv] package = false`). Use `scripts/lit-agent.ps1`, or set `PYTHONPATH=src` yourself.
+- `alembic.ini` and every `*.ps1` are ASCII-only on purpose: Windows PowerShell and alembic read
+  them with the locale codec (GBK here) and non-ASCII bytes break parsing.
+- All fast-growing storage (uv/pip caches, model weights, temp files, run data) lives on D:.
+  See `scripts/env.ps1` and `RESULTS-P1.md` section 1.1.

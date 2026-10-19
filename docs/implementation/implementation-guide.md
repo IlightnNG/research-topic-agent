@@ -88,6 +88,10 @@ agent/                         # 仓库根（= 项目根；docs/ 与代码平级
 `fastapi, uvicorn[standard], sqlalchemy>=2, alembic, pydantic>=2, pydantic-settings, langgraph, langgraph-checkpoint-sqlite, litellm, httpx, pyalex, arxiv, pymupdf, pdfplumber, qdrant-client, kuzu, apscheduler, tiktoken, deepeval, structlog`（开发组：`pytest, pytest-asyncio, ruff, respx`）。
 **禁止**：Redis/Celery/消息队列/Docker 依赖（P1–P6 不需要）。
 
+> **Phase 1 增量（ADR-0004 授权）**：`sentence-transformers>=3.0`、`numpy>=1.26`（本地嵌入，torch CPU，首次安装约 +600 MB；
+> 模型权重 `BAAI/bge-m3` ≈2.27 GB 首次下载，`HF_HOME` 指向 `data/models/` 且须 ASCII 路径）。
+> 其余新增一律仍需 ADR（见 §15.4）。
+
 ### 1.3 配置管理
 单一 `config.yaml` + 环境变量覆盖；所有键有安全默认；`llm.*.api_key` 只从 env 读。
 ```yaml
@@ -103,6 +107,15 @@ guards: {scope_cosine_min: 0.60, oos_share_max: 0.30, loop_k: 5, no_progress_ste
 scheduler: {timezone: Asia/Singapore, default_cron: "0 3 * * 1", stagger_seconds: 300}
 eval: {enabled: true, judge_provider: cloud, sample_rate: 0.2}
 logging: {level: INFO, format: json}
+# Phase 1 增量（ADR-0004）：本地嵌入；hf_home 必须在 ASCII 路径下（与 data/ 同约束）
+vector:
+  model_id: BAAI/bge-m3
+  model_rev: <commit 短哈希，锁定可复现>
+  dim: 1024                    # 与 §2.6 collection size 必须一致
+  batch_size: 32
+  num_threads: 8
+  hf_home: data/models
+  active_collection: papers_v1
 ```
 
 ### 1.4 日志规范（详规见 `logging-and-observability.md`）
@@ -158,6 +171,13 @@ eval_judgments(id PK, target_type, target_id, metric, score, judge_model, human,
 索引：`run_events(run_id, seq)`、`metrics(scope, scope_id, metric)`、`llm_calls(run_id)`、`chat_messages(session_id, ts)`。
 写入规则：事件**只追加**；`reports`/`metrics` 提交后不可改（修订走新行）。
 
+> **Phase 1 增量（已定稿，见 `adr/0005-entity-tables-and-event-keys.md`）**：本表只列"运行侧"表，
+> 论文实体与证据表由 ADR-0005 补齐，共 **12 张**：`store_meta`、`papers`、`papers_raw`、`authors`、
+> `paper_authors`、`citations`、`paper_merges`(ADR-0001)、`paper_chunks`、`claims`、`claim_citations`、
+> `reports`、`llm_cache`、`embeddings`。该 ADR 同时给出：索引/外键、`runs.next_seq`（事件序号分配器）、
+> `ux_runs_one_running`（一 topic 一 running）、**幂等键总表**（§7）、以及 `metrics` 改为
+> `UNIQUE(scope, scope_id, metric)` 可复算口径。**实现时以 ADR-0005 的 DDL 为准**，本节不重复定义。
+
 ### 2.2 事件 schema
 ```json
 {"id": 1, "run_id": 7, "seq": 42, "ts": "2026-01-01T03:00:00Z", "type": "tool_call",
@@ -168,9 +188,21 @@ eval_judgments(id PK, target_type, target_id, metric, score, judge_model, human,
 类型：`phase_change | tool_call | llm_call | guard_trigger | recovery | message | error | metric | report_written`
 幂等键：`(run_id, stage, step_key)`；广播与落库顺序：**先落库，后广播**。
 
+> **Phase 1 增量（已定稿，见 `adr/0005` §5–§6）**：`seq` 由 `runs.next_seq` 在**同事务内**
+> `BEGIN IMMEDIATE` → `UPDATE ... RETURNING` 分配（**禁止 `MAX(seq)+1`**）；双唯一约束为
+> `UNIQUE(run_id, seq)` + 部分唯一索引 `UNIQUE(run_id, dedupe_key) WHERE dedupe_key IS NOT NULL`；
+> `dedupe_key = '<stage>:<step_key>'`；去重命中 → 忽略 + `runs.dup_events+1` + 一条 `E_DATA_DUP`
+> （其自身 `dedupe_key` 必须为 `NULL`，否则自我冲突）。
+
 ### 2.3 Pydantic 模型清单（`models/`）
 `Author{author_id,name,name_norm}` · `Paper{paper_id,title,abstract,authors,venue,year,published_at,updated_at,source,references,oa_pdf_url}` · `SourceRecord{raw_json, fetched_at}` · `ParsedDoc{paper_id,text_path,page_count,quality}` · `Chunk{paper_id,idx,text,tokens}` · `EvidenceCard{paper_id,title,year,snippet,source,score}` · `Claim{text,citations[],support}` · `Verdict{ok,severity,action,reasons[]}` · 阶段产物 `RetrievalResult / MappingResult / AnalysisResult / ReportDraft` · `EvalRecord`。
 规则：所有跨模块传递都用这些模型；**不用裸 dict**。
+
+> **Phase 1 增量（见 `adr/0005` §10）**：`Paper` 增 `source_id/venue_id/is_oa/language/parse_status/cited_by_count/merged_ids`；
+> `Report` 增 `content_sha/n_claims/degraded`；`Run` 增 `next_seq/dup_events/input_hash/stage/last_ok_stage`；
+> `Event` 增 `dedupe_key`；`Claim` 增 `claim_id/text_sha/report_id`；新增 `GuardVerdict{ok,severity,action,code,reasons[]}`
+> （`Verdict` 为兼容别名；`GuardAction` 取值 `continue/retry/degrade/replan/abort/annotate`）。
+> `RunContext{run_id,topic_id,stage,settings_ref,budget,input_hash} + resources(不可序列化)`。
 
 ### 2.4 API 契约（REST + SSE）
 | 方法 | 路径 | 说明 |
@@ -207,6 +239,14 @@ CREATE REL TABLE SIMILAR_TO(FROM Paper TO Paper, score DOUBLE, computed_at TIMES
 ### 2.6 向量 collection（Qdrant）
 `papers`：size=1024（bge-m3）、distance=Cosine、payload=`{paper_id,title,year,source,topic_ids,published_at,discovered_at}`；
 `chunks`（阶段 P3 启用）：payload=`{paper_id,chunk_idx,tokens}`，正文放文件系统。
+
+> **Phase 1 增量（已定稿，见 `adr/0004-vector-source-and-embedding-model.md`）**：
+> ① **部署形态 = Qdrant local 嵌入式**（`path=data/qdrant`，无 server/Docker）；复评触发：>50k 点或 p95>500 ms。
+> ② **模型 = `BAAI/bge-m3`**（1024 维 / 8192 ctx / MIT / 多语），备选 `BAAI/bge-large-en-v1.5`（同 1024 维，可热切换）；
+> ③ 新增依赖 `sentence-transformers`（torch CPU、fp32、`normalize_embeddings=True`）；
+> ④ collection 名带版本（`papers_v1`），活跃名与 `model_id/model_rev/dim` 记入 `store_meta`（ADR-0005），
+> 维度或模型不一致 → `E_VECTOR_DIM_MISMATCH` / `E_VECTOR_MODEL_MISMATCH`，**禁止原地覆盖**；
+> ⑤ 换模型必须"新 collection + 全量重嵌入 + 指针切换 + **阈值重标定**"（F9）。
 
 ### 2.7 契约变更流程
 任何契约变更 → 写 ADR（`docs/implementation/adr/NNNN-*.md`）：动机 / 影响面 / 迁移步骤 / 回归范围；未记录不得合并。
@@ -249,8 +289,17 @@ async def sync_topic(topic, adapters, repos, stores) -> SyncReport
 **接口**
 ```python
 class LLMGateway:
-    async def chat(self, *, agent: str, messages: list[Message], task_class: TaskClass,
-                   sensitivity: Sensitivity, schema: type[BaseModel] | None = None) -> LLMResult: ...
+    async def chat(
+        self,
+        *,
+        agent: str,
+        messages: list[Message],
+        task_class: TaskClass,
+        sensitivity: Sensitivity,
+        schema: type[BaseModel] | None = None,
+    ) -> LLMResult: ...
+
+
 # policy.decide(task_class, sensitivity, health) -> RouteDecision{provider, model, reason, allow}
 # metering.on_success/on_failure -> 写 llm_calls + 事件
 ```

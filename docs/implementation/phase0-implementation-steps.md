@@ -1,4 +1,4 @@
-﻿# Phase 0 实施步骤指导（项目初始化与可行性验证）
+# Phase 0 实施步骤指导（项目初始化与可行性验证）
 
 > 状态：**v1.0 定稿**（Phase 0 收尾完成）——Phase 0 的逐步施工指导；每一步都写明"内容要求 / 交付物 / 执行命令 / 验收标准 / 时间盒 / 失败应对"
 > v1.0 变更（Step 8 收尾）：六份主文档回写完成、3 份 ADR、`RESULTS.md` v1.0 定稿、决策门一页纸就绪、§9 除导师确认外全绿
@@ -681,6 +681,12 @@ uv run python steps/s7_metrics.py --events out/events.jsonl --out out/metrics_su
 - `steps/` 下的胶水脚本、`out/` 产物、合成数据（保留真实抓取结果作 fixture）。
 
 **Phase 1 第一张正式任务卡**（示例，来自 `implementation/implementation-guide.md` 附录 B）
+
+> ⚠️ **2026-10-19 更新**：Phase 1 已按"完整系统搭建（全模块骨架）"重新规划，正式计划见
+> `implementation/phase1-implementation-steps.md`（v2.0）。**首张任务卡改为 `P1-SKEL-01`**（全模块骨架 +
+> `lit-agent doctor` + Phase 0 测试迁移，把 config/契约/日志/错误一次性建齐），下卡 W1-CFG-01 作为其中的
+> 子项被吸收；`W1-*` 编号仍可在该文件中追溯。
+
 ```
 Task ID: W1-CFG-01
 Goal: 配置加载（YAML+env，含安全默认）
