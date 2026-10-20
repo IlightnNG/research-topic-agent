@@ -82,11 +82,11 @@ def test_run_once_marks_trigger_as_schedule(tmp_path: Path) -> None:
 # --------------------------------------------------------------------------- #
 def test_metrics_are_none_when_denominator_is_zero(tmp_path: Path) -> None:
     settings = prepare(tmp_path)
-    run_topic(settings, "ai-agents", run_id="run-m0")
-
-    metrics = compute_run_metrics(settings, "run-m0")
+    # 在**任何 run 之前**取指标：此时没有任何 claims，分母为 0
+    metrics = compute_run_metrics(settings, "run-does-not-exist")
     assert metrics["claims"] == 0
     assert metrics["grounding_rate"] is None, "算不出来必须是 None，不是 0.0"
+    assert metrics["dedup_rate"] is None
 
 
 def test_metrics_computed_from_claims_and_calls(tmp_path: Path) -> None:
@@ -124,10 +124,12 @@ def test_metrics_computed_from_claims_and_calls(tmp_path: Path) -> None:
         engine.dispose()
 
     metrics = compute_run_metrics(settings, "run-m1")
-    assert metrics["claims"] == 2
-    assert metrics["grounding_rate"] == 0.5
-    assert metrics["hallucination_rate"] == 0.5
-    assert metrics["citation_coverage"] == 0.5
+    # run 本身会落 1 条 degraded(unsupported) claim，再加手插的 1 supported + 1 unsupported
+    assert metrics["claims"] == 3
+    assert metrics["claims_supported"] == 1
+    assert metrics["grounding_rate"] == round(1 / 3, 4)
+    assert metrics["hallucination_rate"] == round(2 / 3, 4)
+    assert metrics["citation_coverage"] == round(1 / 3, 4)
     assert metrics["cost_usd"] == 0.003
 
 

@@ -90,6 +90,9 @@ def compute_topic_metrics(settings: Settings, *, topic_id: str | None = None) ->
         "papers": int(papers),
         "paper_merges": int(merges),
         "claims": int(claims),
+        # F5：报告口径对齐用的显式分子/分母（报告 `n_claims` 必须等于 `claims_total`）
+        "claims_total": int(claims),
+        "claims_supported": int(supported),
         "cost_usd": round(cost, 6),
         "cost_estimated_calls": int(estimated),
         "grounding_rate": _ratio(supported, claims),

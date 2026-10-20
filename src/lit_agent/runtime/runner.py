@@ -287,6 +287,26 @@ def run_topic(
 _LLM_COMPLETER: Any | None = None
 
 
+def _persist_claims(conn: Any, run_id: str, claims: list[Any]) -> int:
+    """把报告 claims 写进 `claims` / `claim_citations`（幂等：同 run 同文本不重复）。"""
+    from lit_agent.db.repo import claims as claim_repo
+
+    if not claims:
+        return 0
+    claim_repo.insert_ignore_many(conn, run_id, claims)
+    written = 0
+    for claim in claims:
+        digest = claim_repo.text_sha(claim.text)
+        claim_id = f"{run_id}:{digest[:12]}"
+        citations = [
+            (citation.paper_id, None, citation.snippet, 1.0)
+            for citation in (claim.citations or [])
+        ]
+        if citations:
+            written += claim_repo.insert_citations_many(conn, claim_id, citations)
+    return written
+
+
 def _llm_summary(settings: Settings, budget: Any, cards: list[Any], *, run_id: str) -> str | None:
     """用网关生成 3 句摘要；无 key / 预算不足 / 调用失败 → 返回 None（显式降级）。"""
     from lit_agent.gateway.llm import LLMGateway
@@ -348,6 +368,8 @@ def _persist_report(
     try:
         with connect(active, immediate=True) as conn:
             report_repo.insert_ignore(conn, draft)
+            # F5：claims 必须落库（此前只写 reports.claims_json → 指标 claims 恒为 0）
+            _persist_claims(conn, run_id, draft.claims)
             SqliteEventLog(active, run_id).emit(
                 EventType.REPORT_WRITTEN,
                 stage="report",

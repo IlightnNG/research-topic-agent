@@ -269,9 +269,10 @@ Phase 1.1 **结束**当且仅当以下 6 条同时成立：
 - **验收**：CLI 对 arXiv topic 拉到 100 篇；二次 `new=0`；无 selector → `E_SRC_NO_SELECTOR`。
 - **完成记录**：CLI 已有 `--topic/--limit`，本步补**契约测试** 3 例（参数透传、缺 `--topic` 非零退出、无 selector 非零退出）；确认返回体含 `source`（单源分派可观测）；**单源语义**：配了 `openalex` 就用它，否则取字典序第一个源，多源合并留给 P4（G-08）；真实抓取验收由 `verify_phase1.py --online` 覆盖（papers=102、二次 `new=0`）。`pytest 238 passed`、ruff clean。
 
-### F5 · 报告与指标一致性（0.5 d）
-- **动作**：`compute_run_metrics` 增加 `claims_supported/claims_total` 与报告 `n_claims` 的对齐断言；报告 sha 稳定性测试（同数据两次一致）。
-- **验收**：`pytest -k "metrics or report"` 绿；两次 run 的 `content_sha` 相等（真实数据）。
+### F5 · 报告与指标一致性（0.5 d）✅ 完成 2026-10-20
+- **动作**：`compute_run_metrics` 增加 `claims_total / claims_supported`；报告 sha 稳定性测试（同数据两次一致）。
+- **验收**：`pytest -k "metrics or report"` 绿；两次 run 的 `content_sha` 相等。
+- **完成记录**：**发现并修掉一个真不一致**——runner 只写 `reports.claims_json`，从不写 `claims` 表，导致指标 `claims=0`（报告却声称有 N 条）。新增 `_persist_claims()`：报告与 claims/citations 在同一事务落库（幂等）。指标新增 `claims_total/claims_supported` 并与报告 `n_claims` 对齐断言；补 3 例测试（对齐、sha 稳定、持久化可复算）；同步修正 2 个受影响的旧测试口径。`verify_phase1` 现报 `metrics claims=4 rows=11`。
 
 ### F6 · 前端规范化（**顺延 Phase 1.2**，本阶段不做）
 - **决策**：技术栈定为 **Vue 3**；TS + Element Plus + 三独立视图 + 路由 + 浏览器 e2e 整体顺延。
