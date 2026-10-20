@@ -94,9 +94,15 @@ def _row(paper: Paper, *, now: str) -> dict[str, Any]:
 
 
 def upsert_many(conn: Connection, papers: Iterable[Paper], *, now: str | None = None) -> int:
-    """幂等写入：只覆盖 `SOURCE_FIELDS`，派生字段保持原值。返回处理行数。"""
+    """幂等写入：只覆盖 `SOURCE_FIELDS`，派生字段保持原值。返回处理行数。
+
+    **同时落作者与署名关系**（F2 / G-01）：此前只写 `papers` 表，导致真实数据
+    `authors=0`（100 篇 arXiv 论文的作者被静默丢弃）。作者侧是幂等的：
+    `authors` 按 `author_id` upsert，`paper_authors` 按 `(paper_id, position)` upsert。
+    """
     stamp = now or utcnow_iso()
-    rows = [_row(paper, now=stamp) for paper in papers]
+    paper_list = list(papers)
+    rows = [_row(paper, now=stamp) for paper in paper_list]
     if not rows:
         return 0
     stmt = sqlite_insert(t_papers).values(rows)
@@ -105,6 +111,18 @@ def upsert_many(conn: Connection, papers: Iterable[Paper], *, now: str | None = 
         set_={field: getattr(stmt.excluded, field) for field in SOURCE_FIELDS},
     )
     conn.execute(stmt)
+
+    from lit_agent.db.repo import authors as author_repo
+
+    unique: dict[str, Any] = {}
+    for paper in paper_list:
+        for author in paper.authors or []:
+            unique.setdefault(author.author_id, author)
+    author_repo.upsert_many(conn, unique.values(), now=stamp)
+    for paper in paper_list:
+        author_ids = [author.author_id for author in (paper.authors or [])]
+        if author_ids:
+            author_repo.link_many(conn, paper.paper_id, author_ids)
     return len(rows)
 
 

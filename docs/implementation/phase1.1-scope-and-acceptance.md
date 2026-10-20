@@ -223,7 +223,7 @@ Phase 1.1 **结束**当且仅当以下 6 条同时成立：
 
 | ID | 缺口 | 级别 | 归属 | 说明 |
 |---|---|---|---|---|
-| G-01 | `upsert_many` 不写 `authors`/`paper_authorships`（100 篇真实论文 authors=0） | **P0** | F2 | 唯一确认的数据错误 |
+| G-01 | ~~`upsert_many` 不写 `authors`/`paper_authorships`（100 篇真实论文 authors=0）~~ | ~~P0~~ **已关闭 2026-10-20** | F2 ✅ | 真实数据 authors=556 / links=564；回归门已加进 `verify_phase1.py` |
 | G-02 | `guide` §3.6 差异登记未回写、ADR 索引未补 0004/0005 链接 | P1 | F8 | 纯文档 |
 | G-03 | 缺 ADR-0006（事件/表格式 v1 冻结 + 变更流程） | P1 | F8 | 纯文档 |
 | G-04 | 前端无 TS / 无 Element Plus / 单文件三页签 | P2 | **Phase 1.2**（技术栈已定 Vue 3） | 不影响功能 |
@@ -253,10 +253,11 @@ Phase 1.1 **结束**当且仅当以下 6 条同时成立：
 - **禁止**：本步不改任何业务代码。
 - **完成记录**：离线 **11/11 PASS**、在线 **13/13 PASS**（真实 arXiv `102/102/102`）；产出 `phase1-verify-report{,-online}.json`、`phase1-doctor-snapshot.json`；期间修正的 4 处问题全部在验证器内部（未触碰业务代码）。
 
-### F2 · 修 P0：作者持久化（0.5 d）
-- **动作**：`upsert_many` 之后写 `authors` + `paper_authorships`（幂等：`ON CONFLICT DO NOTHING`/`DO UPDATE`），补测试。
-- **验收**：100 篇真实论文 `verify_counts` 中 `authors>0 且 == authorships`；图谱作者节点 >0；全量测试绿。
+### F2 · 修 P0：作者持久化（0.5 d）✅ 完成 2026-10-20
+- **动作**：`upsert_many` 之后写 `authors` + `paper_authors`（幂等：`ON CONFLICT DO UPDATE`），补测试。
+- **验收**：真实论文 `authors>0`；图谱作者节点 >0；全量测试绿。
 - **禁止**：不得改 `Paper` 模型字段。
+- **完成记录**：新增 `tests/integration/test_author_persistence.py`（3 例：写入 / 幂等 / 进图）；真实数据 **authors=556、links=564（papers=102）**；`verify_phase1.py --online` 增加 G-01 回归门（papers>0 而 authors=0 直接 FAIL）；全量 **233 passed**、ruff clean。
 
 ### F3 · 错误码与契约收口（0.5 d）
 - **动作**：引入 `E_NOT_FOUND`（404）；`docs/` 错误码表补 `E_SRC_AUTH`、`E_NOT_FOUND`、`E_VECTOR_COLLECTION_MISSING`；`action_for()` 全覆盖。

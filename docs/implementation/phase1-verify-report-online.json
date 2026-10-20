@@ -1,30 +1,30 @@
 {
   "ok": true,
-  "generated_at": "2026-10-20T15:09:01+0800",
+  "generated_at": "2026-10-20T15:13:08+0800",
   "results": [
     {
       "name": "structure",
       "ok": true,
       "detail": "129/129 present",
-      "seconds": 0.011666059494018555
+      "seconds": 0.009511947631835938
     },
     {
       "name": "schema",
       "ok": true,
       "detail": "tables=24 schema=1.0",
-      "seconds": 0.02810502052307129
+      "seconds": 0.021269559860229492
     },
     {
       "name": "doctor",
       "ok": true,
       "detail": "6/6 checks ok",
-      "seconds": 0.03749847412109375
+      "seconds": 0.034604549407958984
     },
     {
       "name": "events",
       "ok": true,
       "detail": "seq 1..3 contiguous",
-      "seconds": 0.0867311954498291
+      "seconds": 0.0769186019897461
     },
     {
       "name": "guards+budget",
@@ -36,49 +36,49 @@
       "name": "runner(offline)",
       "ok": true,
       "detail": "stages=['intake', 'ingest', 'curate', 'report'] sha=68e717ae8fc9 budget=ok",
-      "seconds": 0.08486413955688477
+      "seconds": 0.07753658294677734
     },
     {
       "name": "idempotency",
       "ok": true,
       "detail": "papers stable at 2; sha identical",
-      "seconds": 0.07709956169128418
+      "seconds": 0.06592845916748047
     },
     {
       "name": "locks",
       "ok": true,
       "detail": "E_LOCK_HELD on concurrent run",
-      "seconds": 0.02022409439086914
+      "seconds": 0.0169675350189209
     },
     {
       "name": "stores",
       "ok": true,
       "detail": "papers=2 graph=2 qdrant=2",
-      "seconds": 0.2415769100189209
+      "seconds": 0.21123695373535156
     },
     {
       "name": "metrics",
       "ok": true,
       "detail": "claims=0 rows=6",
-      "seconds": 0.04028058052062988
+      "seconds": 0.03629493713378906
     },
     {
       "name": "api+sse",
       "ok": true,
       "detail": "health/404/501/sse ok; openapi paths=16",
-      "seconds": 0.33429813385009766
+      "seconds": 0.3080770969390869
     },
     {
       "name": "e2e(online/arxiv)",
       "ok": true,
       "detail": "papers=102 claims=50 cited=50",
-      "seconds": 1.5560369491577148
+      "seconds": 1.6670658588409424
     },
     {
       "name": "stores(online)",
       "ok": true,
-      "detail": "102/102/102",
-      "seconds": 0.7868447303771973
+      "detail": "102/102/102 authors=556 links=564",
+      "seconds": 3.7944116592407227
     }
   ]
 }

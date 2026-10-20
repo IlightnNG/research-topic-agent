@@ -45,7 +45,7 @@ uv run python scripts/verify_phase1.py --online --json docs/implementation/phase
 | 10 | `metrics` | 有 claims 时 `grounding_rate` 非 `None`；`persist` 重复调用行数不增 | D7 |
 | 11 | `api+sse` | health ok；未知 run → 404；chat → 501；SSE 以 `event: end` 收尾；OpenAPI ≥16 路径 | D7 |
 | 12 | `e2e(online/arxiv)` | 真实抓取后 `papers>0`、claims 全带 citation、`degraded=False` | D7 |
-| 13 | `stores(online)` | 真实数据重建后三方一致 `N/N/N` | D6 |
+| 13 | `stores(online)` | 真实数据重建后三方一致 `N/N/N`；且 `papers>0` 时 **`authors>0`**（G-01 回归门） | D6 |
 
 ---
 

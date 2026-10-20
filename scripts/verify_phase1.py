@@ -361,7 +361,17 @@ def check_online_stores(settings: Settings) -> str:
     report = verify_counts(settings, embedder=HashingEmbedder())
     if not report["ok"]:
         raise AssertionError(f"reconcile failed: {report['mismatches']}")
-    return f"{report['sqlite']['papers']}/{report['graph']['papers']}/{report['qdrant']['points']}"
+    # F2/G-01 回归门：真实数据必须有作者（此前恒为 0）
+    authors = report["sqlite"]["authors"]
+    links = report["sqlite"]["authorships"]
+    if report["sqlite"]["papers"] > 0 and authors == 0:
+        raise AssertionError("papers>0 但 authors=0（G-01 回归）")
+    if authors and links < authors:
+        raise AssertionError(f"authorships({links}) < authors({authors})")
+    return (
+        f"{report['sqlite']['papers']}/{report['graph']['papers']}/{report['qdrant']['points']}"
+        f" authors={authors} links={links}"
+    )
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -384,7 +394,9 @@ def main(argv: list[str] | None = None) -> int:
             detail = fn(settings)
             report.add(name, True, detail, time.time() - started)
         except Exception as exc:  # noqa: BLE001 - 验证器必须记录而不是崩溃
-            report.add(name, False, f"{type(exc).__name__}: {str(exc)[:160]}", time.time() - started)
+            report.add(
+                name, False, f"{type(exc).__name__}: {str(exc)[:160]}", time.time() - started
+            )
 
     try:
         upgrade_database(settings)
