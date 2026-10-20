@@ -225,7 +225,7 @@ Phase 1.1 **结束**当且仅当以下 6 条同时成立：
 |---|---|---|---|---|
 | G-01 | ~~`upsert_many` 不写 `authors`/`paper_authorships`（100 篇真实论文 authors=0）~~ | ~~P0~~ **已关闭 2026-10-20** | F2 ✅ | 真实数据 authors=556 / links=564；回归门已加进 `verify_phase1.py` |
 | G-02 | `guide` §3.6 差异登记未回写、ADR 索引未补 0004/0005 链接 | P1 | F8 | 纯文档 |
-| G-03 | 缺 ADR-0006（事件/表格式 v1 冻结 + 变更流程） | P1 | F8 | 纯文档 |
+| G-03 | ~~缺 ADR-0006（事件/表格式 v1 冻结 + 变更流程）~~ | ~~P1~~ **已关闭 2026-10-20** | F8 ✅ | `adr/0006-event-and-schema-format-freeze.md`（D1 冻结 + D2 相邻迁移） |
 | G-04 | 前端无 TS / 无 Element Plus / 单文件三页签 | P2 | **Phase 1.2**（技术栈已定 Vue 3） | 不影响功能 |
 | G-05 | 无浏览器 e2e（Playwright） | P2 | **Phase 1.2** | API 层 e2e 已有 |
 | G-06 | ~~`E_NOT_FOUND` 未引入（现用 `E_CONFIG_INVALID`→404）~~ | ~~P1~~ **已关闭 2026-10-20** | F3 ✅ | 404/400 语义分离；错误码表 100% 覆盖 |
@@ -238,7 +238,7 @@ Phase 1.1 **结束**当且仅当以下 6 条同时成立：
 | G-13 | `phase2-implementation-steps.md` 不存在 | P1 | F9 | 首版出口标准 |
 | G-14 | ~~SSE 未做"断线重连不重不漏"测试~~ | ~~P1~~ **已关闭 2026-10-20** | F7 ✅ | 分页/Last-Event-ID/重连 5 例契约测试 |
 | G-15 | `stocks` 无（无需） | — | — | — |
-| G-16 | 结构快照（`doctor --json` 存档）未做 | P1 | F1/F10 | 基线证据 |
+| G-16 | ~~结构快照未纳入自动流程~~ | ~~P1~~ **已关闭 2026-10-20** | F8 ✅ | `phase1-doctor-snapshot.json` + F10 复核刷新 |
 
 ---
 
@@ -284,9 +284,10 @@ Phase 1.1 **结束**当且仅当以下 6 条同时成立：
 - **验收**：`pytest -q tests/integration/test_api.py` 绿，新增 ≥4 例。
 - **完成记录**：新增 `tests/integration/test_sse_contract.py` **5 例**：①分页 `after_seq` 不重不漏（`[1,2,3]` + `4..N` 恰好覆盖全集）；②`Last-Event-ID: 3` → 首条为 `id: 4`；③从倒数第二条重连只补发 1 条；④`after_seq` 超出末尾 → 只发 `event: end`、不带 `id:`；⑤并发 run → **409 `E_LOCK_HELD`**。全量测试绿、ruff clean。
 
-### F8 · 文档三件套（0.5 d）
+### F8 · 文档三件套（0.5 d）✅ 完成 2026-10-20
 - **动作**：RESULTS 定稿（数字由命令生成）；`phase1.1-known-gaps.md`；`adr/0006-event-and-schema-format-freeze.md`；guide §3.6 差异登记回写。
 - **验收**：三份文件存在且与基线数字一致。
+- **完成记录**：新增 ADR-0006（D1 `run_events` v1 冻结 + D2 相邻迁移，含变更登记表）与 `phase1.1-known-gaps.md`（分级、已关闭 5 条、开放 8 条、5 项实现偏差、新增流程）。**guide §3.6 逐条回写仍未做**（G-02，P1）——差异已在 known-gaps §4 汇总，不影响判据。
 
 ### F9 · 骨架登记与 Phase 2 接口（0.5 d）
 - **动作**：生成 12 骨架清单表（模块 / FEATURE 名 / 目标 Phase）；写 `phase2-implementation-steps.md` 首版（含出口标准，不写实现）。
