@@ -235,7 +235,7 @@ Phase 1.1 **结束**当且仅当以下 6 条同时成立：
 | G-10 | 12 个骨架模块（agents×5、eval×4、breaker、mcp_adapter、paper_pdf） | P2 | P2–P5 | 显式未实现 |
 | G-11 | `gateway/breaker.py` 熔断未实现 | P2 | P2 | 无 key 时无意义 |
 | G-12 | run 同步执行（未异步 + 202） | P2 | P2 | 已有阻塞语义 |
-| G-13 | `phase2-implementation-steps.md` 不存在 | P1 | F9 | 首版出口标准 |
+| G-13 | ~~`phase2-implementation-steps.md` 不存在~~ | ~~P1~~ **已关闭 2026-10-20** | F9 ✅ | 首版含入口条件、12 骨架清单、P2-1…P2-6、7 条 DoD |
 | G-14 | ~~SSE 未做"断线重连不重不漏"测试~~ | ~~P1~~ **已关闭 2026-10-20** | F7 ✅ | 分页/Last-Event-ID/重连 5 例契约测试 |
 | G-15 | `stocks` 无（无需） | — | — | — |
 | G-16 | ~~结构快照未纳入自动流程~~ | ~~P1~~ **已关闭 2026-10-20** | F8 ✅ | `phase1-doctor-snapshot.json` + F10 复核刷新 |
@@ -289,9 +289,10 @@ Phase 1.1 **结束**当且仅当以下 6 条同时成立：
 - **验收**：三份文件存在且与基线数字一致。
 - **完成记录**：新增 ADR-0006（D1 `run_events` v1 冻结 + D2 相邻迁移，含变更登记表）与 `phase1.1-known-gaps.md`（分级、已关闭 5 条、开放 8 条、5 项实现偏差、新增流程）。**guide §3.6 逐条回写仍未做**（G-02，P1）——差异已在 known-gaps §4 汇总，不影响判据。
 
-### F9 · 骨架登记与 Phase 2 接口（0.5 d）
+### F9 · 骨架登记与 Phase 2 接口（0.5 d）✅ 完成 2026-10-20
 - **动作**：生成 12 骨架清单表（模块 / FEATURE 名 / 目标 Phase）；写 `phase2-implementation-steps.md` 首版（含出口标准，不写实现）。
 - **验收**：两文件存在；骨架数量与代码一致（13 命中含 errors.py 常量，实为 12）。
+- **完成记录**：`phase2-implementation-steps.md` v0.1.0 产出：入口条件 E1–E4、**12 骨架表**（`agents.*` 5、`eval.*` 4、`gateway.breaker`、`tools.*` 2）、P2-1…P2-6 六条工作流（每条含可执行出口标准 + 禁止项）、7 条 DoD（H1–H7）、不做清单与风险对策；骨架 FEATURE 名由命令枚举（非手写）。
 
 ### F10 · 基线复核（0.5 d）
 - **动作**：全量 G1–G6 跑一遍；更新 RESULTS 数字；打 tag（**由你执行**）。
