@@ -247,10 +247,11 @@ Phase 1.1 **结束**当且仅当以下 6 条同时成立：
 > **本阶段执行 9 步**：F1、F2、F3、F4、F5、F7、F8、F9、F10（**F6 已顺延 Phase 1.2**，见其条目）。
 > 每一步都是"**可独立验收 + 可回滚**"的批次。你按顺序让我做，我做一步、跑一次基线、报一次红绿。
 
-### F1 · 冻结与基线（0.5 d）
+### F1 · 冻结与基线（0.5 d）✅ 完成 2026-10-20
 - **动作**：新建 `scripts/verify_phase1.py`（10 条断言，`--offline/--online`）；写 `docs/implementation/phase1-exit-checklist.md`；跑一次生成红绿表；`doctor --json` 存档结构快照。
 - **验收**：`verify_phase1.py --offline` 运行成功（允许 1–2 条红）；红绿表落盘。
 - **禁止**：本步不改任何业务代码。
+- **完成记录**：离线 **11/11 PASS**、在线 **13/13 PASS**（真实 arXiv `102/102/102`）；产出 `phase1-verify-report{,-online}.json`、`phase1-doctor-snapshot.json`；期间修正的 4 处问题全部在验证器内部（未触碰业务代码）。
 
 ### F2 · 修 P0：作者持久化（0.5 d）
 - **动作**：`upsert_many` 之后写 `authors` + `paper_authorships`（幂等：`ON CONFLICT DO NOTHING`/`DO UPDATE`），补测试。

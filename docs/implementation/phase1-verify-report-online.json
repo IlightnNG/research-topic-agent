@@ -1,0 +1,84 @@
+{
+  "ok": true,
+  "generated_at": "2026-10-20T15:09:01+0800",
+  "results": [
+    {
+      "name": "structure",
+      "ok": true,
+      "detail": "129/129 present",
+      "seconds": 0.011666059494018555
+    },
+    {
+      "name": "schema",
+      "ok": true,
+      "detail": "tables=24 schema=1.0",
+      "seconds": 0.02810502052307129
+    },
+    {
+      "name": "doctor",
+      "ok": true,
+      "detail": "6/6 checks ok",
+      "seconds": 0.03749847412109375
+    },
+    {
+      "name": "events",
+      "ok": true,
+      "detail": "seq 1..3 contiguous",
+      "seconds": 0.0867311954498291
+    },
+    {
+      "name": "guards+budget",
+      "ok": true,
+      "detail": "no-progress warns; budget stops",
+      "seconds": 0.0
+    },
+    {
+      "name": "runner(offline)",
+      "ok": true,
+      "detail": "stages=['intake', 'ingest', 'curate', 'report'] sha=68e717ae8fc9 budget=ok",
+      "seconds": 0.08486413955688477
+    },
+    {
+      "name": "idempotency",
+      "ok": true,
+      "detail": "papers stable at 2; sha identical",
+      "seconds": 0.07709956169128418
+    },
+    {
+      "name": "locks",
+      "ok": true,
+      "detail": "E_LOCK_HELD on concurrent run",
+      "seconds": 0.02022409439086914
+    },
+    {
+      "name": "stores",
+      "ok": true,
+      "detail": "papers=2 graph=2 qdrant=2",
+      "seconds": 0.2415769100189209
+    },
+    {
+      "name": "metrics",
+      "ok": true,
+      "detail": "claims=0 rows=6",
+      "seconds": 0.04028058052062988
+    },
+    {
+      "name": "api+sse",
+      "ok": true,
+      "detail": "health/404/501/sse ok; openapi paths=16",
+      "seconds": 0.33429813385009766
+    },
+    {
+      "name": "e2e(online/arxiv)",
+      "ok": true,
+      "detail": "papers=102 claims=50 cited=50",
+      "seconds": 1.5560369491577148
+    },
+    {
+      "name": "stores(online)",
+      "ok": true,
+      "detail": "102/102/102",
+      "seconds": 0.7868447303771973
+    }
+  ]
+}
