@@ -1,7 +1,7 @@
 # Phase 1.2 —— 前端规范（Vue 3 + TypeScript）
 
 > **性质**：规范性文件；前端实现以此为准。
-> **版本**：**1.2.3**（2026-10-20）｜改动需升版本并在 §14 记录。
+> **版本**：**1.2.4**（2026-10-20）｜改动需升版本并在 §14 记录。
 > **前置**：`verify_phase1.py --online` 13/13、`pytest` 246 例全绿、OpenAPI 可用。
 > **技术栈**：Vue 3 `<script setup>` + TypeScript + Vite + Element Plus + Pinia + Vue Router + Playwright。
 
@@ -266,12 +266,12 @@ S11 收口（依赖全部）。
 | **S1** | 后端契约：`runs.period/focus_hint/scope_sha` 三列 + 迁移 + `GET /topics/{id}/runs` + `PATCH /topics/{id}` | 0.5 d | 迁移可 downgrade；端点可摘除 |
 | **S2** | 异步 run：`POST /run` → 202 + 后台执行 + `POST /runs/{id}/abort`（真实现） + `pause/resume/inject` 501 | 1.0 d | 保留 `?sync=true` 回退开关 |
 | **S3** | `report.sections[]`：reporter 产出分节 + API 返回 + 失败 run 的 `/report` 返回 404 `E_NOT_FOUND` | 0.5 d | 字段可空，前端兼容 `content_md` |
-| **S4** | 前端骨架：`web/` 迁 TS + Element Plus + Router；**先交付 L0 tokens 主题 + ≥8 个 L1/L2 组件（PageHeader/TwoPaneLayout/SectionCard/StatusBadge/EmptyState/ErrorBanner/DataTable/DialogForm）+ 三页空壳** | 0.75 d | 旧 `App.vue` 保留一版 |
-| **S5** | 前端数据层：`client/endpoints/types.gen`、`stores/{topics,runs,chat}`、`useSse`/`useRunPolling` | 0.5 d | 纯新增文件 |
-| **S6** | Topics 页：卡片网格、新建对话框、归档/重命名菜单、空/错/载状态 | 0.5 d | 单页回退 |
-| **S7** | Report 页左栏：run 列表（period/徽标/不跳动插入）、面包屑、§2.3 自动跳转、§2.4 自动切、生成对话框（409 内联） | 1.0 d | 页面可独立回退 |
-| **S8** | 轨迹视图：`TrajectoryTimeline`/`EventCard`、SSE 续传（先快照后流）、失败卡片、中止按钮 | 1.0 d | 只影响右栏 |
-| **S9** | 报告视图：`ReportViewer`/`TocNav`/`ClaimTable`、degraded 黄条、claim→轨迹跳转、复制 MD | 0.5 d | 只影响右栏 |
+| **S4** ✅ | 已完成：TS 工程 + tokens/utilities + 15 个组件 + 5 条路由；`npm run typecheck` 0 error、`npm run build` 通过 | 0.75 d | 旧版备份在 `web/src/legacy/` |
+| **S5** ✅ | 已完成：`client/types/endpoints` + `stores/{topics,runs}` + `useSse`（断线指数重连）；类型为手写（`types.gen` 待接） | 0.5 d | 纯新增文件 |
+| **S6** ✅ | 已完成：卡片网格 + 新建校验（slug/scope）+ 归档菜单 + 计数 + 骨架/空态/错误 | 0.5 d | 单页回退 |
+| **S7** ✅ | 已完成：run 列表（period/徽标/成本）+ 返回链接 + §2.3 自动落最新 + §2.4 不打断 + 生成对话框 409 内联 + 中止；列表胶囊未做 | 1.0 d | 页面可独立回退 |
+| **S8** ✅ | 已提前完成：时间线（阶段/严重级/摘要）+ 跟随开关 + 失败卡片 + 中止 | 1.0 d | 只影响右栏 |
+| **S9** ✅ | 已提前完成：正文 + 目录（sections 派生）+ claims 表 + degraded 黄条 + 复制 MD + claim→轨迹 | 0.5 d | 只影响右栏 |
 | **S10** | Chat 501 整页态、错误码人话映射、空态/骨架/aria、1024px 布局收尾 | 0.5 d | 单页回退 |
 | **S11** | Playwright e2e（F4–F10）+ `RESULTS-P1.2.md` + 基线回归 + 构建产物 | 1.0 d | 仅新增测试/文档 |
 
@@ -314,4 +314,5 @@ S11 收口（依赖全部）。
 | 版本 | 日期 | 变更 |
 |---|---|---|
 | 1.2.0 | 2026-10-20 | 首版：三页 IA、run-as-list-item、双视图、扁平 topic + run 级 `focus_hint` |
+| **1.2.4** | 2026-10-20 | S4–S9 已实现并实测（typecheck 0 error、build 通过；详见 `RESULTS-P1.2.md`）；S10/S11 待做 |
 | **1.2.3** | 2026-10-20 | 新增 **§1.1 组件复用与样式纪律**（L0–L3 分层、七条纪律、二次法则、页面 ≤200 行/组件 ≤120 行、禁裸 CSS 与 `!important`、CSS 仅三类、状态色/间距/字号只能来自令牌）；S4 改为"先交付 tokens + ≥8 个 L1/L2 组件再写页面"（0.5→0.75 d）；新增出口判据 **F13 组件复用与样式纪律**（含 grep 检查）

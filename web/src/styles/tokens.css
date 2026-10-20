@@ -1,0 +1,51 @@
+/* L0 设计令牌：颜色 / 间距 / 圆角 / 字号 / 阴影。页面不得写魔法值。 */
+:root {
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 12px;
+  --space-4: 16px;
+  --space-5: 24px;
+  --space-6: 32px;
+
+  --radius-sm: 8px;
+  --radius-md: 12px;
+  --radius-pill: 999px;
+
+  --font-xs: 12px;
+  --font-sm: 13px;
+  --font-md: 14px;
+  --font-lg: 16px;
+  --font-xl: 18px;
+  --font-2xl: 20px;
+
+  --color-text: #1f2329;
+  --color-text-muted: #6b7280;
+  --color-border: #dcdfe6;
+  --color-surface: #ffffff;
+  --color-surface-soft: #f5f7fa;
+  --color-primary: #4f7cff;
+
+  --color-success: #2f9e44;
+  --color-warning: #f08c00;
+  --color-danger: #e03131;
+  --color-info: #868e96;
+
+  --shadow-1: 0 1px 2px rgb(0 0 0 / 6%);
+
+  --sidebar-w: 320px;
+  --layout-min-w: 1024px;
+}
+
+html,
+body,
+#app {
+  height: 100%;
+  margin: 0;
+}
+
+body {
+  font-family: ui-sans-serif, system-ui, -apple-system, "Segoe UI", "PingFang SC", sans-serif;
+  font-size: var(--font-md);
+  color: var(--color-text);
+  background: var(--color-surface-soft);
+}
