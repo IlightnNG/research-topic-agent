@@ -229,7 +229,7 @@ Phase 1.1 **结束**当且仅当以下 6 条同时成立：
 | G-04 | 前端无 TS / 无 Element Plus / 单文件三页签 | P2 | **Phase 1.2**（技术栈已定 Vue 3） | 不影响功能 |
 | G-05 | 无浏览器 e2e（Playwright） | P2 | **Phase 1.2** | API 层 e2e 已有 |
 | G-06 | ~~`E_NOT_FOUND` 未引入（现用 `E_CONFIG_INVALID`→404）~~ | ~~P1~~ **已关闭 2026-10-20** | F3 ✅ | 404/400 语义分离；错误码表 100% 覆盖 |
-| G-07 | `sources sync` 无 CLI（只有 Python 调用与 API） | P1 | F4 | 可脚本调用 |
+| G-07 | ~~`sources sync` 无 CLI（只有 Python 调用与 API）~~ | ~~P1~~ **已关闭 2026-10-20** | F4 ✅ | `sources sync --topic --limit`；返回值带 `source` |
 | G-08 | 单源同步（openalex 优先，否则取一个），无多源合并 | P2 | P4 | 需合并口径 |
 | G-09 | `venue_ids` 未解析进 `config/seeds/topics.yaml` | P2 | P4 | arXiv 可绕过 |
 | G-10 | 12 个骨架模块（agents×5、eval×4、breaker、mcp_adapter、paper_pdf） | P2 | P2–P5 | 显式未实现 |
@@ -264,9 +264,10 @@ Phase 1.1 **结束**当且仅当以下 6 条同时成立：
 - **验收**：`curl /api/runs/nope` → 404 且 `code=E_NOT_FOUND`；`tests/unit/test_errors.py` 绿。
 - **完成记录**：新增 `E_NOT_FOUND`（404）并把 `E_CONFIG_INVALID` 改为 **400**（语义分离）；补全 `CODE_RETRYABLE` 中缺失的 **24 个** 错误码（此前靠 `.get(code, False)` 兜底）；新增两条契约测试（全码覆盖 + 404/400 映射）；guide 错误表补 3 行；`pytest 235 passed`、ruff clean。
 
-### F4 · 同步口径收口（0.5 d）
+### F4 · 同步口径收口（0.5 d）✅ 完成 2026-10-20
 - **动作**：`lit-agent sources sync --topic <id> [--limit N]` CLI；返回值增加 `source`；文档写明"单源分派"语义。
 - **验收**：CLI 对 arXiv topic 拉到 100 篇；二次 `new=0`；无 selector → `E_SRC_NO_SELECTOR`。
+- **完成记录**：CLI 已有 `--topic/--limit`，本步补**契约测试** 3 例（参数透传、缺 `--topic` 非零退出、无 selector 非零退出）；确认返回体含 `source`（单源分派可观测）；**单源语义**：配了 `openalex` 就用它，否则取字典序第一个源，多源合并留给 P4（G-08）；真实抓取验收由 `verify_phase1.py --online` 覆盖（papers=102、二次 `new=0`）。`pytest 238 passed`、ruff clean。
 
 ### F5 · 报告与指标一致性（0.5 d）
 - **动作**：`compute_run_metrics` 增加 `claims_supported/claims_total` 与报告 `n_claims` 的对齐断言；报告 sha 稳定性测试（同数据两次一致）。
