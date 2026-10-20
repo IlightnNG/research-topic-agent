@@ -111,6 +111,10 @@ async def stream_run(
 @router.post("/{run_id}/abort")
 def abort_run(run_id: str, engine: Any = Depends(get_engine)) -> dict[str, Any]:
     """S2：请求中止。真正退出发生在下一个阶段边界（control 标记）。"""
+    with connect(engine) as conn:
+        exists = conn.execute(text("SELECT 1 FROM runs WHERE id = :id"), {"id": run_id}).first()
+    if exists is None:
+        raise LitError(E_NOT_FOUND, f"run 不存在：{run_id}", context={"run_id": run_id})
     control.request_abort(run_id)
     return {"run_id": run_id, "abort_requested": True}
 

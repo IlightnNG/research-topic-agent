@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, onMounted, ref, watch } from "vue";
+import { computed, onBeforeUnmount, onMounted, ref, watch } from "vue";
 import { useRoute, useRouter } from "vue-router";
 
 import { describeError, httpErrorCode } from "@/api/client";
@@ -41,14 +41,43 @@ watch(
 );
 
 watch(view, (value) => {
-  runs.userPinnedView = true;
   void router.replace({ query: { ...route.query, view: value } });
 });
 
+/** 只有**用户点击** tab 才算"钉住视图"；程序化切换（自动落报告）不算。 */
+function onTabClick(): void {
+  // 只有**真实点击**才置位（此前误写在 watch(view) 里，导致自动切换也被当成"手动" → 报告永不加载）
+  runs.userPinnedView = true;
+  if (view.value === "report" && activeRunId.value && !runs.report) {
+    void runs.loadReport(activeRunId.value);
+  }
+}
+
+/** SSE 之外的兜底：运行中每 2s 轮询状态，终态即刷新并决定视图。 */
+let poller: number | null = null;
+function startPolling(): void {
+  stopPolling();
+  poller = window.setInterval(async () => {
+    if (!runs.isRunning || !activeRunId.value) {
+      stopPolling();
+      if (!runs.isRunning) await refreshRun();
+      return;
+    }
+    await refreshRun();
+  }, 2000);
+}
+function stopPolling(): void {
+  if (poller !== null) {
+    window.clearInterval(poller);
+    poller = null;
+  }
+}
+onBeforeUnmount(stopPolling);
+
 async function openRun(runId: string, auto = false): Promise<void> {
   runs.reset();
+  runs.userPinnedView = !auto; // 手动选择某个 run → 尊重用户的视图偏好；自动跳转则恢复默认
   await router.push({ name: "run", params: { topicId: topicId.value, runId } });
-  if (auto) runs.userPinnedView = false;
   await refreshRun();
 }
 
@@ -61,6 +90,9 @@ async function refreshRun(): Promise<void> {
     if (runs.isRunning) {
       runs.streaming = true;
       sse.start(runs.lastSeq);
+      startPolling();
+    } else {
+      stopPolling();
     }
   } catch (err) {
     runs.error = describeError(err);
@@ -68,11 +100,12 @@ async function refreshRun(): Promise<void> {
 }
 
 function decideView(): void {
+  // 用户**手动点过 tab** 之后，不再自动改视图（否则轮询每 2s 会把用户弹回去 → 批次1 / E）
+  if (runs.userPinnedView && view.value === "trajectory") return;
   const state = runs.current?.state ?? "";
-  if (runs.userPinnedView) return;
   if (state === "succeeded") {
     view.value = "report";
-    void runs.loadReport(activeRunId.value!);
+    if (!runs.report) void runs.loadReport(activeRunId.value!);
   } else {
     view.value = "trajectory";
   }
@@ -148,7 +181,7 @@ onMounted(async () => {
 
         <template v-else>
           <div class="between">
-            <el-tabs v-model="view" class="grow">
+            <el-tabs v-model="view" class="grow" @tab-click="onTabClick">
               <el-tab-pane label="轨迹" name="trajectory" />
               <el-tab-pane label="报告" name="report" />
             </el-tabs>
@@ -158,6 +191,10 @@ onMounted(async () => {
               <el-button v-if="runs.isRunning" size="small" type="danger" text @click="abort">中止</el-button>
             </div>
           </div>
+
+          <p class="sr-only" role="status" aria-live="polite">
+            run {{ activeRunId }} state {{ runs.current?.state ?? "unknown" }}, events {{ runs.events.length }}
+          </p>
 
           <template v-if="view === 'trajectory'">
             <FailureCard
@@ -199,5 +236,13 @@ onMounted(async () => {
 <style scoped>
 .page {
   height: calc(100vh - 49px);
+}
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
 }
 </style>

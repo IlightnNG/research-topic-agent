@@ -19,7 +19,7 @@ from sqlalchemy import text
 from lit_agent.config import Settings
 from lit_agent.db.repo import runs as run_repo
 from lit_agent.db.session import connect, make_engine
-from lit_agent.errors import E_UNEXPECTED, LitError
+from lit_agent.errors import E_LOCK_HELD, E_UNEXPECTED, LitError
 from lit_agent.graph.guards import guard_rail
 from lit_agent.models._base import Severity
 from lit_agent.models.event import EventType
@@ -57,6 +57,35 @@ def default_stages() -> dict[str, StageFn]:
     }
 
 
+def prepare_run(
+    settings: Settings,
+    topic_id: str,
+    run_id: str,
+    focus_hint: str | None = None,
+    *,
+    engine: Any | None = None,
+) -> None:
+    """同步准备一次 run：拿锁 + 建 run 行 + 写 UI 字段。
+
+    在**请求线程**里调用，所以锁冲突/建行失败会直接抛给 API（409 或 4xx），
+    不会出现"202 了但 run 不存在"的幽灵 run。
+    """
+    owned = engine is None
+    active = engine or make_engine(settings)
+    try:
+        jobs.start(settings, topic_id, run_id=run_id, engine=active)
+        try:
+            _init_ui_fields(settings, run_id, topic_id, focus_hint)
+        except Exception:
+            jobs.finish(
+                settings, run_id, state=RunState.ABORTED, error_code="E_UNEXPECTED", engine=active
+            )
+            raise
+    finally:
+        if owned:
+            active.dispose()
+
+
 def _init_ui_fields(settings: Settings, run_id: str, topic_id: str, focus_hint: str | None) -> None:
     """S1：写入 period（ISO 周）与 scope_sha（scope 快照哈希），供 UI 列表分组。"""
     from datetime import UTC, datetime
@@ -80,8 +109,12 @@ def _init_ui_fields(settings: Settings, run_id: str, topic_id: str, focus_hint: 
         active.dispose()
 
 
-def _load_cards(settings: Settings, limit: int = 50) -> list[Any]:
-    """从 SQLite 取"主记录"论文 → 证据卡（Phase 1 不依赖 LLM）。"""
+def _load_cards(settings: Settings, limit: int = 50, focus_hint: str | None = None) -> list[Any]:
+    """从 SQLite 取"主记录"论文 → 证据卡。
+
+    `focus_hint`（批次 2 / A）：按提示词过滤证据，使"run 级子主题"真正生效；
+    若一条都不匹配则返回空列表 → 报告显式 degraded（不伪造证据）。
+    """
     from lit_agent.models.evidence import EvidenceCard
 
     active = make_engine(settings)
@@ -112,10 +145,20 @@ def _load_cards(settings: Settings, limit: int = 50) -> list[Any]:
                 year=int(year) if year is not None else None,
             )
         )
+    if focus_hint:
+        import re as _re
+
+        tokens = set(_re.findall(r"[a-z0-9]{3,}", focus_hint.lower()))
+        if tokens:
+            cards = [
+                card
+                for card in cards
+                if tokens & set(_re.findall(r"[a-z0-9]{3,}", f"{card.title} {card.snippet}".lower()))
+            ]
     return cards
 
 
-def real_stages(settings: Settings) -> dict[str, StageFn]:
+def real_stages(settings: Settings, focus_hint: str | None = None) -> dict[str, StageFn]:
     """真实主干（P0-1）：intake → ingest → curate → report。
 
     - `ingest`：有 selector 才抓；没配置 selector（`E_SRC_NO_SELECTOR`）→ **降级继续**，
@@ -182,10 +225,10 @@ def real_stages(settings: Settings) -> dict[str, StageFn]:
         )
 
     def report(ctx: RunContext) -> StageResult:
-        cards = _load_cards(settings)
+        cards = _load_cards(settings, focus_hint=focus_hint)
         return StageResult(
             stage="report",
-            artifacts={"cards": len(cards)},
+            artifacts={"cards": len(cards), "focus": focus_hint or ""},
             metrics={"evidence_cards": float(len(cards))},
         )
 
@@ -209,22 +252,27 @@ def run_topic(
     stages: Mapping[str, StageFn] | None = None,
     budget: RunBudget | None = None,
     focus_hint: str | None = None,
+    prestarted: bool = False,
     no_progress_steps: int = 2,
 ) -> dict[str, Any]:
-    """执行一次 run，返回摘要（含事件数与预算快照）。"""
-    rid = run_id or new_run_id()
-    chain = dict(stages or real_stages(settings))
-    active = make_engine(settings)
-    jobs.start(settings, topic_id, run_id=rid, engine=active)
-    _init_ui_fields(settings, rid, topic_id, focus_hint)
+    """执行一次 run，返回摘要（含事件数与预算快照）。
 
-    log = SqliteEventLog(active, rid)
+    `prestarted=True` 表示调用方已**同步**完成 `prepare_run`（建 run 行 + 拿锁 + 写 UI 字段），
+    这样 202 返回时 run 一定可查，且锁冲突在请求线程内就抛给调用方（批次 1 / B）。
+    """
+    rid = run_id or new_run_id()
+    chain = dict(stages or real_stages(settings, focus_hint=focus_hint))
+    active = make_engine(settings)
+    log: SqliteEventLog | None = None
     run_budget = budget or RunBudget(limit_usd=settings.routing.run_cost_budget_usd)
     rail = guard_rail(run_budget, no_progress_steps=no_progress_steps)
     produced = 0
     results: dict[str, Any] = {}
 
     try:
+        if not prestarted:
+            prepare_run(settings, topic_id, rid, focus_hint, engine=active)
+        log = SqliteEventLog(active, rid)
         log.emit(
             EventType.PHASE_CHANGE, stage="run", payload={"phase": "start", "topic_id": topic_id}
         )
@@ -275,7 +323,7 @@ def run_topic(
         # 报告落库：Phase 1 还没有证据链（检索/解析在 1.6/1.7 已有，但未接进 runner），
         # 因此先落一份**显式降级**报告（0 证据 → 1 条 unsupported claim），
         # 保证 `/api/runs/{id}/report` 可用、且不会伪造 grounding（DSH 对照 P0-2：产物与事件同事务）。
-        report_id = _persist_report(settings, rid, topic_id, run_budget)
+        report_id = _persist_report(settings, rid, topic_id, run_budget, focus_hint)
         jobs.finish(settings, rid, state=RunState.SUCCEEDED, engine=active)
         return {
             "run_id": rid,
@@ -286,20 +334,24 @@ def run_topic(
             "budget": run_budget.snapshot(),
         }
     except LitError as exc:
+        # 锁冲突发生在建 run 之前：没有 run 可失败，必须让调用方拿到 409（批次 1 / B）
+        if exc.code == E_LOCK_HELD:
+            raise
         report = jobs.failure_report(settings, rid, exc)
-        log.emit(
-            EventType.ERROR,
-            stage="run",
-            severity=Severity.ERROR,
-            payload={**exc.to_event_payload(), "failure_report": report},
-        )
+        if log is not None:
+            log.emit(
+                EventType.ERROR,
+                stage="run",
+                severity=Severity.ERROR,
+                payload={**exc.to_event_payload(), "failure_report": report},
+            )
         jobs.finish(settings, rid, state=RunState.FAILED, error_code=exc.code, engine=active)
         return {
             "run_id": rid,
             "state": RunState.FAILED.value,
             "error_code": exc.code,
             "failure_report": report,
-            "events": log.count(),
+            "events": log.count() if log is not None else 0,
             "budget": run_budget.snapshot(),
         }
     except BaseException:
@@ -307,6 +359,7 @@ def run_topic(
         jobs.finish(settings, rid, state=RunState.ABORTED, error_code="E_UNEXPECTED", engine=active)
         raise
     finally:
+        control.clear(rid)
         active.dispose()
 
 
@@ -362,7 +415,11 @@ def _llm_summary(settings: Settings, budget: Any, cards: list[Any], *, run_id: s
 
 
 def _persist_report(
-    settings: Settings, run_id: str, topic_id: str, budget: Any | None = None
+    settings: Settings,
+    run_id: str,
+    topic_id: str,
+    budget: Any | None = None,
+    focus_hint: str | None = None,
 ) -> str | None:
     """落报告 + 同事务写 `report_written` 事件（P1-①：产品与事件同事务）。
 
@@ -372,10 +429,11 @@ def _persist_report(
     from lit_agent.agents.reporter import build_report
     from lit_agent.db.repo import reports as report_repo
 
-    cards = _load_cards(settings)
-    draft = build_report(
-        cards, topic_id=topic_id, run_id=run_id, title=f"Weekly report: {topic_id}"
-    )
+    cards = _load_cards(settings, focus_hint=focus_hint)
+    title = f"Weekly report: {topic_id}"
+    if focus_hint:
+        title = f"{title} — {focus_hint}"
+    draft = build_report(cards, topic_id=topic_id, run_id=run_id, title=title)
     draft = draft.model_copy(update={"degraded": not cards})
 
     # D8：有 key 时才走 LLM 摘要；摘要失败**不影响主链路**（报告回落到确定性渲染）。

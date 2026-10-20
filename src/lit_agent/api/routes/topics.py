@@ -96,8 +96,12 @@ def trigger_run(
         )
         return {"run_id": result["run_id"], "state": result["state"], "events": result["events"]}
 
-    # S2：异步执行 —— 立即 202，后台线程跑；状态由 GET /api/runs/{id} 轮询
+    # S2：异步执行。**先在请求线程里建 run 行 + 拿锁**（批次 1 / B）：
+    # 这样 202 返回时 run 一定可查；锁冲突直接 → 409，不会出现"幽灵 run"。
+    from lit_agent.runtime.runner import prepare_run
+
     run_id = body.run_id or f"run-{uuid.uuid4().hex[:10]}"
+    prepare_run(settings, topic_id, run_id, body.focus_hint)
     threading.Thread(
         target=run_topic,
         kwargs={
@@ -106,6 +110,7 @@ def trigger_run(
             "run_id": run_id,
             "budget": budget,
             "focus_hint": body.focus_hint,
+            "prestarted": True,
         },
         daemon=True,
         name=f"run-{run_id}",
