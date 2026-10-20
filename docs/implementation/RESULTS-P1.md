@@ -274,6 +274,23 @@
   3. 结构快照（`doctor --json` 存档）与出口清单逐条勾选；
   4. Phase 2 首张任务卡（`P2-GRAPH-02`）尚未落到 `phase2-implementation-steps.md`（该文件未创建）。
 
+## 4.5 Phase 1.1 收口复核（2026-10-20，F10）
+
+| 判据 | 命令 | 结果 |
+|---|---|---|
+| G1 测试 | `pytest -q` | **246 例 / 30 文件，全绿** |
+| G2 静态 | `ruff check .` | `All checks passed!` |
+| G3 结构/schema | `check_structure` + `db status` | `129/129`（D-FULL 4 / D-MIN 1 / D-SKEL 12）；schema `1.0`、24 表 |
+| G4 离线全链路 | `verify_phase1.py --offline` | **11/11 PASS** |
+| G5 真实数据全链路 | `verify_phase1.py --online` | **13/13 PASS**（`102/102/102`、`authors=556`、claims 全带引用） |
+| G6 文档 | ADR-0006 / known-gaps / exit-checklist | 三份齐备 |
+
+**Phase 1.1 关闭的缺口**：G-01 作者丢失（唯一 P0）、G-03 ADR-0006、G-06 `E_NOT_FOUND`、G-07 sync CLI 契约、G-13 Phase 2 文档、G-14 SSE 续传、G-16 结构快照。
+**期间新发现并修复**：`claims` 未落表导致指标恒 0（F5）；`CODE_RETRYABLE` 缺 24 个码（F3）。
+**仍开放**：G-02（guide §3.6 逐条回写）、G-04/G-05（前端 TS + e2e → Phase 1.2）、G-08–G-12（P2/P4）。
+
+**冻结基线**：`verify_phase1.py --online` 13/13 + 本表；tag 建议 `git tag phase1-rc1`（由负责人执行）。
+
 ## 5. 待办与下一步
 
 1. **Step 1.10（Harness 骨架）**：`graph/state` + `pipeline` 三节点冒烟 + `checkpoint` 接线 + `edges` 常量（Phase 2 铺全边）。
