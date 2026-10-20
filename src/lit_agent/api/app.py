@@ -1,7 +1,8 @@
 """FastAPI 装配：异常映射、CORS、路由挂载。
 
-异常 → HTTP：`E_LOCK_HELD` 409 / `E_FEATURE_DISABLED` 501 / `E_CONFIG_INVALID`（含"不存在"）404 /
-其余 500（带 `code`）。**未实现功能必须是 501 而不是 404**（前端要能区分"没有"与"还没做"）。
+异常 → HTTP：`E_LOCK_HELD` 409 / `E_FEATURE_DISABLED` 501 / `E_NOT_FOUND` 404 /
+`E_CONFIG_INVALID` 400 / 其余 500（带 `code`）。**未实现功能必须是 501 而不是 404**
+（前端要能区分"没有"与"还没做"）。
 """
 
 from __future__ import annotations
@@ -15,14 +16,21 @@ from fastapi.responses import JSONResponse
 from lit_agent._version import __version__
 from lit_agent.api.routes import chat, graph, health, metrics, reports, runs, sources, topics
 from lit_agent.config import Settings, load_settings
-from lit_agent.errors import E_CONFIG_INVALID, E_FEATURE_DISABLED, E_LOCK_HELD, LitError
+from lit_agent.errors import (
+    E_CONFIG_INVALID,
+    E_FEATURE_DISABLED,
+    E_LOCK_HELD,
+    E_NOT_FOUND,
+    LitError,
+)
 
 __all__ = ["app", "create_app"]
 
 _STATUS = {
     E_LOCK_HELD: 409,
     E_FEATURE_DISABLED: 501,
-    E_CONFIG_INVALID: 404,
+    E_NOT_FOUND: 404,
+    E_CONFIG_INVALID: 400,
 }
 
 

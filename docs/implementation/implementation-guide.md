@@ -131,6 +131,9 @@ vector:
 |---|---|---|
 | `E_PROTO_*` | `E_PROTO_SCHEMA`、`E_PROTO_ISERROR` | 拒绝并重试 |
 | `E_SRC_*` | `E_SRC_TIMEOUT`、`E_SRC_RATE`、`E_SRC_4XX`、`E_SRC_SCHEMA` | 退避重试 / 隔离告警 |
+| `E_SRC_AUTH` | 401/403：缺 API key，或（OpenAlex 免费池）当日配额耗尽 | 配 key 或等配额重置；**不重试** |
+| `E_NOT_FOUND` | 资源不存在（run/topic/report） | 映射 404；与"未实现"的 501 严格区分 |
+| `E_VECTOR_COLLECTION_MISSING` | Qdrant collection 丢失 | 不得自动建空库；`stores rebuild --vector` |
 | `E_LLM_*` | `E_LLM_TIMEOUT`、`E_LLM_RATE`、`E_LLM_5XX`、`E_LLM_QUOTA` | 重试 → 熔断降级 |
 | `E_SCHEMA_*` | `E_SCHEMA_STAGE_OUTPUT` | 重试 1 次 → 降档 |
 | `E_GROUND_*` | `E_GROUND_UNRESOLVED_CITATION` | 标记/重写 |

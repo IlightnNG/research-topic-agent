@@ -14,14 +14,14 @@ from lit_agent.api.sse import event_stream
 from lit_agent.config import Settings
 from lit_agent.db.repo import reports as report_repo
 from lit_agent.db.session import connect
-from lit_agent.errors import E_CONFIG_INVALID, LitError
+from lit_agent.errors import E_NOT_FOUND, LitError
 
 router = APIRouter()
 
 
 def _require(value: Any, label: str) -> Any:
     if value is None:
-        raise LitError(E_CONFIG_INVALID, f"{label} 不存在", context={"missing": label})
+        raise LitError(E_NOT_FOUND, f"{label} 不存在", context={"missing": label})
     return value
 
 
@@ -73,7 +73,7 @@ def get_report(run_id: str, engine: Any = Depends(get_engine)) -> dict[str, Any]
     with connect(engine) as conn:
         rows = report_repo.get_by_run(conn, run_id)
     if not rows:
-        raise LitError(E_CONFIG_INVALID, f"run {run_id} 尚无报告", context={"run_id": run_id})
+        raise LitError(E_NOT_FOUND, f"run {run_id} 尚无报告", context={"run_id": run_id})
     row = rows[-1]
     data = dict(row._mapping)
     data["claims"] = json.loads(data.pop("claims_json", "null") or "[]")

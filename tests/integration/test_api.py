@@ -82,7 +82,7 @@ def test_run_trigger_and_events(client: TestClient) -> None:
 def test_unknown_run_is_404(client: TestClient) -> None:
     response = client.get("/api/runs/does-not-exist")
     assert response.status_code == 404
-    assert response.json()["code"] == "E_CONFIG_INVALID"
+    assert response.json()["code"] == "E_NOT_FOUND"
 
 
 def test_chat_and_graph_are_501_not_404(client: TestClient) -> None:

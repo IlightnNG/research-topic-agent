@@ -27,6 +27,28 @@ def test_retryable_defaults_come_from_table() -> None:
     assert LitError(errors.E_SRC_4XX, retryable=True).retryable is True
 
 
+def test_every_code_has_retryable_and_action() -> None:
+    """F3：错误码必须可查——每个 `E_*` 常量都要有 retryable 与 action 映射。"""
+    codes = [name for name in vars(errors) if name.startswith("E_") and name.isupper()]
+    assert len(codes) >= 40, f"错误码数量异常：{len(codes)}"
+    for name in codes:
+        code = getattr(errors, name)
+        assert isinstance(code, str) and code.startswith("E_"), name
+        assert code in errors.CODE_RETRYABLE, f"{code} 缺 retryable 映射"
+        assert action_for(code), f"{code} 缺 action 映射"
+
+
+def test_not_found_maps_to_404_and_400_for_config() -> None:
+    from lit_agent.api.app import _STATUS
+
+    assert _STATUS[errors.E_NOT_FOUND] == 404
+    assert _STATUS[errors.E_CONFIG_INVALID] == 400
+    assert action_for(errors.E_NOT_FOUND) == "return_404"
+    assert action_for(errors.E_SRC_AUTH) == "backoff_retry" or action_for(
+        errors.E_SRC_AUTH
+    ).startswith(("backoff", "fix"))
+
+
 def test_action_for_uses_longest_prefix() -> None:
     assert action_for(errors.E_DATA_DUP) == "ignore_and_count"
     assert action_for(errors.E_DATA_SYNC) == "rebuild_from_truth"

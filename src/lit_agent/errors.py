@@ -31,6 +31,7 @@ EXIT_FEATURE_DISABLED = 60
 # 错误码（九段 + Phase 1 补充段）
 # --------------------------------------------------------------------------- #
 E_CONFIG_INVALID = "E_CONFIG_INVALID"
+E_NOT_FOUND = "E_NOT_FOUND"
 E_UNEXPECTED = "E_UNEXPECTED"
 
 E_PROTO_SCHEMA = "E_PROTO_SCHEMA"
@@ -97,12 +98,39 @@ CODE_RETRYABLE: dict[str, bool] = {
     E_DATA_SEQ_CONFLICT: True,
     E_LOCK_HELD: False,
     E_CONFIG_INVALID: False,
+    E_NOT_FOUND: False,
     E_FEATURE_DISABLED: False,
+    # F3：补齐全部错误码（此前 24 个靠 `.get(code, False)` 兜底，表本身不完整）
+    E_PROTO_ISERROR: True,
+    E_PROTO_SCHEMA: True,
+    E_SCHEMA_STAGE_OUTPUT: True,
+    E_SRC_NO_SELECTOR: False,
+    E_GROUND_UNRESOLVED_CITATION: True,
+    E_GUARD_DRIFT: True,
+    E_GUARD_LOOP: True,
+    E_GUARD_STAGNATION: True,
+    E_GUARD_TIMEOUT: True,
+    E_GUARD_UNCALIBRATED: False,
+    E_BUDGET_COST: False,
+    E_BUDGET_TOKENS: False,
+    E_BUDGET_TIME: False,
+    E_POLICY_SENSITIVE: False,
+    E_DATA_DUP: False,
+    E_DATA_SYNC: True,
+    E_STORE_NOT_EMPTY: False,
+    E_STORE_PATH_NONASCII: False,
+    E_STORE_SCHEMA_MISMATCH: False,
+    E_VECTOR_COLLECTION_MISSING: False,
+    E_VECTOR_DIM_MISMATCH: False,
+    E_VECTOR_ENCODE_FAILED: True,
+    E_VECTOR_MODEL_MISMATCH: False,
+    E_UNEXPECTED: False,
 }
 
 #: 前缀段 → 默认处置（按前缀最长匹配；未命中走 `abort_with_report`）
 DEFAULT_ACTION: dict[str, str] = {
     "E_CONFIG_": "fix_config",
+    "E_NOT_FOUND": "return_404",
     "E_PROTO_": "reject_and_retry",
     "E_SRC_": "backoff_retry",
     "E_LLM_": "retry_then_degrade",

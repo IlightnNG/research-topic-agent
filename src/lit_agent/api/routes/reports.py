@@ -46,7 +46,7 @@ def list_reports(
 
 @router.get("/{topic_id}/reports/{report_id}")
 def get_report(topic_id: str, report_id: str, engine: Any = Depends(get_engine)) -> dict[str, Any]:
-    from lit_agent.errors import E_CONFIG_INVALID, LitError
+    from lit_agent.errors import E_NOT_FOUND, LitError
 
     with connect(engine) as conn:
         row = conn.execute(
@@ -54,9 +54,7 @@ def get_report(topic_id: str, report_id: str, engine: Any = Depends(get_engine))
             {"t": topic_id, "r": report_id},
         ).first()
     if row is None:
-        raise LitError(
-            E_CONFIG_INVALID, f"报告不存在：{report_id}", context={"report_id": report_id}
-        )
+        raise LitError(E_NOT_FOUND, f"报告不存在：{report_id}", context={"report_id": report_id})
     data = dict(row._mapping)
     data["claims"] = json.loads(data.pop("claims_json", "null") or "[]")
     data.pop("metrics_snapshot_json", None)

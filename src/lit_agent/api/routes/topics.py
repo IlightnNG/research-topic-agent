@@ -66,7 +66,7 @@ def get_topic(topic_id: str, engine: Any = Depends(get_engine)) -> dict[str, Any
         row = topic_repo.get(conn, topic_id)
         if row is None:
             raise LitError(
-                "E_CONFIG_INVALID", f"topic 不存在：{topic_id}", context={"topic_id": topic_id}
+                "E_NOT_FOUND", f"topic 不存在：{topic_id}", context={"topic_id": topic_id}
             )
         data = _out(row)
         data["sources"] = topic_repo.get_sources(conn, topic_id)

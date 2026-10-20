@@ -228,7 +228,7 @@ Phase 1.1 **结束**当且仅当以下 6 条同时成立：
 | G-03 | 缺 ADR-0006（事件/表格式 v1 冻结 + 变更流程） | P1 | F8 | 纯文档 |
 | G-04 | 前端无 TS / 无 Element Plus / 单文件三页签 | P2 | **Phase 1.2**（技术栈已定 Vue 3） | 不影响功能 |
 | G-05 | 无浏览器 e2e（Playwright） | P2 | **Phase 1.2** | API 层 e2e 已有 |
-| G-06 | `E_NOT_FOUND` 未引入（现用 `E_CONFIG_INVALID`→404） | P1 | F3 | 语义清晰度 |
+| G-06 | ~~`E_NOT_FOUND` 未引入（现用 `E_CONFIG_INVALID`→404）~~ | ~~P1~~ **已关闭 2026-10-20** | F3 ✅ | 404/400 语义分离；错误码表 100% 覆盖 |
 | G-07 | `sources sync` 无 CLI（只有 Python 调用与 API） | P1 | F4 | 可脚本调用 |
 | G-08 | 单源同步（openalex 优先，否则取一个），无多源合并 | P2 | P4 | 需合并口径 |
 | G-09 | `venue_ids` 未解析进 `config/seeds/topics.yaml` | P2 | P4 | arXiv 可绕过 |
@@ -259,9 +259,10 @@ Phase 1.1 **结束**当且仅当以下 6 条同时成立：
 - **禁止**：不得改 `Paper` 模型字段。
 - **完成记录**：新增 `tests/integration/test_author_persistence.py`（3 例：写入 / 幂等 / 进图）；真实数据 **authors=556、links=564（papers=102）**；`verify_phase1.py --online` 增加 G-01 回归门（papers>0 而 authors=0 直接 FAIL）；全量 **233 passed**、ruff clean。
 
-### F3 · 错误码与契约收口（0.5 d）
+### F3 · 错误码与契约收口（0.5 d）✅ 完成 2026-10-20
 - **动作**：引入 `E_NOT_FOUND`（404）；`docs/` 错误码表补 `E_SRC_AUTH`、`E_NOT_FOUND`、`E_VECTOR_COLLECTION_MISSING`；`action_for()` 全覆盖。
 - **验收**：`curl /api/runs/nope` → 404 且 `code=E_NOT_FOUND`；`tests/unit/test_errors.py` 绿。
+- **完成记录**：新增 `E_NOT_FOUND`（404）并把 `E_CONFIG_INVALID` 改为 **400**（语义分离）；补全 `CODE_RETRYABLE` 中缺失的 **24 个** 错误码（此前靠 `.get(code, False)` 兜底）；新增两条契约测试（全码覆盖 + 404/400 映射）；guide 错误表补 3 行；`pytest 235 passed`、ruff clean。
 
 ### F4 · 同步口径收口（0.5 d）
 - **动作**：`lit-agent sources sync --topic <id> [--limit N]` CLI；返回值增加 `source`；文档写明"单源分派"语义。
