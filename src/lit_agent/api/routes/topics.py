@@ -2,16 +2,20 @@
 
 from __future__ import annotations
 
+import threading
+import uuid
 from typing import Any
 
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, Query
+from fastapi.responses import JSONResponse
 from sqlalchemy import text
 
 from lit_agent.api.dependencies import get_engine, get_settings
-from lit_agent.api.schemas import RunRequest, TopicCreate
+from lit_agent.api.schemas import RunRequest, TopicCreate, TopicUpdate
 from lit_agent.config import Settings
 from lit_agent.db.repo import topics as topic_repo
 from lit_agent.db.session import connect
+from lit_agent.errors import E_CONFIG_INVALID, E_NOT_FOUND, LitError
 from lit_agent.models.topic import Topic
 
 router = APIRouter()
@@ -85,8 +89,28 @@ def trigger_run(
 
     body = payload or RunRequest()
     budget = RunBudget(limit_usd=body.max_usd or settings.routing.run_cost_budget_usd)
-    result = run_topic(settings, topic_id, run_id=body.run_id, budget=budget)
-    return {"run_id": result["run_id"], "state": result["state"], "events": result["events"]}
+
+    if body.wait:
+        result = run_topic(
+            settings, topic_id, run_id=body.run_id, budget=budget, focus_hint=body.focus_hint
+        )
+        return {"run_id": result["run_id"], "state": result["state"], "events": result["events"]}
+
+    # S2：异步执行 —— 立即 202，后台线程跑；状态由 GET /api/runs/{id} 轮询
+    run_id = body.run_id or f"run-{uuid.uuid4().hex[:10]}"
+    threading.Thread(
+        target=run_topic,
+        kwargs={
+            "settings": settings,
+            "topic_id": topic_id,
+            "run_id": run_id,
+            "budget": budget,
+            "focus_hint": body.focus_hint,
+        },
+        daemon=True,
+        name=f"run-{run_id}",
+    ).start()
+    return JSONResponse(status_code=202, content={"run_id": run_id, "state": "queued"})
 
 
 @router.get("/{topic_id}/counts")
@@ -99,3 +123,61 @@ def topic_counts(topic_id: str, engine: Any = Depends(get_engine)) -> dict[str, 
             text("SELECT COUNT(*) FROM reports WHERE topic_id = :t"), {"t": topic_id}
         ).scalar_one()
     return {"runs": int(runs), "reports": int(reports)}
+
+
+@router.get("/{topic_id}/runs")
+def list_runs(
+    topic_id: str,
+    limit: int = Query(default=20, ge=1, le=100),
+    offset: int = Query(default=0, ge=0),
+    engine: Any = Depends(get_engine),
+) -> dict[str, Any]:
+    """S1：run 列表（左栏数据源）。含 period / focus_hint / report_id / cost。"""
+    with connect(engine) as conn:
+        rows = conn.execute(
+            text(
+                "SELECT r.id, r.period, r.state, r.stage, r.trigger, r.focus_hint,"
+                " r.error_code, r.started_at, r.finished_at,"
+                " (SELECT report_id FROM reports WHERE run_id = r.id) AS report_id,"
+                " (SELECT COALESCE(SUM(cost), 0.0) FROM llm_calls WHERE run_id = r.id) AS cost_usd"
+                " FROM runs r WHERE r.topic_id = :t"
+                " ORDER BY COALESCE(r.period, '') DESC, r.created_at DESC"
+                " LIMIT :limit OFFSET :offset"
+            ),
+            {"t": topic_id, "limit": limit, "offset": offset},
+        ).all()
+    items = [dict(row._mapping) for row in rows]
+    return {"topic_id": topic_id, "items": items, "count": len(items)}
+
+
+@router.patch("/{topic_id}")
+def patch_topic(
+    topic_id: str,
+    payload: TopicUpdate,
+    engine: Any = Depends(get_engine),
+) -> dict[str, Any]:
+    """S1：重命名 / 改 scope / 归档（status）。只允许这三个白名单字段。"""
+    allowed = {"name", "description", "scope_statement", "status"}
+    fields = dict(payload.model_dump(exclude_none=True))
+    unknown = set(fields) - allowed
+    if unknown:
+        raise LitError(
+            E_CONFIG_INVALID,
+            f"不支持修改的字段：{sorted(unknown)}",
+            context={"allowed": sorted(allowed)},
+        )
+    if not fields:
+        raise LitError(E_CONFIG_INVALID, "没有要修改的字段")
+    sets = ", ".join(f"{key} = :{key}" for key in fields)
+    with connect(engine, immediate=True) as conn:
+        conn.execute(
+            text(f"UPDATE topics SET {sets} WHERE id = :topic_id"),
+            {**fields, "topic_id": topic_id},
+        )
+        row = topic_repo.get(conn, topic_id)
+        if row is None:
+            raise LitError(E_NOT_FOUND, f"topic 不存在：{topic_id}", context={"topic_id": topic_id})
+        data = dict(row._mapping)
+    for key in ("scope_keywords_json", "seed_queries_json", "config_json"):
+        data.pop(key, None)
+    return data

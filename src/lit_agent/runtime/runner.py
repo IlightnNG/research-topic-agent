@@ -26,7 +26,7 @@ from lit_agent.models.event import EventType
 from lit_agent.models.results import RunContext, StageResult
 from lit_agent.models.run import RunState
 from lit_agent.models.verdict import GuardAction
-from lit_agent.runtime import jobs
+from lit_agent.runtime import control, jobs
 from lit_agent.runtime.budget import RunBudget
 from lit_agent.runtime.events import SqliteEventLog
 
@@ -55,6 +55,29 @@ def default_stages() -> dict[str, StageFn]:
         "retrieve": _stage("retrieve", 1),
         "report": _stage("report", 1),
     }
+
+
+def _init_ui_fields(settings: Settings, run_id: str, topic_id: str, focus_hint: str | None) -> None:
+    """S1：写入 period（ISO 周）与 scope_sha（scope 快照哈希），供 UI 列表分组。"""
+    from datetime import UTC, datetime
+
+    from lit_agent.db.repo import runs as run_repo
+
+    period = datetime.now(UTC).strftime("%G-W%V")
+    scope_sha: str | None = None
+    active = make_engine(settings)
+    try:
+        with connect(active, immediate=True) as conn:
+            scope = conn.execute(
+                text("SELECT scope_statement FROM topics WHERE id = :t"), {"t": topic_id}
+            ).scalar_one_or_none()
+            if scope:
+                scope_sha = hashlib.sha256(str(scope).encode("utf-8")).hexdigest()[:12]
+            run_repo.update_ui_fields(
+                conn, run_id, period=period, focus_hint=focus_hint, scope_sha=scope_sha
+            )
+    finally:
+        active.dispose()
 
 
 def _load_cards(settings: Settings, limit: int = 50) -> list[Any]:
@@ -185,6 +208,7 @@ def run_topic(
     run_id: str | None = None,
     stages: Mapping[str, StageFn] | None = None,
     budget: RunBudget | None = None,
+    focus_hint: str | None = None,
     no_progress_steps: int = 2,
 ) -> dict[str, Any]:
     """执行一次 run，返回摘要（含事件数与预算快照）。"""
@@ -192,6 +216,7 @@ def run_topic(
     chain = dict(stages or real_stages(settings))
     active = make_engine(settings)
     jobs.start(settings, topic_id, run_id=rid, engine=active)
+    _init_ui_fields(settings, rid, topic_id, focus_hint)
 
     log = SqliteEventLog(active, rid)
     run_budget = budget or RunBudget(limit_usd=settings.routing.run_cost_budget_usd)
@@ -204,6 +229,8 @@ def run_topic(
             EventType.PHASE_CHANGE, stage="run", payload={"phase": "start", "topic_id": topic_id}
         )
         for name, stage_fn in chain.items():
+            if control.is_aborted(rid):
+                raise LitError("E_RUN_ABORTED", "运行被人工中止", context={"run_id": rid})
             _set_stage(settings, rid, name, completed=False)
             log.emit(EventType.PHASE_CHANGE, stage=name, payload={"phase": "start"})
 

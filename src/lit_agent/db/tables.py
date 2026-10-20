@@ -218,6 +218,10 @@ t_runs = Table(
     Column("id", String, primary_key=True),
     Column("topic_id", String, ForeignKey("topics.id", ondelete="CASCADE"), nullable=False),
     Column("trigger", String, nullable=False),
+    # Phase 1.2 / S1：UI 口径 —— period（列表按周分组）、focus_hint（一次性子主题）、scope_sha（scope 快照）
+    Column("period", String),
+    Column("focus_hint", String),
+    Column("scope_sha", String),
     Column("state", String, nullable=False),
     Column("stage", String),
     Column("last_ok_stage", String),

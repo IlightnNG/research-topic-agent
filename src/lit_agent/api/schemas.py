@@ -39,6 +39,8 @@ class RunRequest(BaseModel):
 
     run_id: str | None = None
     max_usd: float | None = Field(default=None, gt=0)
+    focus_hint: str | None = Field(default=None, max_length=120, description="本次运行的子主题提示")
+    wait: bool = Field(default=True, description="True=同步返回；False=立即 202 后台执行")
 
 
 class ErrorOut(BaseModel):

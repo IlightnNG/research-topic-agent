@@ -6,7 +6,7 @@ import json
 from typing import Any
 
 from fastapi import APIRouter, Depends, Query, Request
-from fastapi.responses import StreamingResponse
+from fastapi.responses import JSONResponse, StreamingResponse
 from sqlalchemy import text
 
 from lit_agent.api.dependencies import get_engine, get_settings
@@ -14,7 +14,8 @@ from lit_agent.api.sse import event_stream
 from lit_agent.config import Settings
 from lit_agent.db.repo import reports as report_repo
 from lit_agent.db.session import connect
-from lit_agent.errors import E_NOT_FOUND, LitError
+from lit_agent.errors import E_FEATURE_DISABLED, E_NOT_FOUND, LitError
+from lit_agent.runtime import control
 
 router = APIRouter()
 
@@ -78,6 +79,16 @@ def get_report(run_id: str, engine: Any = Depends(get_engine)) -> dict[str, Any]
     data = dict(row._mapping)
     data["claims"] = json.loads(data.pop("claims_json", "null") or "[]")
     data.pop("metrics_snapshot_json", None)
+    # S3：目录唯一来源（由 claims 派生，不解析 Markdown）
+    data["sections"] = [
+        {
+            "id": f"claim-{index}",
+            "title": f"Evidence {index + 1}",
+            "body": claim.get("text", ""),
+            "claim_ids": [f"claim-{index}"],
+        }
+        for index, claim in enumerate(data["claims"])
+    ]
     return data
 
 
@@ -95,3 +106,33 @@ async def stream_run(
         media_type="text/event-stream",
         headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"},
     )
+
+
+@router.post("/{run_id}/abort")
+def abort_run(run_id: str, engine: Any = Depends(get_engine)) -> dict[str, Any]:
+    """S2：请求中止。真正退出发生在下一个阶段边界（control 标记）。"""
+    control.request_abort(run_id)
+    return {"run_id": run_id, "abort_requested": True}
+
+
+def _not_implemented(feature: str) -> JSONResponse:
+    return JSONResponse(
+        status_code=501,
+        content={"code": E_FEATURE_DISABLED, "message": f"{feature} 在 Phase 3 实现",
+                 "context": {"feature": feature}},
+    )
+
+
+@router.post("/{run_id}/pause")
+def pause_run(run_id: str) -> JSONResponse:
+    return _not_implemented("runs.pause")
+
+
+@router.post("/{run_id}/resume")
+def resume_run(run_id: str) -> JSONResponse:
+    return _not_implemented("runs.resume")
+
+
+@router.post("/{run_id}/inject")
+def inject_run(run_id: str) -> JSONResponse:
+    return _not_implemented("runs.inject")

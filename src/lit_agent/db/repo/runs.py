@@ -137,3 +137,25 @@ def active(conn: Connection, topic_id: str) -> Any:
 
 def count(conn: Connection) -> int:
     return int(conn.execute(select(func.count()).select_from(t_runs)).scalar_one())
+
+
+def update_ui_fields(
+    conn: Connection,
+    run_id: str,
+    *,
+    period: str | None = None,
+    focus_hint: str | None = None,
+    scope_sha: str | None = None,
+) -> None:
+    """S1：写 UI 口径字段（period / focus_hint / scope_sha）。"""
+    from lit_agent.db.tables import t_runs
+
+    values: dict[str, str] = {}
+    if period is not None:
+        values["period"] = period
+    if focus_hint is not None:
+        values["focus_hint"] = focus_hint
+    if scope_sha is not None:
+        values["scope_sha"] = scope_sha
+    if values:
+        conn.execute(t_runs.update().where(t_runs.c.id == run_id).values(**values))
