@@ -236,7 +236,7 @@ Phase 1.1 **结束**当且仅当以下 6 条同时成立：
 | G-11 | `gateway/breaker.py` 熔断未实现 | P2 | P2 | 无 key 时无意义 |
 | G-12 | run 同步执行（未异步 + 202） | P2 | P2 | 已有阻塞语义 |
 | G-13 | `phase2-implementation-steps.md` 不存在 | P1 | F9 | 首版出口标准 |
-| G-14 | SSE 未做"断线 30s 重连不重不漏"测试 | P1 | F7 | 语义已有 |
+| G-14 | ~~SSE 未做"断线重连不重不漏"测试~~ | ~~P1~~ **已关闭 2026-10-20** | F7 ✅ | 分页/Last-Event-ID/重连 5 例契约测试 |
 | G-15 | `stocks` 无（无需） | — | — | — |
 | G-16 | 结构快照（`doctor --json` 存档）未做 | P1 | F1/F10 | 基线证据 |
 
@@ -279,9 +279,10 @@ Phase 1.1 **结束**当且仅当以下 6 条同时成立：
 - **本阶段前端只保留**：现有可构建的三页签版本（`npm run build` 通过即算满足 §3.16 DoD）。
 - **Phase 1.2 验收**（预告，不在本阶段执行）：`vue-tsc` 无错、三独立路由可导航、Playwright 走通 Run→Report。
 
-### F7 · API/SSE 补测（0.5 d）
+### F7 · API/SSE 补测（0.5 d）✅ 完成 2026-10-20
 - **动作**：补 `after_seq` 不重不漏、`Last-Event-ID`、断线重连、501/404 契约测试。
 - **验收**：`pytest -q tests/integration/test_api.py` 绿，新增 ≥4 例。
+- **完成记录**：新增 `tests/integration/test_sse_contract.py` **5 例**：①分页 `after_seq` 不重不漏（`[1,2,3]` + `4..N` 恰好覆盖全集）；②`Last-Event-ID: 3` → 首条为 `id: 4`；③从倒数第二条重连只补发 1 条；④`after_seq` 超出末尾 → 只发 `event: end`、不带 `id:`；⑤并发 run → **409 `E_LOCK_HELD`**。全量测试绿、ruff clean。
 
 ### F8 · 文档三件套（0.5 d）
 - **动作**：RESULTS 定稿（数字由命令生成）；`phase1.1-known-gaps.md`；`adr/0006-event-and-schema-format-freeze.md`；guide §3.6 差异登记回写。

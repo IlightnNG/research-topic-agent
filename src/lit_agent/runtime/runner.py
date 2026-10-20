@@ -299,8 +299,7 @@ def _persist_claims(conn: Any, run_id: str, claims: list[Any]) -> int:
         digest = claim_repo.text_sha(claim.text)
         claim_id = f"{run_id}:{digest[:12]}"
         citations = [
-            (citation.paper_id, None, citation.snippet, 1.0)
-            for citation in (claim.citations or [])
+            (citation.paper_id, None, citation.snippet, 1.0) for citation in (claim.citations or [])
         ]
         if citations:
             written += claim_repo.insert_citations_many(conn, claim_id, citations)
