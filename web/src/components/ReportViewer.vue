@@ -13,6 +13,18 @@ const emit = defineEmits<{ why: [number] }>();
 const activeSection = ref<string | null>(null);
 const sha = computed(() => props.report.content_sha?.slice(0, 8) ?? "");
 
+// 后端目前把 sections 由 claims 派生（一 claim 一节），会与下方 Claims 表重复。
+// 这里只在"分节确有独立内容"时渲染分节与目录，避免重复。
+const showSections = computed(() => {
+  const sections = props.report.sections ?? [];
+  if (!sections.length) return false;
+  const claims = props.report.claims ?? [];
+  const isEcho =
+    sections.length === claims.length &&
+    sections.every((section, index) => section.title.startsWith("Evidence ") && section.body === claims[index]?.text);
+  return !isEcho;
+});
+
 async function jump(sectionId: string): Promise<void> {
   activeSection.value = sectionId;
   await nextTick();
@@ -47,7 +59,7 @@ async function copyMarkdown(): Promise<void> {
     <div class="report-body">
       <article class="grow">
         <section
-          v-for="section in report.sections"
+          v-for="section in showSections ? report.sections : []"
           :id="`section-${section.id}`"
           :key="section.id"
           class="stack report-section"
@@ -64,7 +76,7 @@ async function copyMarkdown(): Promise<void> {
           <pre class="raw mono">{{ report.content_md }}</pre>
         </details>
       </article>
-      <TocNav :sections="report.sections" @jump="jump" />
+      <TocNav v-if="showSections" :sections="report.sections" @jump="jump" />
     </div>
   </div>
 </template>

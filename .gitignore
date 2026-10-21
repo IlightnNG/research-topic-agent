@@ -49,3 +49,6 @@ logs/
 # Frontend (Phase 1)
 node_modules/
 dist/
+web/screens/
+web/playwright-report/
+web/test-results/

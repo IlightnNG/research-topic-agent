@@ -1,35 +1,54 @@
 <script setup lang="ts">
 import { onMounted } from "vue";
-import { useRoute, useRouter } from "vue-router";
+import { useRoute } from "vue-router";
 
 import EmptyState from "@/components/EmptyState.vue";
-import PageHeader from "@/components/PageHeader.vue";
+import SectionCard from "@/components/SectionCard.vue";
+import TopicShell from "@/components/TopicShell.vue";
+import { useTopicsStore } from "@/stores/topics";
 
 const route = useRoute();
-const router = useRouter();
+const topics = useTopicsStore();
 const topicId = String(route.params.topicId ?? "");
 
-onMounted(() => undefined);
+onMounted(async () => {
+  await topics.loadOne(topicId);
+  await topics.load();
+});
 </script>
 
 <template>
-  <div class="stack" style="padding: var(--space-5)">
-    <PageHeader
-      title="Chat"
-      subtitle="对话功能将在 Phase 3 开放：问题 → 证据检索 → 带引用的回答。"
-      back-to="/topics"
-      back-label="Topics"
-    />
-    <EmptyState
+  <TopicShell
+    :topic-id="topicId"
+    :title="topics.current?.name ?? topicId"
+    :subtitle="topics.current?.scope_statement ?? ''"
+    active="chat"
+  >
+    <template #side>
+      <div class="between side-head">
+        <strong>Conversations</strong>
+        <el-button size="small" type="primary" text disabled>+ 新建对话</el-button>
+      </div>
+      <EmptyState
+        compact
+        title="暂无对话"
+        hint="Phase 3 开放后，这里按时间列出该 topic 的会话。"
+      />
+    </template>
+
+    <SectionCard
       title="对话功能尚未开放"
-      hint="后端返回 501 E_FEATURE_DISABLED。Phase 3 会复用报告的引用体系，回答同样可溯源。"
+      subtitle="后端返回 501 E_FEATURE_DISABLED。Phase 3 会复用报告的引用体系，回答同样可溯源。"
     >
-      <el-button
-        type="primary"
-        @click="router.push({ name: 'topic-reports', params: { topicId } })"
-      >
-        去 Report 页
-      </el-button>
-    </EmptyState>
-  </div>
+      <p class="muted">
+        计划形态：左侧会话列表、右侧对话流；每条回答可展开引用（paper_id + 片段），与周报共用同一套证据。
+      </p>
+    </SectionCard>
+  </TopicShell>
 </template>
+
+<style scoped>
+.side-head {
+  padding: var(--space-3);
+}
+</style>

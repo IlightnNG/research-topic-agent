@@ -29,13 +29,17 @@
 | G-02 | guide §3.6 差异登记未逐条回写、ADR 索引未补 0004/0005 链接 | P1 | F8/F9 收口 | 差异已在 §4 汇总；逐条回写属文档整理，不影响判据 |
 | G-03 | ~~缺 ADR-0006~~ | ~~P1~~ | **已关闭 2026-10-20** | 见 `adr/0006-event-and-schema-format-freeze.md` |
 | G-04 | 前端无 TS / 无 Element Plus / 单文件三页签 | P2 | **Phase 1.2**（Vue 3） | 不影响功能；用户已确认后置 |
-| G-05 | 无浏览器 e2e（Playwright） | P2 | **Phase 1.2** | API 层 e2e 已覆盖主路径 |
+| G-05 | ~~无浏览器 e2e~~ | ~~P2~~ **已关闭 2026-10-21** | Phase 1.2 ✅ | Playwright 5 例（`npm run test:e2e`） |
 | G-08 | 单源同步（openalex 优先，否则取一个），无多源合并 | P2 | P4 | 需先定合并口径（同一论文多源字段取舍） |
 | G-09 | `config/seeds/topics.yaml` 的 `venue_ids` 未解析 | P2 | P4 | arXiv 路径可绕过；OpenAlex 需 key |
 | G-10 | 12 个骨架模块（agents×5、eval×4、breaker、mcp_adapter、paper_pdf） | P2 | P2–P5 | 设计上的显式未实现，调用即 `E_FEATURE_DISABLED` |
 | G-11 | `gateway/breaker.py` 熔断未实现 | P2 | P2 | 无 key 时无实际调用，先做无意义 |
 | G-12 | run 同步执行（未异步 + 202） | P2 | P2 | 已有 409 阻塞语义，UI 可用 |
 | G-13 | `phase2-implementation-steps.md` 不存在 | P1 | F9 | 本阶段末产出首版（含出口标准，不写实现） |
+| G-17 | F5/F7/F8/F9 仅有手动验证（无 e2e 用例） | P1 | 1.2.x | 见 `phase1.2-frontend-spec.md` §15.4 |
+| G-18 | `sections[]` 仍是 claims 的派生（前端已抑制重复渲染） | P2 | P2-2 | 真实章节化需要 LLM 抽取 |
+| G-19 | 前端类型手写（未接 `types.gen.ts`） | P2 | 1.2.x | OpenAPI 已可导出 |
+| G-20 | 生产部署缺 history 路由回退（`try_files`） | P2 | 部署清单 | dev 由 Vite 兜底 |
 | G-16 | 结构快照未纳入自动流程 | P1 | F8 ✅ | 已产出 `phase1-doctor-snapshot.json`；F10 复核时刷新 |
 
 ## 4. 已知偏差（实现 vs 计划的差异，非缺陷）
