@@ -37,6 +37,11 @@ export const useRunsStore = defineStore("runs", () => {
     await loadEvents(runId, 0);
   }
 
+  /** 只刷新快照（轮询/重连用），不动事件列表 → 避免每 2s 全量重拉。 */
+  async function loadSnapshot(runId: string): Promise<void> {
+    current.value = await api.getRun(runId);
+  }
+
   async function loadEvents(runId: string, afterSeq = 0): Promise<void> {
     const page = await api.listEvents(runId, afterSeq);
     const merged = new Map<number, RunEvent>();
@@ -96,6 +101,7 @@ export const useRunsStore = defineStore("runs", () => {
     TERMINAL,
     loadList,
     loadRun,
+    loadSnapshot,
     loadEvents,
     mergeEvent,
     loadReport,

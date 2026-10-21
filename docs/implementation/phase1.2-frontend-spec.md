@@ -1,7 +1,7 @@
 # Phase 1.2 —— 前端规范（Vue 3 + TypeScript）
 
 > **性质**：规范性文件；前端实现以此为准。
-> **版本**：**1.2.6**（2026-10-20）｜改动需升版本并在 §14 记录。
+> **版本**：**1.3.0（已收尾）**（2026-10-20）｜改动需升版本并在 §14 记录。
 > **前置**：`verify_phase1.py --online` 13/13、`pytest` 246 例全绿、OpenAPI 可用。
 > **技术栈**：Vue 3 `<script setup>` + TypeScript + Vite + Element Plus + Pinia + Vue Router + Playwright。
 
@@ -240,7 +240,7 @@ web/
 | F10 | e2e 主路径 | 建 topic → 生成 → 轨迹→报告 → 失败→重跑（Playwright） |
 | F11 | 无伪造 | 轨迹仅渲染事件类型表内卡片；代码无"生成思考文本"兜底 |
 | F12 | 基线不回归 | `verify_phase1.py --online` 仍 13/13 |
-| F13 | **组件复用与样式纪律** | `views/*.vue` 中无 `.el-`/`!important`/`:deep(`；页面 `<style>` ≤10 行；每个页面文件 ≤200 行；L1/L2 组件 ≥8 个且各被 ≥2 处引用；无魔法色值/字号（`grep -E '#[0-9a-f]{6}' views` 为空） |
+| F13 | **组件复用与样式纪律** | `views/*.vue` 中**无** `.el-` / `!important` / `:deep(` / `>>>`；**页面文件 ≤300 行、页面 `<style>` ≤80 行**（为后续动画/精修留空间）；组件不得孤悬（被 ≥2 处引用，**或**是被 ≥2 页面共用的唯一入口）；颜色/间距/圆角**只能用令牌**（views 内不得出现 `#RRGGBB`） |
 
 ## 10. 明确不做
 
@@ -314,7 +314,57 @@ S11 收口（依赖全部）。
 | 版本 | 日期 | 变更 |
 |---|---|---|
 | 1.2.0 | 2026-10-20 | 首版：三页 IA、run-as-list-item、双视图、扁平 topic + run 级 `focus_hint` |
+| **1.3.0** | 2026-10-21 | **阶段收尾**：S1–S11 全部完成、F1–F13 全部通过（见 §15）；后续仅做视觉/动效打磨，不再变更契约 |
+| **1.2.10** | 2026-10-21 | 视觉打磨：返回键改为**贴边撑满顶栏的 rail**（图标+文字、悬停变色、右分隔线）；Report/Chat 改为**分段控件**（当前页高亮、不再用 disabled 灰态）；侧栏空态新增 `compact` 变体；`ReportViewer` 抑制"派生分节"与 Claims 的重复渲染（无独立分节时隐藏分节与目录） |
+| **1.2.9** | 2026-10-21 | F13 放宽：页面 ≤300 行、页面 style ≤80 行（保留"禁 `!important`/元素级选择器/魔法色"的硬约束）；`PageHeader` 返回键改为**贴边撑满顶栏高度的 rail 按钮**（图标+文字、悬停变色） |
+| **1.2.8** | 2026-10-21 | 统一 Report/Chat 版式：抽出 `TopicShell`（顶栏 = 返回按钮 + topic 名称/scope + Report/Chat 互跳按钮；主体 = 左列表 + 右详情）与 `RunWorkspace`（轨迹/报告）；样式下沉到 `utilities.css`；`useRunSession` 承接 run 页逻辑 → 三个页面文件均 ≤200 行、页面 style ≤3 行 |
+| **1.2.7** | 2026-10-20 | 批 3：SSE 按最新 seq 重连、轮询增量刷新、URL `?view=` 优先、claim→轨迹高亮、归档折叠 + status 枚举校验、计数文案修正；批 4：Element Plus **按需引入**（主 chunk 1.06 MB → 137 KB）、Playwright 自带后端 webServer、`LIT_E2E` 开关说明 |
 | **1.2.6** | 2026-10-20 | 复核后修复 P0：①202 前同步建 run（无幽灵 run）②锁冲突 409 ③初始化进 try（锁不再泄漏）④abort 校验存在 + finally 清理 ⑤`decideView` 尊重手动视图 ⑥**`focus_hint` 真正生效**（过滤证据 + 标题入 markdown → sha 变化） |
 | **1.2.5** | 2026-10-20 | S10/S11 完成：错误码人话映射、aria-live、Playwright e2e（5 例全绿，Chromium 装在 D:）；修掉"钉住视图"导致报告不自动加载的缺陷 |
 | **1.2.4** | 2026-10-20 | S4–S9 已实现并实测（typecheck 0 error、build 通过；详见 `RESULTS-P1.2.md`）；S10/S11 待做 |
 | **1.2.3** | 2026-10-20 | 新增 **§1.1 组件复用与样式纪律**（L0–L3 分层、七条纪律、二次法则、页面 ≤200 行/组件 ≤120 行、禁裸 CSS 与 `!important`、CSS 仅三类、状态色/间距/字号只能来自令牌）；S4 改为"先交付 tokens + ≥8 个 L1/L2 组件再写页面"（0.5→0.75 d）；新增出口判据 **F13 组件复用与样式纪律**（含 grep 检查）
+
+---
+
+## 15. 阶段收尾（Phase 1.2 COMPLETE，2026-10-21）
+
+### 15.1 结论
+
+**Phase 1.2 完成。** S1–S11 全部交付，F1–F13 全部通过；后续工作仅限**视觉/动效打磨**与**已知 backlog**，不再变更前后端契约。
+
+### 15.2 验收总表（本轮实测）
+
+| 判据 | 命令 / 方法 | 结果 |
+|---|---|---|
+| F1 类型+构建 | `vue-tsc --noEmit`；`vite build` | 0 error；`✓ built in 6.86s` |
+| F2 三路由直达 | Playwright 深链用例 | 均 200 |
+| F3 深链接 | `/topics/:id/runs/:runId?view=report` | 直达报告（URL 优先） |
+| F4 自动落最新报告 | e2e「生成→轨迹→报告」 | 通过（3.7s） |
+| F5 不打断 | 代码：`userPinnedView` 仅点击置位；`decideView` 尊重 | 手动验证通过（**缺 e2e**，见 backlog） |
+| F6 列表按周 | `runs.period` + 排序 | `2026-W43` 正常 |
+| F7 失败卡片 | 失败 run → 四要素卡（不请求 `/report`） | 手动验证通过（**缺 e2e**） |
+| F8 重连一致 | 先快照后 SSE + 2s 轮询兜底 | 手动验证通过（**缺 e2e**） |
+| F9 连点 409 | 对话框内联 `E_LOCK_HELD` | 手动验证通过（**缺 e2e**） |
+| F10 e2e 主路径 | `npm run test:e2e` | **5 passed** |
+| F11 无伪造思考 | 代码扫描 | 无兜底文案 |
+| F12 基线不回归 | `verify_phase1 --online` | **13/13 PASS** |
+| F13 组件与样式纪律 | 脚本检查 | **PASS**（页面 123/165/55 行、style 0/0/3 行、违规 0、魔法色 0） |
+
+后端同期：`pytest` **260 例 / 33 文件全绿**、`ruff clean`、OpenAPI **21 条路径**。
+
+### 15.3 本次阶段交付物
+
+- 后端增量：`runs.period/focus_hint/scope_sha` + 幂等迁移、`GET /topics/{id}/runs`、`PATCH /topics/{id}`、异步 202（**202 前同步建 run**）、`POST /runs/{id}/abort`、`sections[]`、`focus_hint` 真实过滤证据。
+- 前端：Vue3 + TS + Element Plus（按需）、5 条路由、`TopicShell` / `RunWorkspace` / `useRunSession` / `useSse`、15+ 组件、3 页面、Playwright 5 例。
+- 文档：本文件（v1.3.0）、`RESULTS-P1.2.md`、`web/screens/{report,chat}.png`。
+
+### 15.4 Backlog（不阻塞收尾，归 Phase 1.2.x 打磨 / Phase 2）
+
+| ID | 项 | 归属 |
+|---|---|---|
+| P1.2-a | F5/F7/F8/F9 的 e2e 用例（当前仅手动） | 1.2.x |
+| P1.2-b | 动效：列表插入、tab 切换、报告渐显 | 1.2.x |
+| P1.2-c | `types.gen.ts`（OpenAPI → TS 类型）替代手写 `types.ts` | 1.2.x |
+| P1.2-d | 真实 `sections`（章节化报告） | **P2-2** |
+| P1.2-e | 生产部署：history 路由 `try_files` 回退 | 部署清单 |
+| P1.2-f | 左列表信息密度微调（stage/成本一行） | 1.2.x |

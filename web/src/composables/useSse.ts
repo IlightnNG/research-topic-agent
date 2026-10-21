@@ -5,9 +5,11 @@ import type { RunEvent } from "@/api/types";
 interface Options {
   onEvent: (event: RunEvent) => void;
   onDone?: (state: string | null) => void;
+  /** 当前已收到的最大 seq（重连时用它续传，避免重复拉旧事件） */
+  getSeq?: () => number;
 }
 
-/** SSE 订阅：断线自动重连；重连前由调用方先刷新快照（spec §3.2.1）。 */
+/** SSE 订阅：断线自动重连（指数退避）；重连前由调用方先刷新快照（spec §3.2.1）。 */
 export function useSse(runId: () => string | null, options: Options) {
   const connected = ref(false);
   let source: EventSource | null = null;
@@ -25,7 +27,8 @@ export function useSse(runId: () => string | null, options: Options) {
     const id = runId();
     if (!id || closed) return;
     source?.close();
-    source = new EventSource(`/api/runs/${id}/stream?after_seq=${afterSeq}`);
+    const cursor = Math.max(afterSeq, options.getSeq?.() ?? 0);
+    source = new EventSource(`/api/runs/${id}/stream?after_seq=${cursor}`);
     source.onopen = () => {
       connected.value = true;
       retry = 0;
@@ -59,7 +62,8 @@ export function useSse(runId: () => string | null, options: Options) {
       source?.close();
       retry += 1;
       const delay = Math.min(5000, 500 * retry);
-      window.setTimeout(() => start(afterSeq), delay);
+      // 用最新 seq 重连（而不是首次的 afterSeq），否则会重复拉取历史事件
+      window.setTimeout(() => start(options.getSeq?.() ?? afterSeq), delay);
     };
   }
 

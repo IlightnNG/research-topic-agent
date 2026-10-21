@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { onMounted, ref } from "vue";
+import { computed, onMounted, ref } from "vue";
 import { useRouter } from "vue-router";
 
 import { describeError } from "@/api/client";
@@ -66,6 +66,9 @@ function openChat(topicId: string): void {
   void router.push({ name: "topic-chat", params: { topicId } });
 }
 
+const active = computed(() => store.items.filter((topic) => topic.status !== "archived"));
+const archived = computed(() => store.items.filter((topic) => topic.status === "archived"));
+
 onMounted(store.load);
 </script>
 
@@ -80,8 +83,22 @@ onMounted(store.load);
     <ErrorBanner v-if="store.error" :message="store.error" @retry="store.load" />
     <el-skeleton v-if="store.loading" :rows="4" animated />
 
+    <el-collapse v-if="!store.loading && archived.length" class="archived">
+      <el-collapse-item :title="`已归档（${archived.length}）`" name="archived">
+        <div class="topic-grid">
+          <article v-for="topic in archived" :key="topic.id" class="topic-card stack">
+            <div class="between">
+              <strong class="mono">{{ topic.id }}</strong>
+              <el-button size="small" text @click="archive(topic)">恢复</el-button>
+            </div>
+            <p class="muted line-clamp-2">{{ topic.scope_statement }}</p>
+          </article>
+        </div>
+      </el-collapse-item>
+    </el-collapse>
+
     <div v-else class="topic-grid">
-      <article v-for="topic in store.items" :key="topic.id" class="topic-card stack">
+      <article v-for="topic in active" :key="topic.id" class="topic-card stack">
         <div class="between">
           <strong class="mono">{{ topic.id }}</strong>
           <div class="cluster">
@@ -99,9 +116,9 @@ onMounted(store.load);
           </div>
         </div>
         <h3 class="title-md clickable" @click="openReport(topic.id)">{{ topic.name }}</h3>
-        <p class="muted clamp">{{ topic.scope_statement }}</p>
+        <p class="muted line-clamp-2">{{ topic.scope_statement }}</p>
         <p class="muted mono">
-          语料 {{ store.counts[topic.id]?.reports ?? 0 }} 份报告 · {{ store.counts[topic.id]?.runs ?? 0 }} 次运行
+          {{ store.counts[topic.id]?.reports ?? 0 }} 份报告 · {{ store.counts[topic.id]?.runs ?? 0 }} 次运行
         </p>
         <div class="cluster">
           <el-button type="primary" size="small" @click="openReport(topic.id)">Report</el-button>
@@ -145,28 +162,3 @@ onMounted(store.load);
   </div>
 </template>
 
-<style scoped>
-.topic-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
-  gap: var(--space-4);
-}
-.topic-card {
-  background: var(--color-surface);
-  border: 1px solid var(--color-border);
-  border-radius: var(--radius-md);
-  padding: var(--space-4);
-}
-.clickable {
-  cursor: pointer;
-}
-.clickable:hover {
-  color: var(--color-primary);
-}
-.clamp {
-  display: -webkit-box;
-  -webkit-line-clamp: 2;
-  -webkit-box-orient: vertical;
-  overflow: hidden;
-}
-</style>

@@ -17,10 +17,21 @@ export default defineConfig({
   projects: [{ name: "chromium", use: { ...devices["Desktop Chrome"] } }],
   webServer: process.env.LIT_E2E_NO_SERVER
     ? undefined
-    : {
-        command: "npm run dev -- --port 5173",
-        url: BASE,
-        reuseExistingServer: true,
-        timeout: 120_000,
-      },
+    : [
+        // 批次 4 / O：`npm run test:e2e` 单独运行也能起后端（已存在则复用）
+        {
+          command:
+            "powershell -NoProfile -Command \". .\\scripts\\env.ps1; uv run uvicorn lit_agent.api.app:app --port 8000\"",
+          cwd: "..",
+          url: "http://127.0.0.1:8000/api/health",
+          reuseExistingServer: true,
+          timeout: 180_000,
+        },
+        {
+          command: "npm run dev -- --port 5173",
+          url: BASE,
+          reuseExistingServer: true,
+          timeout: 120_000,
+        },
+      ],
 });

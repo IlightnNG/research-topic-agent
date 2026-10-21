@@ -3,7 +3,7 @@ import { computed, ref, watch } from "vue";
 
 import type { RunEvent } from "@/api/types";
 
-const props = defineProps<{ events: RunEvent[] }>();
+const props = defineProps<{ events: RunEvent[]; highlightSeq?: number | null }>();
 
 const follow = ref(true);
 const listEl = ref<HTMLElement | null>(null);
@@ -12,6 +12,16 @@ watch(
   () => props.events.length,
   () => {
     if (follow.value && listEl.value) listEl.value.scrollTop = listEl.value.scrollHeight;
+  },
+);
+
+// 批次 3 / J：高亮并滚动到指定事件（claim → 轨迹）
+watch(
+  () => props.highlightSeq,
+  (seq) => {
+    if (!seq || !listEl.value) return;
+    const row = listEl.value.querySelector(`[data-seq="${seq}"]`);
+    row?.scrollIntoView({ block: "center", behavior: "smooth" });
   },
 );
 
@@ -59,7 +69,12 @@ function summary(event: RunEvent): string {
     </div>
 
     <ol ref="listEl" class="timeline">
-      <li v-for="event in events" :key="event.seq" :class="severityOf(event)">
+      <li
+        v-for="event in events"
+        :key="event.seq"
+        :data-seq="event.seq"
+        :class="[severityOf(event), { highlight: event.seq === highlightSeq }]"
+      >
         <span class="seq mono">#{{ event.seq }}</span>
         <span class="type">{{ event.type }}</span>
         <span class="stage muted">{{ event.stage }}</span>
@@ -98,6 +113,11 @@ function summary(event: RunEvent): string {
 }
 .timeline li.error {
   background: color-mix(in srgb, var(--color-danger) 8%, transparent);
+}
+.timeline li.highlight {
+  outline: 2px solid var(--color-primary);
+  outline-offset: -2px;
+  background: color-mix(in srgb, var(--color-primary) 12%, transparent);
 }
 .seq {
   color: var(--color-primary);

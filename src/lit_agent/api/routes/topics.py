@@ -13,6 +13,7 @@ from sqlalchemy import text
 from lit_agent.api.dependencies import get_engine, get_settings
 from lit_agent.api.schemas import RunRequest, TopicCreate, TopicUpdate
 from lit_agent.config import Settings
+from lit_agent.db.base import utcnow_iso
 from lit_agent.db.repo import topics as topic_repo
 from lit_agent.db.session import connect
 from lit_agent.errors import E_CONFIG_INVALID, E_NOT_FOUND, LitError
@@ -164,6 +165,13 @@ def patch_topic(
     """S1：重命名 / 改 scope / 归档（status）。只允许这三个白名单字段。"""
     allowed = {"name", "description", "scope_statement", "status"}
     fields = dict(payload.model_dump(exclude_none=True))
+    # 批次 3 / K：status 只能是枚举值（否则前端"归档/恢复"会写入垃圾状态）
+    if "status" in fields and fields["status"] not in {"active", "archived"}:
+        raise LitError(
+            E_CONFIG_INVALID,
+            f"status 只能是 active/archived：{fields['status']!r}",
+            context={"status": fields["status"]},
+        )
     unknown = set(fields) - allowed
     if unknown:
         raise LitError(
@@ -173,6 +181,7 @@ def patch_topic(
         )
     if not fields:
         raise LitError(E_CONFIG_INVALID, "没有要修改的字段")
+    fields["updated_at"] = utcnow_iso()
     sets = ", ".join(f"{key} = :{key}" for key in fields)
     with connect(engine, immediate=True) as conn:
         conn.execute(
