@@ -1,21 +1,42 @@
-"""Fault injection catalogue.
+"""故障注入（S11 落地，S6 先给三种可测的最小故障）。
 
-SKELETON (Phase 1): the interface exists and is importable; the logic lands in a later step.
-Every entry point raises FeatureDisabledError so a missing implementation can never look like a success.
+用法：
+
+    with inject("empty_retrieval"):
+        ...  # 检索返回空
+    with inject("bad_artifact"):
+        ...  # 分析产出无引用 claim
+    with inject("timeout"):
+        ...  # 进入即抛 E_SRC_TIMEOUT
+
+生产默认不激活；`is_active()` 供被测代码查询。
 """
 
 from __future__ import annotations
 
-from typing import Any
+from collections.abc import Iterator
+from contextlib import contextmanager
 
-from lit_agent.errors import FeatureDisabledError
+from lit_agent.errors import E_SRC_TIMEOUT, LitError
 
-FEATURE = "eval.faultinject"
+__all__ = ["KINDS", "inject", "is_active"]
+
+KINDS = ("empty_retrieval", "bad_artifact", "timeout")
+_ACTIVE: set[str] = set()
 
 
-def _ni(name: str) -> FeatureDisabledError:
-    return FeatureDisabledError(FEATURE, name + " not implemented yet")
+def is_active(kind: str) -> bool:
+    return kind in _ACTIVE
 
 
-def inject(*args: Any, **kwargs: Any) -> Any:
-    raise _ni("inject")
+@contextmanager
+def inject(kind: str = "empty_retrieval") -> Iterator[None]:
+    if kind not in KINDS:
+        raise ValueError(f"未知故障类型：{kind}")
+    _ACTIVE.add(kind)
+    try:
+        if kind == "timeout":
+            raise LitError(E_SRC_TIMEOUT, "注入故障：数据源超时", context={"fault": kind})
+        yield
+    finally:
+        _ACTIVE.discard(kind)

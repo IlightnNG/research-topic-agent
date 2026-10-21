@@ -74,12 +74,16 @@ def test_fit_many_respects_total_budget() -> None:
     assert result.truncated is True
 
 
-def test_truncate_folding_and_unimplemented_strategies() -> None:
+def test_truncate_and_summarize_folding() -> None:
     folding = TruncateFolding()
     assert folding.fold(["x " * 300], budget_tokens=25).tokens <= 25
 
+    summarizer = folding_for("summarize")
+    assert summarizer.name == "summarize"
+    assert summarizer.fold(["Sentence one. Sentence two. Sentence three."], budget_tokens=50).text
+
     with pytest.raises(LitError) as excinfo:
-        folding_for("summarize")
+        folding_for("hierarchical")
     assert excinfo.value.code == "E_FEATURE_DISABLED"
 
 

@@ -1,7 +1,7 @@
 # Phase 2 —— 规范、模块判据与实施步骤
 
 > **文档性质**：**规范性文件（冻结契约）**。Phase 2 的"做什么 / 什么算做完 / 按什么顺序做"以本文件为唯一判据。
-> **版本**：**2.1.0**（2026-10-21，重构版；替代 0.1.0 首版）｜改动必须升版本并在 §11 记录。
+> **版本**：**2.2.0**（2026-10-21，重构版；替代 0.1.0 首版）｜改动必须升版本并在 §11 记录。
 > **前序**：`phase1.1-scope-and-acceptance.md`（收口纪律）、`phase1.2-frontend-spec.md` v1.3.0（已收尾）、`phase1.1-known-gaps.md`（缺口登记册）。
 > **入口基线**（Phase 1.2 收尾实测）：`pytest 260 例全绿`、`verify_phase1 --online 13/13`、`vue-tsc 0 error`、`playwright 5 passed`、OpenAPI 21 路径。
 
@@ -218,9 +218,9 @@ M1 图 ──> M3 上下文 ──> M6 检索
 | **S2** ✅ | M1 | 十节点主干 | `graph/nodes.py`（Phase2Nodes）、`runtime/graph_runner.py`、state 增 3 字段 | 一次 run 覆盖 **10 个 phase_change start/end**；`tests/graph` 35 例绿 | 1.5 d |
 | **S3** ✅ | M1 | E1–E13 条件边 | `edges.py`：`EdgeRule` + `RULES`(13) + `route_after` 优先级 + `backoff_edge` 返回动作 | 13 条边**各有触发 + 不触发**用例；E12 优先级最高 | 1.5 d |
 | **S4** ✅ | M1 | checkpoint 续跑 + 幂等 | `run_graph(resume=True)`、`SimulatedCrash` 注入、事件 `dedupe_key` | 崩溃后 resume：10 阶段各 1 次 start，无重复 | 1.0 d |
-| **S5** | M2 | 契约 + retrieval/mapper | 两角色实现 | 契约 + 集成各 1 例 | 1.5 d |
-| **S6** | M2/M7 | analyst/critic + reporter 升级 + 判定器 + gold | 三角色、`eval/grounding`、20 条 gold | gold 上 grounding ≥0.8 | 2.0 d |
-| **S7** | M3 | 摘要折叠 + 注入物化 | `folding.summarize`、slot→事件桥 | token −40% 且 grounding 不降 | 1.5 d |
+| **S5** ✅ | M2 | retrieval/mapper | `agents/retrieval.py`（词面打分 + hint 过滤）、`agents/mapper.py`（簇 + 孤儿） | 行为探针 PASS；4 例单测 | 1.5 d |
+| **S6** ✅ | M2/M7 | analyst/critic + 判定器 + gold + judge | `analyst`（确定性/LLM 双路径）、`critic`、`grounding`、`datasets`(20)、`judge`(κ) | gold **acc=1.00**、κ=1.00；claim 全带引用 | 2.0 d |
+| **S7** ✅ | M3 | 摘要折叠 + 注入物化 | `SummarizeFolding`（首句 + 数字/引用句）、`slots.materialize_slots()`（事件落库 + `has_dedupe` 幂等） | 折叠后 token 明显下降且保留数字句；同槽重复 0 新增 | 1.5 d |
 | **S8** | M4 | 15 类守卫 + 阶梯 | 13 个守卫 + 阶梯单测 | 每条两例 + 阶梯不越级 | 1.5 d |
 | **S9** | M5 | 续跑/熔断/干预 | `resume`、`breaker`、pause/inject | resume 不重复；熔断三态 | 2.0 d |
 | **S10** | M6 | hybrid + rerank + PDF | 检索工具、`paper_pdf` | recall@10 ≥ 基线+10pp | 1.5 d |
@@ -304,6 +304,7 @@ M1 图 ──> M3 上下文 ──> M6 检索
 
 | 版本 | 日期 | 变更 |
 |---|---|---|
+| 2.2.0 | 2026-10-21 | S5/S6/S7 完成：四角色（行为探针）、grounding/judge/gold（acc 1.00, κ 1.00）、摘要折叠与注入物化；修掉 artifacts 覆盖缺陷；`verify_phase2` 5/12 → **8/12** |
 | 2.1.0 | 2026-10-21 | S2/S3/S4 完成：十节点图、E1–E13 条件边、断点续跑；`verify_phase2` 由 3/12 → **5/12**。偏差：生产入口仍走四阶段 `run_topic`，十节点 `run_graph` 并行存在，计划 S9 切换 |
 | 2.0.1 | 2026-10-21 | S1 完成：落地 `verify_phase2.py` 能力基线（3 PASS / 9 RED）与 `RESULTS-P2.md`；后续步骤只能通过实现能力把 RED 变 GREEN |
 | 0.1.0 | 2026-10-20 | 首版：入口条件、12 骨架清单、P2-1…P2-6、7 条 DoD |

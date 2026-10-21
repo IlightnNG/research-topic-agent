@@ -7,10 +7,10 @@
 
 | 指标 | 当前值 |
 |---|---|
-| 阶段 | **S1–S4 完成（图：十节点 / 条件边 / 续跑）** |
-| 能力基线 | `verify_phase2 --offline` → **5/12 PASS，7 RED**（S2/S3/S4 已翻绿） |
+| 阶段 | **S1–S7 完成（图 + 角色 + 判定 + 折叠）** |
+| 能力基线 | `verify_phase2 --offline` → **8/12 PASS，4 RED**（剩 S8/S9/S10/S12） |
 | Phase 1 回归 | `verify_phase1 --online` → **13/13 PASS** |
-| 后端测试 | `pytest -q` → **295 例**（其中 42 例属图）全绿 |
+| 后端测试 | `pytest -q` → **310 例**（其中 15 例属 agents）全绿 |
 | 静态检查 | `ruff check .` → clean |
 
 ---
@@ -142,3 +142,41 @@ resume 标记出现在事件 payload 中（便于审计）
 ### 4.3 已知边界
 
 `run:start` 允许出现两次（fresh + resume 各一次），十个业务阶段严格唯一——刻意保留的"续跑审计点"。
+
+## 5. S5 · retrieval / mapper（2026-10-21）
+
+| 产物 | 说明 |
+|---|---|
+| `agents/retrieval.py` | 词面打分（hint 命中×2 + 标题命中 + 有摘要）；**有 hint 只保留命中项，全不命中返回空**；无 hint 按原序截断 |
+| `agents/mapper.py` | `map_clusters(primaries, edges)` 纯函数；孤儿合并单列；`run()` 从库读取 |
+
+## 6. S6 · analyst / critic / grounding / gold / judge（2026-10-21）
+
+| 产物 | 说明 |
+|---|---|
+| `analyst.py` | 确定性（一卡一 claim、全带引用）+ LLM 抽取（paper_id 必须来自输入卡；异常回落） |
+| `critic.py` | 缺引用 → BLOCK `E_GROUND_UNRESOLVED_CITATION`；重复 → RETRY；比例 <0.6 → DEGRADE；空 → DEGRADE |
+| `eval/grounding.py` | token 覆盖率 ≥0.5 **且**有引用才算 supported |
+| `eval/datasets.py` | **20 条冻结 gold**（10 正 + 10 负） |
+| `eval/judge.py` | 有 completer 用 LLM，失败回落 grounding；Cohen's κ |
+
+实测：`gold=20 accuracy=1.00 kappa=1.00`；critic 正确拦住无引用 claim。
+
+## 7. S7 · 折叠与注入物化（2026-10-21）
+
+| 产物 | 说明 |
+|---|---|
+| `SummarizeFolding` | 每段保留首句 + 含两位数字/引用标记的句子，再按预算填充 |
+| `folding_for("hierarchical")` | 仍显式 `E_FEATURE_DISABLED`（P3） |
+| `slots.materialize_slots()` | 每个非空槽写一条 `phase_change`（slot/sha/chars/source），正文不入事件 |
+| `SqliteEventLog.has_dedupe()` | 幂等探测，不产生"重复标记"事件 |
+
+## 8. 本轮修掉的真实缺陷
+
+| 缺陷 | 现象 | 根因 | 修法 |
+|---|---|---|---|
+| **artifacts 被覆盖** | `retrieval` 的 `paper_ids` 到 `analysis` 就丢了 → 报告退化为"无证据" | `AgentState.artifacts/counters` 无 reducer，节点返回即整体替换 | 加 `_merge_dicts` reducer（`STATE_SCHEMA_VERSION` → **1.1**） |
+| **幂等语义误判** | 同一槽第二次仍算"写入" | `emit` 命中 dedupe 时返回已存在事件（并留 dup 标记） | 新增 `has_dedupe()` 预探测 |
+| **折叠不够狠** | 降幅不足 40% | 剪枝保留 2 句/段过松 | 改为 1 句 + 数字/引用句 |
+
+端到端：十节点图现在**真的用上了 agents**——`retrieval`→`analyst`→`critic`→`report`，报告里的 claim 全部带引用。

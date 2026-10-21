@@ -13,7 +13,14 @@ from typing import Annotated, Any, TypedDict
 
 __all__ = ["STATE_SCHEMA_VERSION", "AgentState", "new_state"]
 
-STATE_SCHEMA_VERSION = "1.0"
+STATE_SCHEMA_VERSION = "1.1"
+
+
+def _merge_dicts(left: dict, right: dict) -> dict:
+    """节点返回的增量字典必须**合并**而不是覆盖（artifacts/counters 都依赖它）。"""
+    merged = dict(left or {})
+    merged.update(right or {})
+    return merged
 
 
 class AgentState(TypedDict, total=False):
@@ -27,8 +34,8 @@ class AgentState(TypedDict, total=False):
     retry_budget: int
     errors: Annotated[list[str], operator.add]
     events: Annotated[list[dict[str, Any]], operator.add]
-    artifacts: dict[str, Any]
-    counters: dict[str, int]
+    artifacts: Annotated[dict[str, Any], _merge_dicts]
+    counters: Annotated[dict[str, int], _merge_dicts]
     verdict: dict[str, Any] | None
     focus_hint: str | None
     edge: str | None

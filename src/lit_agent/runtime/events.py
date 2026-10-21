@@ -228,6 +228,19 @@ class SqliteEventLog:
     # ------------------------------------------------------------------ #
     # 读
     # ------------------------------------------------------------------ #
+    def has_dedupe(self, dedupe_key: str) -> bool:
+        """该 run 是否已经写过这个 dedupe_key（幂等探测，不产生任何事件）。"""
+        from sqlalchemy import text
+
+        with connect(self._engine) as conn:
+            row = conn.execute(
+                text(
+                    "SELECT 1 FROM run_events WHERE run_id = :rid AND dedupe_key = :key LIMIT 1"
+                ),
+                {"rid": self._run_id, "key": dedupe_key},
+            ).first()
+        return row is not None
+
     def replay(self, *, after_seq: int = 0, limit: int = 1000) -> list[Event]:
         with connect(self._engine) as conn:
             return list(event_repo.read(conn, self._run_id, after_seq=after_seq, limit=limit))

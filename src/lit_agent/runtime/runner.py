@@ -571,3 +571,22 @@ def run_counts(settings: Settings) -> dict[str, int]:
             }
     finally:
         active.dispose()
+
+
+def persist_report_from_claims(
+    settings: Settings,
+    run_id: str,
+    topic_id: str,
+    claims: list[Any],
+    *,
+    focus_hint: str | None = None,
+) -> str | None:
+    """由**图里的 claims** 落报告（S6）：不再重复加载证据卡。"""
+    from lit_agent.agents.reporter import build_report_from_claims
+
+    title = f"Weekly report: {topic_id}"
+    if focus_hint:
+        title = f"{title} — {focus_hint}"
+    draft = build_report_from_claims(claims, topic_id=topic_id, run_id=run_id, title=title)
+    draft = draft.model_copy(update={"degraded": not claims})
+    return persist_report_draft(settings, run_id, draft)

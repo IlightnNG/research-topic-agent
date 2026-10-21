@@ -53,7 +53,7 @@ def test_skeleton_modules_declare_feature_id() -> None:
         if hasattr(module, "FEATURE"):
             checked += 1
             assert isinstance(module.FEATURE, str) and module.FEATURE
-    assert checked >= 10, f"skeleton module count looks wrong: {checked}"
+    assert checked >= 4, f"skeleton module count looks wrong: {checked}"
 
 
 def test_models_public_names_are_contract_models() -> None:

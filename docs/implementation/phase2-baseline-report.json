@@ -1,8 +1,8 @@
 {
-  "generated_at": "2026-10-21T18:43:43+0800",
+  "generated_at": "2026-10-21T18:58:19+0800",
   "baseline": true,
-  "greens": 5,
-  "reds": 7,
+  "greens": 8,
+  "reds": 4,
   "results": [
     {
       "name": "graph.nodes(10)",
@@ -24,14 +24,14 @@
     },
     {
       "name": "agents.4roles",
-      "ok": false,
-      "detail": "implemented=[]",
+      "ok": true,
+      "detail": "{'retrieval': True, 'mapper': True, 'analyst': True, 'critic': True}",
       "target": "S5/S6"
     },
     {
       "name": "context.summarize",
-      "ok": false,
-      "detail": "summarize=not implemented",
+      "ok": true,
+      "detail": "strategy=SummarizeFolding",
       "target": "S7"
     },
     {
@@ -54,8 +54,8 @@
     },
     {
       "name": "eval.suite",
-      "ok": false,
-      "detail": "implemented=[]",
+      "ok": true,
+      "detail": "gold=20 acc=1.00 kappa=1.00",
       "target": "S11"
     },
     {

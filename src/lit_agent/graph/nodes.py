@@ -90,12 +90,24 @@ class Phase2Nodes:
         }
 
     def retrieval(self, state: dict[str, Any]) -> dict[str, Any]:
-        """取主记录论文作为候选证据（S10 会替换为 hybrid 检索）。"""
-        rows = self._papers()
+        """S5：由 retrieval agent 选证据；S10 替换为 hybrid。"""
+        from lit_agent.agents.retrieval import select_cards
+        from lit_agent.eval import faultinject
+
+        if faultinject.is_active("timeout"):
+            from lit_agent.errors import E_SRC_TIMEOUT, LitError
+
+            raise LitError(E_SRC_TIMEOUT, "检索阶段注入超时", context={"stage": "retrieval"})
+
+        cards = self._cards()
+        if faultinject.is_active("empty_retrieval"):
+            selected = []
+        else:
+            selected = select_cards(cards, focus_hint=state.get("focus_hint")).cards
         return {
             "stage": "retrieval",
-            "artifacts": {"candidates": len(rows), "paper_ids": [row[0] for row in rows][:200]},
-            "counters": {"candidates": len(rows)},
+            "artifacts": {"candidates": len(cards), "paper_ids": [card.paper_id for card in selected]},
+            "counters": {"candidates": len(cards), "selected": len(selected)},
         }
 
     def _papers(self, *, focus_hint: str | None = None) -> list[tuple[Any, ...]]:
@@ -146,16 +158,62 @@ class Phase2Nodes:
         }
 
     def analysis(self, state: dict[str, Any]) -> dict[str, Any]:
-        """把候选论文折成 claims（S6 会换成 LLM 抽取 + 判定器）。"""
-        from lit_agent.agents.reporter import build_report
+        """S6：analyst agent 抽取 claims（有 key 时走 LLM，失败回落确定性）。"""
+        from lit_agent.agents.analyst import analyze, claims_to_json
+        from lit_agent.eval import faultinject
 
-        cards = self._cards()
-        draft = build_report(cards, topic_id=str(state.get("topic_id")), run_id=str(state.get("run_id")))
+        cards = self._cards_by_ids(self._paper_ids(state))
+        claims = analyze(cards)
+        if faultinject.is_active("bad_artifact") and claims:
+            # 注入：把第一条改成"无引用"，用来验证 critic 会拦住
+            from lit_agent.models.claim import Claim
+            from lit_agent.models.evidence import Support
+
+            claims = [Claim(text=claims[0].text, citations=[], support=Support.UNSUPPORTED), *claims[1:]]
         return {
             "stage": "analysis",
-            "artifacts": {"claims": draft.n_claims, "cards": len(cards)},
-            "counters": {"claims": draft.n_claims, "cards": len(cards)},
+            "artifacts": {"claims": len(claims), "claims_json": claims_to_json(claims)},
+            "counters": {"claims": len(claims), "cards": len(cards)},
         }
+
+    def _paper_ids(self, state: dict[str, Any]) -> list[str]:
+        artifacts = state.get("artifacts") or {}
+        ids = artifacts.get("paper_ids") or []
+        return [str(item) for item in ids]
+
+    def _cards_by_ids(self, paper_ids: list[str]) -> list[Any]:
+        from lit_agent.models.evidence import EvidenceCard
+
+        if not paper_ids:
+            return []
+        from sqlalchemy import bindparam
+
+        engine = self._engine()
+        try:
+            with connect(engine) as conn:
+                rows = conn.execute(
+                    text(
+                        "SELECT paper_id, title, COALESCE(abstract,''), COALESCE(source,''), year"
+                        " FROM papers WHERE paper_id IN :ids"
+                    ).bindparams(bindparam("ids", expanding=True)),
+                    {"ids": paper_ids},
+                ).all()
+        finally:
+            engine.dispose()
+        cards: list[Any] = []
+        for paper_id, title, abstract, source, year in rows:
+            snippet = (abstract or title or "").strip()[:400]
+            if snippet:
+                cards.append(
+                    EvidenceCard(
+                        paper_id=str(paper_id),
+                        title=str(title or paper_id),
+                        snippet=snippet,
+                        source=str(source or "unknown"),
+                        year=int(year) if year is not None else None,
+                    )
+                )
+        return cards
 
     def _cards(self) -> list[Any]:
         from lit_agent.models.evidence import EvidenceCard
@@ -176,22 +234,39 @@ class Phase2Nodes:
         return cards
 
     def critique(self, state: dict[str, Any]) -> dict[str, Any]:
-        counters = dict(state.get("counters") or {})
-        claims = int(counters.get("claims", 0))
-        degraded = claims == 0
+        """S6：critic agent 做结构自查（缺引用/重复/比例），产出 GuardVerdict。"""
+        from lit_agent.agents.analyst import claims_from_json
+        from lit_agent.agents.critic import critique as critique_claims
+
+        claims = claims_from_json(self._claims_json(state))
+        verdict = critique_claims(claims)
         return {
             "stage": "critique",
-            "artifacts": {"degraded": degraded, "verdict": "warn" if degraded else "ok"},
-            "counters": {"critique_degraded": int(degraded)},
+            "artifacts": {"degraded": not verdict.ok, "verdict": verdict.model_dump(mode="json")},
+            "counters": {
+                "critique_degraded": int(not verdict.ok),
+                "unresolved_citations": 1 if verdict.code == "E_GROUND_UNRESOLVED_CITATION" else 0,
+            },
         }
 
-    def report(self, state: dict[str, Any]) -> dict[str, Any]:
-        from lit_agent.runtime.runner import persist_report_for_state
+    def _claims_json(self, state: dict[str, Any]) -> str:
+        return str((state.get("artifacts") or {}).get("claims_json") or "[]")
 
-        report_id = persist_report_for_state(self.settings, state)
+    def report(self, state: dict[str, Any]) -> dict[str, Any]:
+        from lit_agent.agents.analyst import claims_from_json
+        from lit_agent.runtime.runner import persist_report_from_claims
+
+        claims = claims_from_json(self._claims_json(state))
+        report_id = persist_report_from_claims(
+            self.settings,
+            str(state.get("run_id")),
+            str(state.get("topic_id")),
+            claims,
+            focus_hint=state.get("focus_hint"),
+        )
         return {
             "stage": "report",
-            "artifacts": {"report_id": report_id},
+            "artifacts": {"report_id": report_id, "claims": len(claims)},
             "counters": {"report_written": 1},
         }
 

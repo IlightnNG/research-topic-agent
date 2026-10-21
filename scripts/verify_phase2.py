@@ -128,30 +128,25 @@ def probe_resume() -> tuple[bool, str]:
 
 
 def probe_agents() -> tuple[bool, str]:
-    """四角色是否实现（S5/S6）。"""
-    from lit_agent.errors import FeatureDisabledError
+    """四角色是否**真的能工作**（S5/S6）：行为探针，不看函数名。"""
+    from lit_agent.agents.analyst import analyze
+    from lit_agent.agents.critic import critique
+    from lit_agent.agents.mapper import map_clusters
+    from lit_agent.agents.retrieval import select_cards
+    from lit_agent.models.claim import Claim
+    from lit_agent.models.evidence import EvidenceCard, Support
 
-    roles = {
-        "retrieval": ("lit_agent.agents.retrieval", "run_retrieval"),
-        "mapper": ("lit_agent.agents.mapper", "map_papers"),
-        "analyst": ("lit_agent.agents.analyst", "analyze"),
-        "critic": ("lit_agent.agents.critic", "critique"),
+    cards = [
+        EvidenceCard(paper_id="P1", title="Tool use agents", snippet="tool use improves success", source="arxiv"),
+        EvidenceCard(paper_id="P2", title="Diffusion proteins", snippet="diffusion sampling", source="arxiv"),
+    ]
+    results = {
+        "retrieval": [card.paper_id for card in select_cards(cards, focus_hint="tool use").cards] == ["P1"],
+        "mapper": map_clusters(["P1"], [("P1", "P1v2")]).merged_count == 1,
+        "analyst": bool(analyze(cards)) and all(claim.citations for claim in analyze(cards)),
+        "critic": not critique([Claim(text="no refs", citations=[], support=Support.UNSUPPORTED)]).ok,
     }
-    implemented: list[str] = []
-    for role, (module_name, func_name) in roles.items():
-        try:
-            module = __import__(module_name, fromlist=[func_name])
-            func = getattr(module, func_name)
-            try:
-                func()
-            except FeatureDisabledError:
-                continue
-            except Exception:  # noqa: BLE001 - 有实现但参数不对，也算已实现
-                implemented.append(role)
-                continue
-        except AttributeError:
-            continue
-    return len(implemented) == len(roles), f"implemented={implemented}"
+    return all(results.values()), f"{results}"
 
 
 def probe_folding() -> tuple[bool, str]:
@@ -209,28 +204,26 @@ def probe_retrieval() -> tuple[bool, str]:
 
 
 def probe_eval_suite() -> tuple[bool, str]:
-    """judge / faultinject / datasets（S11）。"""
-    from lit_agent.errors import FeatureDisabledError
+    """评测闭环（S6/S11）：gold 20 条 + 判定器准确率 + judge κ。"""
+    from lit_agent.eval.datasets import load_gold
+    from lit_agent.eval.grounding import check_claim
+    from lit_agent.eval.judge import judge_gold
+    from lit_agent.models.claim import Claim
+    from lit_agent.models.evidence import Citation
 
-    ok: list[str] = []
-    for module_name, attribute in (
-        ("lit_agent.eval.judge", "judge_claim"),
-        ("lit_agent.eval.faultinject", "inject"),
-        ("lit_agent.eval.datasets", "load_gold"),
-    ):
-        try:
-            module = __import__(module_name, fromlist=[attribute])
-            func = getattr(module, attribute)
-            try:
-                func()
-            except FeatureDisabledError:
-                continue
-            except Exception:  # noqa: BLE001
-                ok.append(module_name.split(".")[-1])
-                continue
-        except AttributeError:
-            continue
-    return len(ok) == 3, f"implemented={ok}"
+    gold = load_gold()
+    hits = 0
+    for item in gold:
+        claim = Claim(
+            text=item.claim,
+            citations=[Citation(paper_id="gold", snippet=item.snippet)],
+        )
+        predicted = "supported" if check_claim(claim).supported else "unsupported"
+        hits += int(predicted == item.label)
+    accuracy = hits / len(gold) if gold else 0.0
+    kappa = judge_gold(gold)["kappa"]
+    ok = len(gold) == 20 and accuracy >= 0.9 and kappa >= 0.8
+    return ok, f"gold={len(gold)} acc={accuracy:.2f} kappa={kappa:.2f}"
 
 
 def probe_web_stages() -> tuple[bool, str]:

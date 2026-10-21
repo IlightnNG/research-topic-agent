@@ -64,3 +64,33 @@ def build_report(
         claims=claims,
         n_claims=len(claims),
     )
+
+
+def build_report_from_claims(
+    claims: list[Claim],
+    *,
+    topic_id: str,
+    run_id: str,
+    title: str = "Weekly research report",
+) -> Report:
+    """由**已有 claims** 生成报告（不再二次取证据卡，避免"两处各自取数"）。"""
+    digest_source = "\n".join(claim.text for claim in claims) or f"empty:{run_id}"
+    digest = hashlib.sha256(digest_source.encode("utf-8")).hexdigest()[:12]
+    if claims:
+        lines = [f"# {title}", "", f"共 {len(claims)} 条结论（每条含引用）。", ""]
+        for claim in claims:
+            refs = ", ".join(citation.paper_id for citation in claim.citations) or "（无引用）"
+            lines.append(f"- {claim.text}  \n  refs: {refs}")
+        content_md = "\n".join(lines) + "\n"
+    else:
+        content_md = f"# {title}\n\n本轮未检索到可引用证据。\n"
+    return Report(
+        report_id=f"{run_id}:{digest}",
+        topic_id=topic_id,
+        run_id=run_id,
+        title=title,
+        content_md=content_md,
+        content_sha=digest,
+        claims=claims or [Claim(text="本轮未检索到可引用证据", citations=[], support=Support.UNSUPPORTED)],
+        n_claims=len(claims) if claims else 1,
+    )
