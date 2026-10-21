@@ -25,6 +25,7 @@ class RunState(StrEnum):
     SUCCEEDED = "succeeded"
     FAILED = "failed"
     ABORTED = "aborted"
+    PAUSED = "paused"
 
 
 class Run(ContractModel):

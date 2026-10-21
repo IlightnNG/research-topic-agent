@@ -1,8 +1,8 @@
 {
-  "generated_at": "2026-10-21T18:58:19+0800",
+  "generated_at": "2026-10-21T19:08:05+0800",
   "baseline": true,
-  "greens": 8,
-  "reds": 4,
+  "greens": 9,
+  "reds": 3,
   "results": [
     {
       "name": "graph.nodes(10)",
@@ -36,14 +36,14 @@
     },
     {
       "name": "guards.15",
-      "ok": false,
-      "detail": "guards=2 (Guard, NoProgressGuard)",
+      "ok": true,
+      "detail": "guards=15 (CitationIntegrityGuard, EvalQualityGuard, EvidenceSufficiencyGuard, GroundingRat)",
       "target": "S8"
     },
     {
       "name": "runtime.control",
       "ok": false,
-      "detail": "status={'pause': 501, 'resume': 501, 'inject': 501}",
+      "detail": "OperationalError: (sqlite3.OperationalError) no such table: runs\n[SQL: SELECT id, state, topic_id FROM runs WHERE id = ?]\n[parameters: ('n",
       "target": "S9"
     },
     {

@@ -34,6 +34,20 @@ class SimulatedCrash(RuntimeError):
     """测试用：模拟进程中断（run 保持 running，便于验证续跑）。"""
 
 
+class PauseRequested(RuntimeError):
+    """人工暂停：在阶段边界退出，run 置为 paused，checkpoint 保留。"""
+    """测试用：模拟进程中断（run 保持 running，便于验证续跑）。"""
+
+
+def _persist_focus_hint(settings: Settings, run_id: str, focus_hint: str | None) -> None:
+    engine = make_engine(settings)
+    try:
+        with connect(engine, immediate=True) as conn:
+            run_repo.update_ui_fields(conn, run_id, focus_hint=focus_hint)
+    finally:
+        engine.dispose()
+
+
 def _set_stage(settings: Settings, run_id: str, stage: str, *, completed: bool) -> None:
     engine = make_engine(settings)
     try:
@@ -73,6 +87,8 @@ def run_graph(
         def node(state: dict[str, Any]) -> dict[str, Any]:
             if control.is_aborted(rid):
                 raise LitError("E_RUN_ABORTED", "运行被人工中止", context={"run_id": rid, "stage": name})
+            if control.is_paused(rid):
+                raise PauseRequested(f"paused before {name}")
             log.emit(
                 EventType.PHASE_CHANGE,
                 stage=name,
@@ -110,7 +126,17 @@ def run_graph(
         state = new_state(run_id=rid, topic_id=topic_id)
         state["budget"] = run_budget.snapshot()
         state["edge"] = None
-        state["focus_hint"] = focus_hint
+        injected = control.consume_inject(rid)
+        merged_hint = " ".join([part for part in [focus_hint, *injected] if part]) or None
+        state["focus_hint"] = merged_hint
+        if injected:
+            _persist_focus_hint(settings, rid, merged_hint)
+            log.emit(
+                EventType.PHASE_CHANGE,
+                stage="run",
+                payload={"phase": "inject", "prompts": injected},
+                dedupe_key=f"inject:{len(injected)}:{'|'.join(injected)[:80]}",
+            )
 
         payload = None if resume else state
         log.emit(
@@ -154,6 +180,10 @@ def run_graph(
             "events": log.count(),
             "budget": run_budget.snapshot(),
         }
+    except PauseRequested:
+        control.clear_pause(rid)
+        jobs.finish(settings, rid, state=RunState.PAUSED, error_code=None, engine=engine)
+        return {"run_id": rid, "state": "paused"}
     except SimulatedCrash:
         # 刻意不 finish：run 保持 running，用于验证"续跑不重复"
         raise

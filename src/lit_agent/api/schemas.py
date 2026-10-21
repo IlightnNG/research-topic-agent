@@ -49,3 +49,9 @@ class ErrorOut(BaseModel):
     retryable: bool = False
     action_taken: str = "none"
     context: dict[str, Any] = Field(default_factory=dict)
+
+
+class InjectRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    prompt: str = Field(min_length=1, max_length=500, description="注入给下一阶段的提示词")

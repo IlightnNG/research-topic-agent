@@ -181,11 +181,18 @@ def probe_runtime_control() -> tuple[bool, str]:
 
     from lit_agent.api.app import create_app
 
-    app = create_app(settings_for_probe(fresh=True))
+    settings = settings_for_probe(fresh=True)
+    from lit_agent.db.session import upgrade_database
+
+    upgrade_database(settings)
+    app = create_app(settings)
     with TestClient(app) as client:
         codes = {}
         for action in ("pause", "resume", "inject"):
-            response = client.post(f"/api/runs/none/{action}")
+            if action == "inject":
+                response = client.post(f"/api/runs/none/{action}", json={"prompt": "hint"})
+            else:
+                response = client.post(f"/api/runs/none/{action}")
             codes[action] = response.status_code
     implemented = [name for name, code in codes.items() if code != 501]
     return len(implemented) == 3, f"status={codes}"

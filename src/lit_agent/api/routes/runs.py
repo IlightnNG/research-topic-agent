@@ -10,11 +10,12 @@ from fastapi.responses import JSONResponse, StreamingResponse
 from sqlalchemy import text
 
 from lit_agent.api.dependencies import get_engine, get_settings
+from lit_agent.api.schemas import InjectRequest
 from lit_agent.api.sse import event_stream
-from lit_agent.config import Settings
+from lit_agent.config import Settings  # noqa: F401 - FastAPI 依赖注解需要
 from lit_agent.db.repo import reports as report_repo
 from lit_agent.db.session import connect
-from lit_agent.errors import E_FEATURE_DISABLED, E_NOT_FOUND, LitError
+from lit_agent.errors import E_CONFIG_INVALID, E_FEATURE_DISABLED, E_NOT_FOUND, LitError
 from lit_agent.runtime import control
 
 router = APIRouter()
@@ -127,16 +128,74 @@ def _not_implemented(feature: str) -> JSONResponse:
     )
 
 
+def _require_run(engine: Any, run_id: str) -> dict[str, Any]:
+    with connect(engine) as conn:
+        row = conn.execute(
+            text("SELECT id, state, topic_id FROM runs WHERE id = :id"), {"id": run_id}
+        ).first()
+    if row is None:
+        raise LitError(E_NOT_FOUND, f"run 不存在：{run_id}", context={"run_id": run_id})
+    return dict(row._mapping)
+
+
 @router.post("/{run_id}/pause")
-def pause_run(run_id: str) -> JSONResponse:
-    return _not_implemented("runs.pause")
+def pause_run(
+    run_id: str,
+    settings: Settings = Depends(get_settings),
+    engine: Any = Depends(get_engine),
+) -> JSONResponse:
+    """在**阶段边界**暂停：run 置 paused，checkpoint 保留，可 resume。"""
+    run = _require_run(engine, run_id)
+    if run["state"] != "running":
+        raise LitError(
+            E_CONFIG_INVALID,
+            f"只有 running 的 run 可以暂停（当前 {run['state']}）",
+            context={"run_id": run_id, "state": run["state"]},
+        )
+    control.request_pause(run_id)
+    return JSONResponse(status_code=202, content={"run_id": run_id, "state": "pausing"})
 
 
 @router.post("/{run_id}/resume")
-def resume_run(run_id: str) -> JSONResponse:
-    return _not_implemented("runs.resume")
+def resume_run(
+    run_id: str,
+    settings: Settings = Depends(get_settings),
+    engine: Any = Depends(get_engine),
+) -> JSONResponse:
+    """从 paused 续跑（后台线程，checkpoint 续接）。"""
+    import threading
+
+    from lit_agent.runtime.graph_runner import run_graph
+
+    run = _require_run(engine, run_id)
+    if run["state"] != "paused":
+        raise LitError(
+            E_CONFIG_INVALID,
+            f"只有 paused 的 run 可以续跑（当前 {run['state']}）",
+            context={"run_id": run_id, "state": run["state"]},
+        )
+    control.clear_pause(run_id)
+    threading.Thread(
+        target=run_graph,
+        kwargs={
+            "settings": settings,
+            "topic_id": str(run["topic_id"]),
+            "run_id": run_id,
+            "resume": True,
+        },
+        daemon=True,
+        name=f"resume-{run_id}",
+    ).start()
+    return JSONResponse(status_code=202, content={"run_id": run_id, "state": "resuming"})
 
 
 @router.post("/{run_id}/inject")
-def inject_run(run_id: str) -> JSONResponse:
-    return _not_implemented("runs.inject")
+def inject_run(
+    run_id: str,
+    payload: InjectRequest,
+    engine: Any = Depends(get_engine),
+) -> dict[str, Any]:
+    """注入提示词：在下一个阶段边界合并进 `focus_hint`，并写 `inject` 事件。"""
+    _require_run(engine, run_id)
+    control.inject_prompt(run_id, payload.prompt)
+    return {"run_id": run_id, "pending": len(control.pending_inject(run_id))}

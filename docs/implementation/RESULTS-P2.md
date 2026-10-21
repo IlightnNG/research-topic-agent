@@ -7,10 +7,10 @@
 
 | 指标 | 当前值 |
 |---|---|
-| 阶段 | **S1–S7 完成（图 + 角色 + 判定 + 折叠）** |
-| 能力基线 | `verify_phase2 --offline` → **8/12 PASS，4 RED**（剩 S8/S9/S10/S12） |
+| 阶段 | **S1–S9 完成（图 + 角色 + 判定 + 折叠 + 守卫/运行时）** |
+| 能力基线 | `verify_phase2 --offline` → **10/12 PASS，2 RED**（剩 S10 hybrid、S12 前端） |
 | Phase 1 回归 | `verify_phase1 --online` → **13/13 PASS** |
-| 后端测试 | `pytest -q` → **310 例**（其中 15 例属 agents）全绿 |
+| 后端测试 | `pytest -q` → **342 例**（其中 32 例属守卫/控制）全绿 |
 | 静态检查 | `ruff check .` → clean |
 
 ---
@@ -180,3 +180,44 @@ resume 标记出现在事件 payload 中（便于审计）
 | **折叠不够狠** | 降幅不足 40% | 剪枝保留 2 句/段过松 | 改为 1 句 + 数字/引用句 |
 
 端到端：十节点图现在**真的用上了 agents**——`retrieval`→`analyst`→`critic`→`report`，报告里的 claim 全部带引用。
+
+## 9. S8 · 15 类守卫 + 动作阶梯（2026-10-21）
+
+| 守卫 | 触发条件 | 动作 |
+|---|---|---|
+| G1 ScopeDrift | `drift_block` / `drift_warn` | ABORT / ANNOTATE |
+| G2 RetrievalFailure | `retrieval_errors>0` | RETRY |
+| G3 ZeroNewPapers | `new_papers==0`（键存在） | DEGRADE |
+| G4 ParseFailure | `parse_failed≥1` | DEGRADE |
+| G5 SchemaOutput | `schema_errors>0` | RETRY |
+| G6 EvidenceSufficiency | `cards==0`（键存在） | RETRY |
+| G7 NoProgress | 连续 N 步累计产出不增 | DEGRADE |
+| G8 RepeatTool | 同一工具重复 | **RETRY(提醒)** → 3 次后 **REPLAN** |
+| G9 CitationIntegrity | `unresolved_citations>0` | RETRY(BLOCK) |
+| G10 GroundingRatio | `grounding_rate<0.6` | DEGRADE |
+| G11 Loop | `loop>0` | REPLAN |
+| G12 Budget | 预算 80%/100% | DEGRADE / ABORT |
+| G13 Timeout | `idle_seconds≥阈值` | ABORT |
+| G14 Stagnation | 连续 N 步产物数不变 | REPLAN |
+| G15 EvalQuality | 重试用尽 / 评测不达标 | DEGRADE / ANNOTATE |
+
+- `GuardRail` 按 `_ORDER` 取最重动作（abort > replan > degrade > retry > annotate > continue）；
+- **两条纪律落地**：零值型守卫先判"键是否存在"（防误报）；重复工具先**提醒**再升级（DSH 对照）。
+
+## 10. S9 · 熔断 / 暂停 / 续跑 / 注入（2026-10-21）
+
+| 产物 | 说明 |
+|---|---|
+| `gateway/breaker.py` | `closed → open → half_open` 三态；`failure_threshold` + `cooldown_s` + 注入时钟（测试确定性） |
+| `LLMGateway` | 调用前 `allow()`，拒绝 → `E_LLM_QUOTA`；失败 `record_failure()`；成功 `record_success()` |
+| `control` | `request_pause/is_paused/clear_pause` + `inject_prompt/consume_inject/pending_inject` |
+| `graph_runner` | 阶段边界检查暂停 → `PauseRequested` → run 置 **paused**（checkpoint 保留）；续跑合并注入词并写 `inject` 事件 |
+| API | `POST /runs/{id}/pause`（202/409）、`/resume`（202，后台续跑）、`/inject`（写回 `runs.focus_hint`） |
+
+实测：
+
+```
+熔断：2 次失败 → open；冷却后可放行 1 次；成功 → closed
+暂停：paused → resume → succeeded（十阶段各 1 次 start）
+注入：focus_hint 含 "tool use"，事件里有 inject payload
+```

@@ -21,12 +21,14 @@ from lit_agent.db.session import connect, make_engine
 from lit_agent.errors import (
     E_BUDGET_COST,
     E_LLM_5XX,
+    E_LLM_QUOTA,
     E_LLM_TRUNCATED,
     E_SCHEMA_STAGE_OUTPUT,
     LitError,
 )
 from lit_agent.gateway import cache as cache_mod
 from lit_agent.gateway import policy
+from lit_agent.gateway.breaker import CircuitBreaker
 from lit_agent.gateway.metering import BudgetGuard, CallUsage, estimate_tokens
 
 __all__ = ["LLMCall", "LLMGateway"]
@@ -64,12 +66,14 @@ class LLMGateway:
         *,
         completer: Completer | None = None,
         budget: BudgetGuard | None = None,
+        breaker: CircuitBreaker | None = None,
         engine: Any | None = None,
     ) -> None:
         self.settings = settings
         self.model = settings.providers.cloud.model
         self._completer = completer
         self.budget = budget or BudgetGuard(settings.routing.run_cost_budget_usd)
+        self.breaker = breaker or CircuitBreaker()
         self._engine = engine
         self.calls = 0  # 真实出网次数（测试断言敏感样本为 0）
 
@@ -180,6 +184,13 @@ class LLMGateway:
                     route_reason=decision.reason,
                 )
 
+        if not self.breaker.allow():
+            raise LitError(
+                E_LLM_QUOTA,
+                f"熔断器打开，拒绝调用（{self.breaker.snapshot()}）",
+                context=self.breaker.snapshot(),
+            )
+
         state = self.budget.check()
         if state == "stop":
             raise LitError(
@@ -195,8 +206,10 @@ class LLMGateway:
             try:
                 response = self._complete(messages, temperature=temperature, max_tokens=tokens)
             except LitError:
+                self.breaker.record_failure()
                 raise
             except Exception as exc:  # noqa: BLE001 - provider 异常统一映射
+                self.breaker.record_failure()
                 raise LitError(
                     E_LLM_5XX, f"LLM 调用失败：{type(exc).__name__}: {str(exc)[:160]}"
                 ) from None
@@ -254,6 +267,7 @@ class LLMGateway:
                 response_json=json.dumps({"content": content}, ensure_ascii=False),
                 usage_json=json.dumps(raw_usage, ensure_ascii=False, default=str),
             )
+        self.breaker.record_success()
         self.budget.spend(usage)
         return LLMCall(
             ok=True,

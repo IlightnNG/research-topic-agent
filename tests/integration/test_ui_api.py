@@ -93,11 +93,14 @@ def test_abort_mid_run_fails_with_abort_code(client: TestClient) -> None:
     assert run["error_code"] == "E_RUN_ABORTED"
 
 
-def test_pause_resume_inject_are_501(client: TestClient) -> None:
-    for action in ("pause", "resume", "inject"):
+def test_control_endpoints_validate_run_existence(client: TestClient) -> None:
+    # S9：pause/resume/inject 已实装 → 未知 run 必须是 404（而不是 501）
+    for action in ("pause", "resume"):
         response = client.post(f"/api/runs/any/{action}")
-        assert response.status_code == 501
-        assert response.json()["code"] == "E_FEATURE_DISABLED"
+        assert response.status_code == 404, response.text
+        assert response.json()["code"] == "E_NOT_FOUND"
+    injected = client.post("/api/runs/any/inject", json={"prompt": "hint"})
+    assert injected.status_code == 404
 
 
 def test_report_has_sections_from_claims(client: TestClient) -> None:
