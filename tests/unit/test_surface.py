@@ -10,7 +10,7 @@ from pydantic import BaseModel
 
 from lit_agent import models, structure
 from lit_agent.db import tables
-from lit_agent.errors import FeatureDisabledError, LitError
+from lit_agent.errors import FeatureDisabledError
 
 PACKAGES = [name for name in structure.PACKAGES if name != "."]
 
@@ -35,9 +35,9 @@ def test_skeleton_entry_points_fail_explicitly() -> None:
     from lit_agent.gateway import breaker
     from lit_agent.graph import edges
 
-    with pytest.raises(LitError) as first:
-        edges.backoff_edge("E11")
-    assert first.value.code == "E_FEATURE_DISABLED"
+    assert edges.backoff_edge("E11") == "replan"  # S3：E1–E13 已全部实现
+    with pytest.raises(ValueError):
+        edges.backoff_edge("E99")
 
     with pytest.raises(FeatureDisabledError) as second:
         breaker.call_with_breaker()

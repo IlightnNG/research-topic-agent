@@ -1,8 +1,8 @@
-"""LangGraph 构建器 + 三节点冒烟链（Step 1.10，D-MIN）。
+"""LangGraph 构建器（Phase 2：十节点主干 + 条件边）。
 
-- `build_graph(nodes, checkpointer)`：把"阶段函数"接成线性主干（Phase 2 再铺 S0–S9 全边）；
-- `smoke_graph()`：intake → retrieve → draft，用来验证接线/归约/checkpoint 三件事；
-- 节点签名统一 `(state) -> dict`（只返回增量），与 `RunContext` 版阶段函数在 1.11 对齐。
+- `build_phase2_graph(settings, checkpointer)`：S0–S9 十节点，条件边由 `edges.route_after` 决定；
+- `build_graph(nodes, checkpointer)`：Phase 1 的线性冒烟图（保留给旧测试）；
+- 节点签名统一 `(state) -> dict`（只返回增量）。
 """
 
 from __future__ import annotations
@@ -11,18 +11,32 @@ import uuid
 from collections.abc import Callable
 from typing import Any
 
+from lit_agent.config import Settings
 from lit_agent.errors import E_SCHEMA_STAGE_OUTPUT, LitError
 from lit_agent.graph.checkpoint import thread_config
-from lit_agent.graph.edges import MAINLINE
+from lit_agent.graph.edges import route_after
+from lit_agent.graph.nodes import PHASE2_STAGES, Phase2Nodes
 from lit_agent.graph.state import AgentState, new_state
 
-__all__ = ["build_graph", "invoke_once", "make_node", "register_node", "smoke_graph"]
+__all__ = [
+    "PHASE2_STAGES",
+    "SMOKE_MAINLINE",
+    "build_graph",
+    "build_phase2_graph",
+    "invoke_once",
+    "make_node",
+    "register_node",
+    "smoke_graph",
+]
 
 NodeFn = Callable[[AgentState], dict[str, Any]]
 
+#: Phase 1 的三节点冒烟链（保持旧测试语义，与十节点主干无关）
+SMOKE_MAINLINE: tuple[str, ...] = ("intake", "retrieve", "draft")
+
 
 def make_node(name: str) -> NodeFn:
-    """冒烟用的最小阶段：记录阶段事件 + 计数（真实逻辑在 Step 1.11 接入）。"""
+    """冒烟用的最小阶段：记录阶段事件 + 计数。"""
 
     def node(state: AgentState) -> dict[str, Any]:
         counters = dict(state.get("counters") or {})
@@ -40,9 +54,9 @@ def build_graph(
     nodes: dict[str, NodeFn] | None = None,
     *,
     checkpointer: Any | None = None,
-    mainline: tuple[str, ...] = MAINLINE,
+    mainline: tuple[str, ...] = SMOKE_MAINLINE,
 ) -> Any:
-    """构建线性主干图；未提供的节点用 `make_node(name)` 兜底。"""
+    """线性主干图（Phase 1 冒烟用；mainline 可自定义）。"""
     from langgraph.graph import END, START, StateGraph
 
     if not mainline:
@@ -57,8 +71,50 @@ def build_graph(
     return builder.compile(checkpointer=checkpointer)
 
 
+def build_phase2_graph(
+    settings: Settings,
+    *,
+    nodes: dict[str, NodeFn] | None = None,
+    checkpointer: Any | None = None,
+) -> Any:
+    """十节点主干 + 条件边（S2/S3）。
+
+    条件边策略：每个节点之后调用 `route_after(stage, state)`：
+    - 命中回退动作（abort/replan/retry/...）→ 记录到 state 并由 runner 解释；
+    - 否则进入下一阶段；最后一节点 → END。
+    为了保持图可编译且可续跑，回退动作不在此处"跳转节点"，而是写入 `state.edge`，
+    由 runner 在节点边界统一处理（避免图出现未定义节点）。
+    """
+    from langgraph.graph import END, START, StateGraph
+
+    impl = Phase2Nodes(settings)
+    builder: Any = StateGraph(AgentState)
+
+    actions = {"abort", "replan", "retry", "degrade", "skip", "annotate", "expand", "rewrite", "warn"}
+
+    def wrap(name: str) -> NodeFn:
+        base: NodeFn = (nodes or {}).get(name) or getattr(impl, name)
+
+        def node(state: AgentState) -> dict[str, Any]:
+            patch = base(state)
+            next_hop = route_after(name, dict(state))
+            patch.setdefault("counters", {})
+            patch["stage"] = name
+            patch["edge"] = next_hop if next_hop in actions else None
+            return patch
+
+        return node
+
+    for name in PHASE2_STAGES:
+        builder.add_node(name, wrap(name))
+    builder.add_edge(START, PHASE2_STAGES[0])
+    for left, right in zip(PHASE2_STAGES, PHASE2_STAGES[1:], strict=False):
+        builder.add_edge(left, right)
+    builder.add_edge(PHASE2_STAGES[-1], END)
+    return builder.compile(checkpointer=checkpointer)
+
+
 def register_node(builder: Any, name: str, fn: NodeFn) -> None:
-    """Phase 2 用：向已有 builder 追加节点（Phase 1 仅供测试/扩展）。"""
     builder.add_node(name, fn)
 
 

@@ -33,24 +33,26 @@ def test_smoke_graph_runs_three_nodes_in_order() -> None:
 
 def test_edges_registry_covers_e1_to_e13() -> None:
     assert set(EDGES) == {f"E{index}" for index in range(1, 14)}
-    assert MAINLINE == ("intake", "retrieve", "draft")
+    assert MAINLINE[0] == "intake" and len(MAINLINE) == 10  # Phase 2：十节点主干
 
 
 def test_mainline_router() -> None:
-    assert route_after("intake", {}) == "retrieve"
-    assert route_after("retrieve", {}) == "draft"
-    assert route_after("draft", {}) == "end"
+    # Phase 2：主干改为十节点，逐跳推进
+    assert route_after("intake", {}) == "scope"
+    assert route_after("scope", {}) == "retrieval"
+    assert route_after("critique", {}) == "report"
+    assert route_after("evaluate", {}) == "end"
 
 
-def test_backoff_edges_are_explicitly_unimplemented() -> None:
+def test_edges_are_implemented_and_unknown_stage_rejected() -> None:
+    # S3：E1–E13 均已实现，返回动作；未知阶段仍然显式报错
+    assert backoff_edge("E11") == "replan"
+    assert route_after("scope", {"counters": {}}) == "retrieval"
+
+
     with pytest.raises(LitError) as excinfo:
-        route_after("scope", {})
+        route_after("nope", {})
     assert excinfo.value.code == E_FEATURE_DISABLED
-
-    with pytest.raises(LitError):
-        backoff_edge("E11")
-    with pytest.raises(ValueError):
-        backoff_edge("E99")
 
 
 def test_reducers_append_events_across_nodes() -> None:

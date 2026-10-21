@@ -30,6 +30,9 @@ class AgentState(TypedDict, total=False):
     artifacts: dict[str, Any]
     counters: dict[str, int]
     verdict: dict[str, Any] | None
+    focus_hint: str | None
+    edge: str | None
+    budget: dict[str, Any]
 
 
 def new_state(

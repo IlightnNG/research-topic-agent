@@ -14,7 +14,7 @@ import uuid
 from collections.abc import Callable, Mapping
 from typing import Any
 
-from sqlalchemy import text
+from sqlalchemy import bindparam, text
 
 from lit_agent.config import Settings
 from lit_agent.db.repo import runs as run_repo
@@ -414,6 +414,67 @@ def _llm_summary(settings: Settings, budget: Any, cards: list[Any], *, run_id: s
         gateway.close()
 
 
+def _load_cards_by_ids(settings: Settings, paper_ids: list[str]) -> list[Any]:
+    from lit_agent.models.evidence import EvidenceCard
+
+    if not paper_ids:
+        return []
+    active = make_engine(settings)
+    try:
+        with connect(active) as conn:
+            rows = conn.execute(
+                text(
+                    "SELECT paper_id, title, COALESCE(abstract,''), COALESCE(source,''), year"
+                    " FROM papers WHERE paper_id IN :ids"
+                ).bindparams(bindparam("ids", expanding=True)),
+                {"ids": paper_ids},
+            ).all()
+    finally:
+        active.dispose()
+    cards: list[Any] = []
+    for paper_id, title, abstract, source, year in rows:
+        snippet = (abstract or title or "").strip()[:400]
+        if snippet:
+            cards.append(
+                EvidenceCard(
+                    paper_id=str(paper_id),
+                    title=str(title or paper_id),
+                    snippet=snippet,
+                    source=str(source or "unknown"),
+                    year=int(year) if year is not None else None,
+                )
+            )
+    return cards
+
+
+def _persist_report_from_cards(
+    settings: Settings,
+    run_id: str,
+    topic_id: str,
+    cards: list[Any],
+    budget: Any | None,
+    focus_hint: str | None,
+) -> str | None:
+    from lit_agent.agents.reporter import build_report
+
+    title = f"Weekly report: {topic_id}"
+    if focus_hint:
+        title = f"{title} — {focus_hint}"
+    draft = build_report(cards, topic_id=topic_id, run_id=run_id, title=title)
+    draft = draft.model_copy(update={"degraded": not cards})
+    if cards and budget is not None:
+        summary = _llm_summary(settings, budget, cards, run_id=run_id)
+        if summary:
+            body = f"## Summary (LLM)\n\n{summary}\n\n{draft.content_md}"
+            draft = draft.model_copy(
+                update={
+                    "content_md": body,
+                    "content_sha": hashlib.sha256(body.encode("utf-8")).hexdigest()[:12],
+                }
+            )
+    return persist_report_draft(settings, run_id, draft)
+
+
 def _persist_report(
     settings: Settings,
     run_id: str,
@@ -427,7 +488,6 @@ def _persist_report(
     claims 为 1 条 unsupported（**不伪造 grounding**）。
     """
     from lit_agent.agents.reporter import build_report
-    from lit_agent.db.repo import reports as report_repo
 
     cards = _load_cards(settings, focus_hint=focus_hint)
     title = f"Weekly report: {topic_id}"
@@ -448,11 +508,42 @@ def _persist_report(
                     "content_sha": hashlib.sha256(body.encode("utf-8")).hexdigest()[:12],
                 }
             )
+    return persist_report_draft(settings, run_id, draft)
+
+
+def persist_report_cards(
+    settings: Settings,
+    run_id: str,
+    topic_id: str,
+    cards: list[Any],
+    *,
+    focus_hint: str | None = None,
+    budget: Any | None = None,
+) -> str | None:
+    """由**调用方给定卡片**落报告（唯一取数入口：上游 retrieval 负责取，下游只消费）。"""
+    return _persist_report_from_cards(settings, run_id, topic_id, cards, budget, focus_hint)
+
+
+def persist_report_for_state(settings: Settings, state: dict[str, Any]) -> str | None:
+    """从图状态落报告：优先用 retrieval 阶段留下的 `paper_ids` 复用同一批证据。"""
+    run_id = str(state.get("run_id") or "")
+    topic_id = str(state.get("topic_id") or "")
+    artifacts = state.get("artifacts") or {}
+    ids = artifacts.get("paper_ids")
+    cards = _load_cards_by_ids(settings, [str(item) for item in ids]) if ids else _load_cards(settings)
+    return _persist_report_from_cards(
+        settings, run_id, topic_id, cards, None, state.get("focus_hint")
+    )
+
+
+def persist_report_draft(settings: Settings, run_id: str, draft: Any) -> str | None:
+    """把已构建好的 Report 落库 + 同事务写 `report_written`。"""
+    from lit_agent.db.repo import reports as report_repo
+
     active = make_engine(settings)
     try:
         with connect(active, immediate=True) as conn:
             report_repo.insert_ignore(conn, draft)
-            # F5：claims 必须落库（此前只写 reports.claims_json → 指标 claims 恒为 0）
             _persist_claims(conn, run_id, draft.claims)
             SqliteEventLog(active, run_id).emit(
                 EventType.REPORT_WRITTEN,
@@ -462,7 +553,6 @@ def _persist_report(
                     "report_id": draft.report_id,
                     "degraded": draft.degraded,
                     "claims": draft.n_claims,
-                    "cards": len(cards),
                 },
                 conn=conn,
             )

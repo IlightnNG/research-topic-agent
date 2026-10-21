@@ -1,0 +1,80 @@
+{
+  "generated_at": "2026-10-21T18:43:43+0800",
+  "baseline": true,
+  "greens": 5,
+  "reds": 7,
+  "results": [
+    {
+      "name": "graph.nodes(10)",
+      "ok": true,
+      "detail": "stages=10 missing=-",
+      "target": "S2"
+    },
+    {
+      "name": "graph.edges(E1-E13)",
+      "ok": true,
+      "detail": "rules=13/13 missing=-",
+      "target": "S3"
+    },
+    {
+      "name": "graph.resume",
+      "ok": true,
+      "detail": "resume=True crash_hook=True",
+      "target": "S4"
+    },
+    {
+      "name": "agents.4roles",
+      "ok": false,
+      "detail": "implemented=[]",
+      "target": "S5/S6"
+    },
+    {
+      "name": "context.summarize",
+      "ok": false,
+      "detail": "summarize=not implemented",
+      "target": "S7"
+    },
+    {
+      "name": "guards.15",
+      "ok": false,
+      "detail": "guards=2 (Guard, NoProgressGuard)",
+      "target": "S8"
+    },
+    {
+      "name": "runtime.control",
+      "ok": false,
+      "detail": "status={'pause': 501, 'resume': 501, 'inject': 501}",
+      "target": "S9"
+    },
+    {
+      "name": "retrieval.hybrid",
+      "ok": false,
+      "detail": "hybrid_search=not implemented",
+      "target": "S10"
+    },
+    {
+      "name": "eval.suite",
+      "ok": false,
+      "detail": "implemented=[]",
+      "target": "S11"
+    },
+    {
+      "name": "web.10stages",
+      "ok": false,
+      "detail": "stages_in_ui=2/10",
+      "target": "S12"
+    },
+    {
+      "name": "baseline.phase1",
+      "ok": true,
+      "detail": "TOTAL: 11/11 PASS",
+      "target": "必须 GREEN"
+    },
+    {
+      "name": "baseline.tests",
+      "ok": true,
+      "detail": "unit+contract green",
+      "target": "必须 GREEN"
+    }
+  ]
+}

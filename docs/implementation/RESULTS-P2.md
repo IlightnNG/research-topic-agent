@@ -1,0 +1,144 @@
+# RESULTS — Phase 2（滚动记录）
+
+> 口径：本文件只记**实测**；数字由命令产出，不手写。
+> 规范：`phase2-implementation-steps.md` v2.0.0（M1–M8 × S1–S14，H1–H10）。
+
+## 0. 一页摘要
+
+| 指标 | 当前值 |
+|---|---|
+| 阶段 | **S1–S4 完成（图：十节点 / 条件边 / 续跑）** |
+| 能力基线 | `verify_phase2 --offline` → **5/12 PASS，7 RED**（S2/S3/S4 已翻绿） |
+| Phase 1 回归 | `verify_phase1 --online` → **13/13 PASS** |
+| 后端测试 | `pytest -q` → **295 例**（其中 42 例属图）全绿 |
+| 静态检查 | `ruff check .` → clean |
+
+---
+
+## 1. S1 · 基线冻结（2026-10-21）
+
+### 1.1 交付
+
+| 产物 | 说明 |
+|---|---|
+| `scripts/verify_phase2.py` | 12 条**能力探针**（离线）+ 可选在线回归；默认"全绿才 0"，`--baseline` 允许 RED 并落 JSON |
+| `docs/implementation/phase2-baseline-report.json` | 基线红绿表（机器可读） |
+| 本文件 | 滚动记录起点 |
+
+### 1.2 基线红绿表（实测）
+
+| 探针 | 结果 | 详情 | 目标 |
+|---|---|---|---|
+| `graph.nodes(10)` | 🔴 RED | `stages=4`，缺 scope/retrieval/parse/normalize/mapping/analysis/critique/evaluate | S2 |
+| `graph.edges(E1-E13)` | 🔴 RED | `unimplemented=13/13` | S3 |
+| `graph.resume` | 🟢 PASS | `resume=yes`（能力位存在；行为测试在 S4） | S4 |
+| `agents.4roles` | 🔴 RED | `implemented=[]` | S5/S6 |
+| `context.summarize` | 🔴 RED | `summarize=not implemented` | S7 |
+| `guards.15` | 🔴 RED | `guards=2`（`Guard`, `NoProgressGuard`） | S8 |
+| `runtime.control` | 🔴 RED | pause/resume/inject 全 501 | S9 |
+| `retrieval.hybrid` | 🔴 RED | 无 `hybrid_search` | S10 |
+| `eval.suite` | 🔴 RED | judge/faultinject/datasets 均未实现 | S11 |
+| `web.10stages` | 🔴 RED | UI 仅 2/10 阶段 | S12 |
+| `baseline.phase1` | 🟢 PASS | `verify_phase1 --offline 11/11` | 必须 GREEN |
+| `baseline.tests` | 🟢 PASS | unit+contract 全绿 | 必须 GREEN |
+
+```
+TOTAL: 3/12 PASS, 9 RED (baseline mode)
+```
+
+### 1.3 使用方式（后续每一步）
+
+```powershell
+. .\scripts\env.ps1
+uv run python scripts/verify_phase2.py --offline          # 全绿才 0
+uv run python scripts/verify_phase2.py --online           # 额外跑真实数据回归
+uv run python scripts/verify_phase2.py --baseline --json docs/implementation/phase2-baseline-report.json
+```
+
+**纪律**：只能通过"实现能力"把 RED 变 GREEN；**禁止改探针断言来变绿**（改断言需在 `phase2-implementation-steps.md` §11 记录并说明理由）。
+
+### 1.4 已知偏差
+
+- `graph.resume` 目前只验证"函数存在"，不是行为验证 → S4 会补"中断后 resume 不重复事件"的硬测试；
+- `retrieval.hybrid` 的探针只查工具位，S10 会换成"固定查询集 recall@10 ≥ 基线+10pp"的可执行判据（见 M6）。
+
+## 2. S2 · 十节点主干（2026-10-21）
+
+### 2.1 交付
+
+| 产物 | 说明 |
+|---|---|
+| `graph/nodes.py` | `Phase2Nodes`：intake / scope / retrieval / parse / normalize / mapping / analysis / critique / report / evaluate（**只做数据，不发事件**） |
+| `graph/pipeline.py` | `build_phase2_graph()`：十节点 + 条件边；保留 Phase 1 的三节点冒烟图（`SMOKE_MAINLINE`） |
+| `runtime/graph_runner.py` | `run_graph()`：拿锁建 run → 逐阶段发 `phase_change`（带 `dedupe_key`）→ 收尾；支持 `resume` 与崩溃注入 |
+| `graph/state.py` | 新增 `focus_hint` / `edge` / `budget` 字段 |
+
+### 2.2 实测
+
+```
+phase_change start 序列：
+["run", "intake", "scope", "retrieval", "parse", "normalize", "mapping", "analysis", "critique", "report", "evaluate"]
+end 序列 == 十个阶段
+pytest -q tests/graph  → 42 例全绿
+verify_phase2 → graph.nodes(10) PASS
+```
+
+### 2.3 关键设计
+
+- **节点不写事件、不写锁**：事件由 `graph_runner` 统一发，保证幂等与可回放；
+- **单一取数入口**：`retrieval` 把 `paper_ids` 放进 artifacts，`report` 用 `persist_report_for_state()` 复用同一批证据；
+- **state 只放引用**：卡片正文不进状态，避免 checkpoint 膨胀。
+
+### 2.4 偏差
+
+生产入口 `run_topic` 仍走 Phase 1 的四阶段链；十节点图先以 `run_graph` 并行提供，**切换计划在 S9**，避免 S2 就改动既有测试行为。
+
+---
+
+## 3. S3 · 条件边 E1–E13（2026-10-21）
+
+### 3.1 交付
+
+`graph/edges.py` 重写为规则表：
+
+```
+EdgeRule(edge, stage, action, predicate, note)  ×13
+PRIORITY: annotate < warn < skip < degrade < retry/rewrite/expand < replan < abort
+route_after(stage, state) → 动作名 | 下一阶段 | "end"
+backoff_edge(edge) → 动作名（不再抛"未实现"）
+```
+
+### 3.2 实测
+
+```
+13 条边 ×（触发 + 不触发）用例全绿
+预算边优先：route_after("scope", {"counters": {"drift_warn": 1, "budget_stop": 1}}) == "abort"
+未知阶段仍显式报 E_FEATURE_DISABLED
+```
+
+### 3.3 修掉的一个设计缺陷
+
+首版把"零值型"边（E4 `new_papers == 0`、E7 `cards == 0`）写成单纯 `== 0`，导致**空状态也触发**。
+改为 `_has(state, name) and _counter(...) == 0`：先确认该阶段确实写过计数，再判断零值。
+
+---
+
+## 4. S4 · 续跑与幂等（2026-10-21）
+
+### 4.1 交付
+
+- `run_graph(..., crash_after_stage=...)`：模拟进程中断（不 finish，checkpoint 已落盘）；
+- `run_graph(..., resume=True)`：`graph.invoke(None)` 续跑；
+- 事件 `dedupe_key`：`{stage}:start` / `{stage}:end` / `run:start:{fresh|resume}`。
+
+### 4.2 实测
+
+```
+中断于 analysis → resume → 最终 succeeded
+十个业务阶段各出现 1 次 start（无重复）
+resume 标记出现在事件 payload 中（便于审计）
+```
+
+### 4.3 已知边界
+
+`run:start` 允许出现两次（fresh + resume 各一次），十个业务阶段严格唯一——刻意保留的"续跑审计点"。
