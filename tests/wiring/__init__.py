@@ -12,7 +12,12 @@ from lit_agent.models.paper import Paper
 from lit_agent.models.topic import Topic
 
 
-def prepare(tmp_path: Path, *, papers: int = 1) -> Settings:
+def prepare(
+    tmp_path: Path,
+    *,
+    papers: int = 1,
+    specs: list[tuple[str, str]] | None = None,
+) -> Settings:
     settings = Settings(
         storage=StorageSettings(data_root=str(tmp_path / "data")),
         logging=LoggingSettings(console=False),
@@ -22,16 +27,19 @@ def prepare(tmp_path: Path, *, papers: int = 1) -> Settings:
     try:
         with connect(engine, immediate=True) as conn:
             topic_repo.upsert(conn, Topic(id="ai-agents", name="AI", scope_statement="agents"))
+            items = specs or [
+                (f"Paper {index}", "tool use improves task success") for index in range(papers)
+            ]
             paper_repo.upsert_many(
                 conn,
                 [
                     Paper(
                         paper_id=f"P{index}",
-                        title=f"Paper {index}",
-                        abstract="tool use improves task success",
+                        title=title,
+                        abstract=abstract,
                         source="arxiv",
                     )
-                    for index in range(papers)
+                    for index, (title, abstract) in enumerate(items)
                 ],
             )
     finally:

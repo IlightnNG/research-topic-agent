@@ -102,7 +102,7 @@ def gate_evidence_sufficiency(
 def gate_citation_integrity(
     stage: str, patch: dict[str, Any], state: dict[str, Any], ctx: RunContext
 ) -> GateResult | None:
-    if stage != "report":
+    if stage not in {"critique", "report"}:
         return None
     claims = _claims(state)
     bad = [
@@ -118,13 +118,14 @@ def gate_citation_integrity(
         "repair",
         f"{len(bad)} 条 claim 缺引用（index={bad[:5]}）",
         bad_indexes=bad,
+        repair_target="analysis",
     )
 
 
 def gate_support_ratio(
     stage: str, patch: dict[str, Any], state: dict[str, Any], ctx: RunContext
 ) -> GateResult | None:
-    if stage not in {"critique", "report"}:
+    if stage != "critique":
         return None
     claims = _claims(state)
     if not claims:
@@ -136,9 +137,10 @@ def gate_support_ratio(
     return _fail(
         "support_ratio",
         "E_GROUND_UNSUPPORTED_RATIO",
-        "degrade",
-        f"supported 比例 {ratio:.2f} < {MIN_SUPPORT_RATIO}",
+        "repair",
+        f"supported 比例 {ratio:.2f} < {MIN_SUPPORT_RATIO}：尝试补一次证据/重写",
         ratio=round(ratio, 4),
+        repair_target="analysis",
     )
 
 

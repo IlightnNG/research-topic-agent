@@ -8,7 +8,6 @@ from __future__ import annotations
 
 from pathlib import Path
 
-import pytest
 from fastapi.testclient import TestClient
 from sqlalchemy import text
 
@@ -18,11 +17,16 @@ from lit_agent.runtime.graph_runner import run_graph
 from tests.wiring import prepare
 
 
-@pytest.mark.xfail(strict=True, reason="S5/S6：run 口径与落库尚未接线")
 def test_metrics_are_run_scoped_and_persisted(tmp_path: Path) -> None:
-    settings = prepare(tmp_path, papers=2)
-    run_graph(settings, "ai-agents", run_id="m1")
-    run_graph(settings, "ai-agents", run_id="m2")
+    settings = prepare(
+        tmp_path,
+        specs=[
+            ("Tool use agents", "tool use improves task success"),
+            ("Diffusion proteins", "diffusion sampling for proteins"),
+        ],
+    )
+    run_graph(settings, "ai-agents", run_id="m1", focus_hint="tool use")
+    run_graph(settings, "ai-agents", run_id="m2", focus_hint="diffusion")
 
     engine = make_engine(settings)
     try:

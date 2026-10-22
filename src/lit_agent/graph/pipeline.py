@@ -109,12 +109,18 @@ def build_phase2_graph(
 
         return node
 
+    from lit_agent.graph.transitions import next_stage
+
     for name in PHASE2_STAGES:
         builder.add_node(name, wrap(name))
     builder.add_edge(START, PHASE2_STAGES[0])
-    for left, right in zip(PHASE2_STAGES, PHASE2_STAGES[1:], strict=False):
-        builder.add_edge(left, right)
-    builder.add_edge(PHASE2_STAGES[-1], END)
+    for name in PHASE2_STAGES:
+        builder.add_conditional_edges(
+            name,
+            lambda state, _stage=name: END
+            if next_stage(_stage, state) == "end"
+            else next_stage(_stage, state),
+        )
     return builder.compile(checkpointer=checkpointer)
 
 

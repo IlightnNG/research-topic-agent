@@ -47,10 +47,12 @@ class RunContext:
     def observation(self, state: dict[str, Any], stage: str) -> dict[str, Any]:
         """给守卫的观测：是"本阶段"的累计量，不是单步增量（避免停滞误报）。"""
         counters = dict(state.get("counters") or {})
-        artifacts = state.get("artifacts") or {}
-        return {
-            "stage": stage,
-            "counters": counters,
-            "produced": int(counters.get("claims", 0)) + int(counters.get("selected", 0)),
-            "artifacts": len(artifacts),
-        }
+        observation: dict[str, Any] = {"stage": stage, "counters": counters}
+        # 只有"会产出"的阶段才参与停滞/无进展判定，避免把 parse/normalize 这类
+        # 纯统计阶段误判为"没有进展"（Phase 1 的真实误报）。
+        if stage in {"retrieval", "analysis", "report"}:
+            observation["produced"] = int(counters.get("claims", 0)) + int(
+                counters.get("selected", 0)
+            )
+            observation["artifacts"] = len(state.get("artifacts") or {})
+        return observation

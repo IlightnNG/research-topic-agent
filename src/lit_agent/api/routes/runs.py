@@ -203,3 +203,35 @@ def inject_run(
     _require_run(engine, run_id)
     control.inject_prompt(run_id, payload.prompt)
     return {"run_id": run_id, "pending": len(control.pending_inject(run_id))}
+
+
+@router.get("/{run_id}/metrics")
+def get_metrics(
+    run_id: str,
+    settings: Settings = Depends(get_settings),
+    engine: Any = Depends(get_engine),
+) -> dict[str, Any]:
+    """单 run 指标：优先读 `metrics` 表；缺失时按需计算（不要求回填迁移）。"""
+    from lit_agent.eval.metrics import compute_run_metrics
+
+    with connect(engine) as conn:
+        exists = conn.execute(
+            text("SELECT 1 FROM runs WHERE id = :rid"), {"rid": run_id}
+        ).first()
+        rows = conn.execute(
+            text(
+                "SELECT metric, value FROM metrics"
+                " WHERE scope = 'run' AND scope_id = :rid"
+            ),
+            {"rid": run_id},
+        ).all()
+    if exists is None:
+        raise LitError(E_NOT_FOUND, f"run 不存在：{run_id}", context={"run_id": run_id})
+
+    if rows:
+        payload = {str(metric): float(value) for metric, value in rows}
+        source = "persisted"
+    else:
+        payload = compute_run_metrics(settings, run_id)
+        source = "computed"
+    return {"run_id": run_id, "source": source, **payload}

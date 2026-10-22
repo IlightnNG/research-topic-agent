@@ -544,14 +544,14 @@ def _backfill_sections(conn: Any, draft: Any, run_id: str) -> None:
         return
     conn.execute(
         _text(
-            "UPDATE reports SET sections_json = :sections WHERE run_id = :run_id"
+            "UPDATE reports SET sections_json = :sections WHERE report_id = :report_id"
         ),
         {
             "sections": __import__("json").dumps(
                 [section.model_dump(mode="json") for section in draft.sections],
                 ensure_ascii=False,
             ),
-            "run_id": run_id,
+            "report_id": draft.report_id,
         },
     )
 

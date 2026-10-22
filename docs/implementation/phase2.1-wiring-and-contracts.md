@@ -1,7 +1,7 @@
 # Phase 2.1 —— 接线、门禁与契约（Wiring · Gates · Contracts）
 
 > **文档性质**：**规范性文件（冻结契约）**。Phase 2.1 的"做什么 / 什么算做完 / 按什么顺序"以本文件为唯一判据。
-> **版本**：**1.2.0**（2026-10-22，S1–S3 已落地）
+> **版本**：**1.3.0**（2026-10-22，S1–S6 已落地）
 > **前序**：`phase2-implementation-steps.md` v3.0.0（已收尾）、`phase1.1-scope-and-acceptance.md`、`phase1.2-frontend-spec.md` v1.3.0、**ADR-0006（事件格式冻结）**、本阶段新增 **ADR-0007（NodeIO 与配置冻结）**。
 > **入口基线**：`verify_phase2 12/12`、`verify_phase1 13/13`、`pytest 354 例`、`e2e 8 passed`、`vue-tsc 0 error`、迁移 head `0003_reports_sections`。
 
@@ -182,7 +182,7 @@ class Decision(BaseModel):
 | `schema` | 输出符合 `NodeOutput` | retry(1) → abort | `E_SCHEMA_STAGE_OUTPUT` |
 | `evidence_sufficiency` | `len(paper_ids) ≥ evidence_min_cards` | repair→`retrieval` | `E_GROUND_NO_EVIDENCE` |
 | `citation_integrity` | 每条 claim ≥1 citation 且 paper_id 存在 | repair→`analysis` | `E_GROUND_UNRESOLVED_CITATION` |
-| `support_ratio` | supported/total ≥ 0.6 | degrade | `E_GROUND_UNSUPPORTED_RATIO` |
+| `support_ratio` | supported/total ≥ 0.6 | **repair→analysis**（用尽后 degrade） | `E_GROUND_UNSUPPORTED_RATIO` |
 | `budget` | 已花 ≤ 硬顶 且 LLM 调用数 ≤ 12 | abort | `E_BUDGET_EXCEEDED` |
 | `drift` | `drift_block/drift_warn` 计数 | abort / annotate | `E_GUARD_DRIFT` |
 
@@ -311,9 +311,9 @@ class Decision(BaseModel):
 | **S1** ✅ | M0 | 先写**会红**的接线测试 | `tests/wiring/` 6 文件；4 条 `xfail(strict)`、2 条已绿 | 套件保绿 + 4 条待翻绿 | 删除新测试 | 0.5 h |
 | **S2** ✅ | M1 | 契约骨架 + 门禁框架 + 两阶段提交 | `contracts/nodeio.py`、`graph/gates.py`、`runtime/commit.py`、report/evaluate 改 pending_writes | 坏 claim 不落库；健康 run 零门禁失败 | `gates.enabled=false` | 4 h |
 | **S3** ✅ | M1 | supervisor + 守卫接线 + 预算门禁 | `supervisor.py`、`context.py`、`RunBudget.from_db`、attempt/decision 入 state | 预算超限→aborted + `guard_trigger`；中止 run 零写入 | 同上 + `guards.enabled=false` | 4 h |
-| **S4** | M2 | 有界回边 | `edges.route_from_decision`、3 条条件边、attempt 记账 | retry/repair 生效且不越限 | `transitions.enabled=false` | 4 h |
-| **S5** | M3 | 指标 run 口径 | `metrics.py` SQL 加 `r.id`；`claims_supported_db` 更名 | 两 run 指标独立 | 保留旧函数别名 | 2 h |
-| **S6** | M3 | 指标落库 + API + 分节回填带主键 | `commit` 调 persist、`GET /runs/{id}/metrics` | 库/接口/报告一致 | `metrics.persist=false` | 2.5 h |
+| **S4** ✅ | M2 | 有界回边 | `graph/transitions.py`、`add_conditional_edges`、attempt 上限、`recovery` 事件 | 坏产物 → analysis attempt=2 → 用尽后 degrade；续跑不重复 | `transitions=false` | 4 h |
+| **S5** ✅ | M3 | 指标 run 口径 | `compute_run_metrics` 全部按 `run_id` 取数；grounding 改判定器口径 | 两 run 指标独立（m1=1, m2=1） | 保留旧函数别名 | 2 h |
+| **S6** ✅ | M3 | 指标落库 + API + 分节回填带主键 | `evaluate` commit 落库、`GET /runs/{id}/metrics`（缺行按需计算）、回填按 `report_id` | 库/接口/报告一致；旧 run 不回填 | `metrics.persist=false` | 2.5 h |
 | **S7** | M4 | hybrid 进节点 | `nodes.retrieval` 用 `ctx.retrieval` | `selected` 与基准一致 | `retrieval.hybrid=false` | 1.5 h |
 | **S8** | M4 | LLM 进分析 | `nodes.analysis(ctx)` + 回落 + `llm_calls` | 有 key 有行、无 key 降级 | `llm.enabled=false` | 2.5 h |
 | **S9** | M5 | 单流水线 | scheduler→`run_graph`；`run_topic` 弃用警告 | 定时 run 十阶段 | 恢复 scheduler 旧调用 | 1.5 h |

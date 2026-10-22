@@ -111,7 +111,7 @@ def run_graph(
         topic_id=topic_id,
         budget=run_budget,
         log=log,
-        transitions_enabled=False,  # S4 打开回边；S3 只执行 abort/degrade
+        transitions_enabled=True,  # S4：有界回边已启用
         gates_enabled=True,
     )
     rail = guard_rail(run_budget)
@@ -172,33 +172,84 @@ def run_graph(
                 )
                 raise RunAborted(decision)
 
+            from lit_agent.graph.transitions import MAX_ATTEMPTS
+
             executed = decision
-            if decision.action in {"retry", "repair", "replan"} and not ctx.transitions_enabled:
-                # S3：回边尚未启用 → 显式降级（S4 打开后改为真正的回边）
-                log.emit(
-                    EventType.GUARD_TRIGGER,
-                    stage=name,
-                    agent="supervisor",
-                    severity=Severity.WARNING,
-                    payload={
-                        "gate": gates[0].name if gates else "guard",
-                        "code": decision.code,
-                        "action": decision.action,
-                        "target": decision.target,
-                        "reasons": decision.reasons,
-                        "attempt": attempt,
-                        "source": decision.source,
-                        "deferred": True,
-                    },
-                    dedupe_key=f"guard:{name}:{attempt}:{decision.action}",
-                )
-                executed = decision.model_copy(
-                    update={
-                        "action": "degrade",
-                        "deferred": True,
-                        "reasons": [*decision.reasons, "回边未启用（S4），本次降级继续"],
-                    }
-                )
+            if decision.action in {"retry", "repair", "replan"}:
+                target = decision.target or name
+                done = int(attempts.get(target, 0))
+                limit = MAX_ATTEMPTS.get(target, 1)
+                if not ctx.transitions_enabled or done >= limit:
+                    reason = (
+                        "回边未启用"
+                        if not ctx.transitions_enabled
+                        else f"尝试次数用尽（{done}/{limit}），降级继续"
+                    )
+                    log.emit(
+                        EventType.GUARD_TRIGGER,
+                        stage=name,
+                        agent="supervisor",
+                        severity=Severity.WARNING,
+                        payload={
+                            "gate": gates[0].name if gates else "guard",
+                            "code": decision.code,
+                            "action": decision.action,
+                            "target": target,
+                            "reasons": [*decision.reasons, reason],
+                            "attempt": attempt,
+                            "source": decision.source,
+                            "codes": sorted({decision.code, *(gate.code for gate in gates)}),
+                            "exhausted": ctx.transitions_enabled,
+                        },
+                        dedupe_key=f"guard:{name}:{attempt}:exhausted",
+                    )
+                    executed = decision.model_copy(
+                        update={"action": "degrade", "reasons": [*decision.reasons, reason]}
+                    )
+                else:
+                    log.emit(
+                        EventType.GUARD_TRIGGER,
+                        stage=name,
+                        agent="supervisor",
+                        severity=Severity.WARNING,
+                        payload={
+                            "gate": gates[0].name if gates else "guard",
+                            "code": decision.code,
+                            "action": decision.action,
+                            "target": target,
+                            "reasons": decision.reasons,
+                            "attempt": attempt,
+                            "source": decision.source,
+                            "codes": sorted({decision.code, *(gate.code for gate in gates)}),
+                        },
+                        dedupe_key=f"guard:{name}:{attempt}:{decision.action}",
+                    )
+                    log.emit(
+                        EventType.RECOVERY,
+                        stage=name,
+                        payload={
+                            "from_stage": name,
+                            "to_stage": target,
+                            "attempt": attempt,
+                            "reason": decision.reasons[0] if decision.reasons else decision.code,
+                        },
+                        dedupe_key=f"recovery:{name}:{attempt}:{target}",
+                    )
+                    log.emit(
+                        EventType.PHASE_CHANGE,
+                        stage=name,
+                        payload={
+                            "phase": "end",
+                            "attempt": attempt,
+                            "ok": False,
+                            "action": decision.action,
+                            "gates": _gate_payload(gates),
+                        },
+                        dedupe_key=f"{name}:end:{attempt}",
+                    )
+                    patch["attempts"] = attempts
+                    patch["decisions"] = [decision.model_dump(mode="json")]
+                    return patch
             elif decision.action != "continue":
                 log.emit(
                     EventType.GUARD_TRIGGER,
@@ -209,10 +260,10 @@ def run_graph(
                         "gate": gates[0].name if gates else "guard",
                         "code": decision.code,
                         "action": decision.action,
-                        "target": decision.target,
                         "reasons": decision.reasons,
                         "attempt": attempt,
                         "source": decision.source,
+                        "codes": sorted({decision.code, *(gate.code for gate in gates)}),
                     },
                     dedupe_key=f"guard:{name}:{attempt}:{decision.action}",
                 )

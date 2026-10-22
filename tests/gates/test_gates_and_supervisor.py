@@ -166,12 +166,14 @@ def test_bad_claim_is_not_persisted(tmp_path: Path) -> None:
             assert claim.get("citations"), f"无引用的 claim 落库了：{claim}"
 
     events = fetch_events(settings, "g-bad")
-    codes = {
-        event["payload"].get("code")
-        for event in events
-        if event["type"] == "guard_trigger"
-    }
-    # 坏 claim 同时会拉低 support_ratio，因此两种码都可能被选为"最重动作"
+    codes: set[str] = set()
+    for event in events:
+        if event["type"] != "guard_trigger":
+            continue
+        payload = event["payload"]
+        codes.add(str(payload.get("code")))
+        codes.update(str(item) for item in payload.get("codes") or [])
+    # 坏 claim 同时会拉低 support_ratio；两种码都应出现在本次决策的 codes 里
     assert codes & {"E_GROUND_UNRESOLVED_CITATION", "E_GROUND_UNSUPPORTED_RATIO"}, codes
 
 

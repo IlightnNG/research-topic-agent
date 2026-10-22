@@ -194,6 +194,8 @@ class NoProgressGuard:
     _history: deque[int] = field(default_factory=lambda: deque(maxlen=8))
 
     def check(self, observation: dict[str, Any]) -> Verdict | None:
+        if "produced" not in observation:
+            return None
         produced = int(observation.get("produced", 0))
         self._history.append(produced)
         if len(self._history) <= self.no_progress_steps:
@@ -349,6 +351,8 @@ class StagnationGuard:
     _history: deque[int] = field(default_factory=lambda: deque(maxlen=8))
 
     def check(self, observation: dict[str, Any]) -> Verdict | None:
+        if "artifacts" not in observation:
+            return None
         artifacts = int(observation.get("artifacts", 0))
         self._history.append(artifacts)
         if len(self._history) <= self.no_progress_steps:

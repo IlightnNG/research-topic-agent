@@ -8,14 +8,11 @@ from __future__ import annotations
 
 from pathlib import Path
 
-import pytest
-
 from lit_agent.eval import faultinject
 from lit_agent.runtime.graph_runner import run_graph
 from tests.wiring import fetch_events, prepare
 
 
-@pytest.mark.xfail(strict=True, reason="S4：回边执行器尚未启用（transitions_enabled=False）")
 def test_bad_artifact_triggers_repair_loop(tmp_path: Path) -> None:
     settings = prepare(tmp_path)
 

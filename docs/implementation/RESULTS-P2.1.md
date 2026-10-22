@@ -7,9 +7,9 @@
 
 | 指标 | 当前值 |
 |---|---|
-| 阶段 | **S1–S3 完成**（先红后绿：接线测试 → 契约/门禁 → 监督者/守卫） |
-| 测试 | `pytest` 收集 **371 例**（1 skip=浏览器 e2e；4 xfail=待 S4–S9 的接线目标） |
-| 接线测试 | `tests/wiring` 6 条：1 绿（守卫）、4 xfail（S4/S5-6/S7/S9）、1 绿（LLM 提前通过） |
+| 阶段 | **S1–S6 完成**（图/门禁/回边/指标口径/指标落库） |
+| 测试 | `pytest` 收集 **371 例**（1 skip=浏览器 e2e；2 xfail=待 S7/S9） |
+| 接线测试 | `tests/wiring` 6 条：4 绿（守卫/LLM/回边/指标）、2 xfail（S7 hybrid、S9 scheduler） |
 | 门禁测试 | `tests/gates` 11 例全绿（6 类门禁 × 触发/不触发 + 监督者 3 例 + 集成 2 例） |
 | Phase 2 基线 | `verify_phase2 --offline` **12/12**（未回归） |
 | Phase 1 基线 | `verify_phase1 --online` **13/13** |
@@ -93,3 +93,80 @@ schema 门禁：9KB 产物 → 拒绝（claims_json 例外，由 MAX_CLAIMS 限�
 
 **S4**：`transitions_enabled=True` + 图内条件回边（analysis↔critique、retrieval↔expand），
 把 4 条 xfail 中的 `test_transitions_wired` 翻绿。
+
+## 5. S4 · 有界回边（2026-10-22）
+
+### 5.1 交付
+
+| 产物 | 说明 |
+|---|---|
+| `graph/transitions.py` | `MAX_ATTEMPTS`（analysis/critique/retrieval=2、report=1）+ `next_stage()` 纯函数 |
+| `graph/pipeline.py` | 线性边 → `add_conditional_edges`（图内环，每个 superstep 都 checkpoint） |
+| `graph_runner.py` | 回边执行：attempt 未用尽 → 发 `guard_trigger` + `recovery` 并跳转；用尽 → `degrade` |
+| `graph/gates.py` | `support_ratio` 改为 `repair`；`citation_integrity` 覆盖 critique + report |
+
+### 5.2 实测
+
+```
+坏产物 → critique 门禁命中 → recovery(critique→analysis)
+      → analysis attempt=2 → 仍坏 → 尝试用尽 → degrade → 落库时丢弃坏 claim
+pytest tests/wiring/test_transitions_wired.py → 绿
+```
+
+### 5.3 本轮抓到的真 bug（守卫误报）
+
+`NoProgressGuard` / `StagnationGuard` 在**非产出阶段**（parse/normalize/mapping）也收到 `produced/artifacts`，
+而这两个阶段本来就不增长 → 误判"停滞" → 决策 `degrade`，把回边吃掉了。
+
+修法：
+- `RunContext.observation()` 只对 `retrieval/analysis/report` 提供 `produced/artifacts`；
+- 两个守卫在缺键时返回 `None`（"不适用" ≠ "没问题"）。
+
+> 这正是 Phase 2.1 文档 §12 第 4 条"零值/缺失要区分"的翻版。
+
+---
+
+## 6. S5 · 指标改 run 口径（2026-10-22）
+
+### 6.1 交付
+
+`compute_run_metrics()` 重写：claims / citations / llm_calls 全部按 `run_id` 过滤；
+`grounding_rate` 改由判定器（`check_claim`）计算，DB 口径保留为 `claims_supported` / `supported_rate_db`。
+
+### 6.2 实测
+
+```
+同话题、两篇不同论文、两次 run（focus_hint 不同）：
+  m1.claims_total = 1，m2.claims_total = 1（旧实现会都是 2）
+pytest tests/wiring/test_metrics_wired.py → 绿
+```
+
+### 6.3 口径变更（契约）
+
+| 指标 | 旧 | 新 |
+|---|---|---|
+| `grounding_rate` | `claims.support` 自证 | 判定器 `check_claim` |
+| `claims_supported` | 唯一口径 | 保留（= DB support），新增 `supported_rate_db` 名称 |
+| `hallucination_rate` | `1 - support 比例` | `1 - grounding_rate` |
+
+旧测试已按新口径调整，并在测试内注明原因。
+
+---
+
+## 7. S6 · 指标落库 + API（2026-10-22）
+
+### 7.1 交付
+
+| 产物 | 说明 |
+|---|---|
+| `GET /api/runs/{run_id}/metrics` | 优先读 `metrics`；缺行**按需计算**并标 `source="computed"`（不做回填迁移） |
+| `commit` 中的 `metrics` 写入 | `evaluate` 节点声明写入 → 门禁通过后 `persist_run_metrics` 落库 |
+| 分节回填 | `UPDATE ... WHERE report_id = :report_id`（不再按 run 批量覆盖） |
+
+### 7.2 实测
+
+```
+metrics 表：scope='run' 每 run 一行集；scope_id=run_id
+API：200 + 与库一致；未知 run → 404
+分节：同一 report 行更新，不再影响历史行
+```

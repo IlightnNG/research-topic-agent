@@ -127,8 +127,10 @@ def test_metrics_computed_from_claims_and_calls(tmp_path: Path) -> None:
     # run 本身会落 1 条 degraded(unsupported) claim，再加手插的 1 supported + 1 unsupported
     assert metrics["claims"] == 3
     assert metrics["claims_supported"] == 1
-    assert metrics["grounding_rate"] == round(1 / 3, 4)
-    assert metrics["hallucination_rate"] == round(2 / 3, 4)
+    # S5：grounding_rate 改为判定器口径；DB support 口径保留在 supported_rate_db
+    assert metrics["supported_rate_db"] == round(1 / 3, 4)
+    assert 0.0 <= float(metrics["grounding_rate"]) <= 1.0
+    assert metrics["hallucination_rate"] == round(1 - float(metrics["grounding_rate"]), 4)
     assert metrics["citation_coverage"] == round(1 / 3, 4)
     assert metrics["cost_usd"] == 0.003
 
