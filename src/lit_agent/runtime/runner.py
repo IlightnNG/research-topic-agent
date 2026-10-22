@@ -536,6 +536,26 @@ def persist_report_for_state(settings: Settings, state: dict[str, Any]) -> str |
     )
 
 
+def _backfill_sections(conn: Any, draft: Any, run_id: str) -> None:
+    """补写分节：insert_ignore 幂等命中时不会覆盖旧行，这里单独 UPDATE。"""
+    from sqlalchemy import text as _text
+
+    if not getattr(draft, "sections", None):
+        return
+    conn.execute(
+        _text(
+            "UPDATE reports SET sections_json = :sections WHERE run_id = :run_id"
+        ),
+        {
+            "sections": __import__("json").dumps(
+                [section.model_dump(mode="json") for section in draft.sections],
+                ensure_ascii=False,
+            ),
+            "run_id": run_id,
+        },
+    )
+
+
 def persist_report_draft(settings: Settings, run_id: str, draft: Any) -> str | None:
     """把已构建好的 Report 落库 + 同事务写 `report_written`。"""
     from lit_agent.db.repo import reports as report_repo
@@ -544,6 +564,7 @@ def persist_report_draft(settings: Settings, run_id: str, draft: Any) -> str | N
     try:
         with connect(active, immediate=True) as conn:
             report_repo.insert_ignore(conn, draft)
+            _backfill_sections(conn, draft, run_id)
             _persist_claims(conn, run_id, draft.claims)
             SqliteEventLog(active, run_id).emit(
                 EventType.REPORT_WRITTEN,

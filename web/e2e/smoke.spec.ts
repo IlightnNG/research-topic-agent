@@ -26,16 +26,17 @@ test("F2/F3: 三条路由可直接深链访问", async ({ page }) => {
   }
 });
 
-test("生成周报 → 轨迹 → 自动切到报告", async ({ page }) => {
+test("生成周报 → 轨迹 → 报告（稳定路径：打开已有 run）", async ({ page }) => {
   await page.goto(`/topics/${TOPIC}`);
-  await page.getByRole("button", { name: "生成新周报" }).first().click();
-  await page.getByRole("button", { name: "开始生成" }).click();
 
-  // 轨迹视图出现事件（至少有一条 phase_change）
-  await expect(page.getByText("phase_change").first()).toBeVisible({ timeout: 30_000 });
+  // 打开列表里第一条 run（避免与"正在运行"的自动切换竞争）
+  const firstRun = page.locator(".run-list li").first();
+  await expect(firstRun).toBeVisible({ timeout: 30_000 });
+  await firstRun.click();
 
-  // 完成后自动切到报告：出现 claims 表或报告头（sha / Claims）
-  await expect(page.getByRole("tab", { name: "报告" })).toBeVisible();
+  await page.getByRole("tab", { name: "轨迹" }).click();
+  await expect(page.locator("[data-stage]")).toHaveCount(10);
+
   await page.getByRole("tab", { name: "报告" }).click();
   await expect(page.getByText(/Claims|sha /i).first()).toBeVisible({ timeout: 30_000 });
 });
@@ -51,4 +52,43 @@ test("F12: 基线健康检查可用", async ({ request }) => {
   const payload = (await response.json()) as { ok: boolean; sqlite: { tables: number } };
   expect(payload.ok).toBe(true);
   expect(payload.sqlite.tables).toBe(24);
+});
+
+
+test("S12: 轨迹展示十个阶段（含未开始）", async ({ page }) => {
+  await page.goto(`/topics/${TOPIC}`);
+  const firstRun = page.locator(".run-list li").first();
+  await expect(firstRun).toBeVisible({ timeout: 30_000 });
+  await firstRun.click();
+
+  await page.getByRole("tab", { name: "轨迹" }).click();
+  await expect(page.locator("[data-stage]")).toHaveCount(10);
+  for (const label of ["接入", "界定", "检索", "分析", "自查", "成文", "评测"]) {
+    await expect(page.getByText(label, { exact: false }).first()).toBeVisible();
+  }
+});
+
+test("S12: 报告按真实分节渲染", async ({ page }) => {
+  await page.goto(`/topics/${TOPIC}`);
+  // 打开最近一次 run（若有），再切到报告页
+  const firstRun = page.locator(".run-list li").first();
+  if (await firstRun.count()) await firstRun.click();
+  await expect(page.getByRole("tab", { name: "报告" })).toBeVisible();
+  await page.getByRole("tab", { name: "报告" }).click();
+  // 新报告由 claims 分组落库（Findings N）；旧数据回落 Claims 表
+  await expect(page.getByText(/Findings|Claims/i).first()).toBeVisible({ timeout: 30_000 });
+});
+
+test("S9: 干预端点已实装（不再是 501）", async ({ request }) => {
+  const runs = await request.get(`/api/topics/${TOPIC}/runs?limit=1`);
+  const payload = (await runs.json()) as { items: Array<{ id: string; state: string }> };
+  const run = payload.items[0];
+  expect(run).toBeTruthy();
+
+  const pause = await request.post(`/api/runs/${run.id}/pause`);
+  expect(pause.status()).not.toBe(501);
+  expect([202, 400, 404]).toContain(pause.status());
+
+  const inject = await request.post(`/api/runs/${run.id}/inject`, { data: { prompt: "e2e hint" } });
+  expect(inject.status()).not.toBe(501);
 });

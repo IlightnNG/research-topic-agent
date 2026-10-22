@@ -23,7 +23,21 @@ const emit = defineEmits<{
   retry: [];
   why: [number];
   tabClick: [];
+  pause: [];
+  resume: [];
+  inject: [string];
 }>();
+
+const injectOpen = ref(false);
+const injectText = ref("");
+
+function submitInject() {
+  const text = injectText.value.trim();
+  if (!text) return;
+  emit("inject", text);
+  injectText.value = "";
+  injectOpen.value = false;
+}
 
 const tabs = ref(props.view);
 </script>
@@ -48,6 +62,13 @@ const tabs = ref(props.view);
       <div class="cluster">
         <el-tag v-if="run" size="small">{{ run.state }}</el-tag>
         <el-tag v-if="run?.period" size="small" type="info">{{ run.period }}</el-tag>
+        <el-button v-if="isRunning" size="small" text @click="emit('pause')">暂停</el-button>
+        <el-button v-if="run?.state === 'paused'" size="small" type="primary" text @click="emit('resume')">
+          继续
+        </el-button>
+        <el-button v-if="isRunning || run?.state === 'paused'" size="small" text @click="injectOpen = true">
+          注入提示
+        </el-button>
         <el-button v-if="isRunning" size="small" type="danger" text @click="emit('abort')">
           中止
         </el-button>
@@ -57,6 +78,14 @@ const tabs = ref(props.view);
     <p class="sr-only" role="status" aria-live="polite">
       run {{ run?.id }} state {{ run?.state ?? "unknown" }}, events {{ events.length }}
     </p>
+
+    <el-dialog v-model="injectOpen" title="注入提示词" width="420">
+      <el-input v-model="injectText" placeholder="下一阶段将合并进 focus_hint" maxlength="500" />
+      <template #footer>
+        <el-button @click="injectOpen = false">取消</el-button>
+        <el-button type="primary" @click="submitInject">注入</el-button>
+      </template>
+    </el-dialog>
 
     <template v-if="view === 'trajectory'">
       <FailureCard

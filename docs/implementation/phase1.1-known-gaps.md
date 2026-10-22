@@ -37,8 +37,8 @@
 | G-12 | run 同步执行（未异步 + 202） | P2 | P2 | 已有 409 阻塞语义，UI 可用 |
 | G-13 | `phase2-implementation-steps.md` 不存在 | P1 | F9 | 本阶段末产出首版（含出口标准，不写实现） |
 | G-17 | F5/F7/F8/F9 仅有手动验证（无 e2e 用例） | P1 | 1.2.x | 见 `phase1.2-frontend-spec.md` §15.4 |
-| G-18 | `sections[]` 仍是 claims 的派生（前端已抑制重复渲染） | P2 | P2-2 | 真实章节化需要 LLM 抽取 |
-| G-19 | 前端类型手写（未接 `types.gen.ts`） | P2 | 1.2.x | OpenAPI 已可导出 |
+| G-18 | ~~`sections[]` 仍是 claims 的派生~~ | ~~P2~~ **已关闭 2026-10-21** | Phase 2 S12 ✅ | `reports.sections_json` + 迁移 0003，按 claims 分组落库 |
+| G-19 | ~~前端类型手写~~ | ~~P2~~ **已关闭 2026-10-21** | Phase 2 S12 ✅ | `scripts/gen_web_types.py` → `types.gen.ts`（6 schemas） |
 | G-20 | 生产部署缺 history 路由回退（`try_files`） | P2 | 部署清单 | dev 由 Vite 兜底 |
 | G-16 | 结构快照未纳入自动流程 | P1 | F8 ✅ | 已产出 `phase1-doctor-snapshot.json`；F10 复核时刷新 |
 

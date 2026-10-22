@@ -1,8 +1,8 @@
 {
-  "generated_at": "2026-10-21T19:08:05+0800",
-  "baseline": true,
-  "greens": 9,
-  "reds": 3,
+  "generated_at": "2026-10-21T19:38:05+0800",
+  "baseline": false,
+  "greens": 12,
+  "reds": 0,
   "results": [
     {
       "name": "graph.nodes(10)",
@@ -42,14 +42,14 @@
     },
     {
       "name": "runtime.control",
-      "ok": false,
-      "detail": "OperationalError: (sqlite3.OperationalError) no such table: runs\n[SQL: SELECT id, state, topic_id FROM runs WHERE id = ?]\n[parameters: ('n",
+      "ok": true,
+      "detail": "status={'pause': 404, 'resume': 404, 'inject': 404}",
       "target": "S9"
     },
     {
       "name": "retrieval.hybrid",
-      "ok": false,
-      "detail": "hybrid_search=not implemented",
+      "ok": true,
+      "detail": "keyword=0.75 hybrid=1.00 gain=+0.25",
       "target": "S10"
     },
     {
@@ -60,8 +60,8 @@
     },
     {
       "name": "web.10stages",
-      "ok": false,
-      "detail": "stages_in_ui=2/10",
+      "ok": true,
+      "detail": "stages_in_ui=10/10",
       "target": "S12"
     },
     {

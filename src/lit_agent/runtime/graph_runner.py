@@ -1,11 +1,9 @@
-"""十节点图的执行器（S2/S3/S4）：事件包装 + 条件边解释 + 续跑。
+"""十节点图的执行器（S2/S3：门禁 + 监督者 + 两阶段提交）。
 
 职责边界
-- **节点**（`graph/nodes.py`）只做数据工作，不写事件；
-- **本模块**负责：拿锁建 run、每阶段前后发 `phase_change`（带 `dedupe_key` 保证幂等）、
-  解释 `state.edge`（abort/replan/...）、写阶段状态、收尾、失败报告。
-- 续跑：`resume=True` 时调用 `graph.invoke(None)`，已完成的节点不会重跑（checkpoint 语义），
-  因此**不会重复发 `phase_change start`**。
+- **节点**只做数据工作，返回 `pending_writes`，不写库；
+- **本模块**负责：拿锁建 run、每阶段事件（带 attempt）、跑门禁与守卫、
+  执行 `Decision`（S3：abort/degrade）、门禁通过后提交写入、收尾、续跑。
 """
 
 from __future__ import annotations
@@ -13,17 +11,23 @@ from __future__ import annotations
 from typing import Any
 
 from lit_agent.config import Settings
+from lit_agent.contracts.nodeio import Decision, GateResult
 from lit_agent.db.repo import runs as run_repo
 from lit_agent.db.session import connect, make_engine
 from lit_agent.errors import E_LOCK_HELD, E_UNEXPECTED, LitError
 from lit_agent.graph.checkpoint import open_checkpointer, thread_config
+from lit_agent.graph.gates import run_gates
+from lit_agent.graph.guards import guard_rail
 from lit_agent.graph.pipeline import build_phase2_graph
 from lit_agent.graph.state import new_state
+from lit_agent.graph.supervisor import decide
 from lit_agent.models._base import Severity
 from lit_agent.models.event import EventType
 from lit_agent.models.run import RunState
 from lit_agent.runtime import control, jobs
 from lit_agent.runtime.budget import RunBudget
+from lit_agent.runtime.commit import commit_pending
+from lit_agent.runtime.context import RunContext
 from lit_agent.runtime.events import SqliteEventLog
 from lit_agent.runtime.runner import new_run_id, prepare_run
 
@@ -36,7 +40,14 @@ class SimulatedCrash(RuntimeError):
 
 class PauseRequested(RuntimeError):
     """人工暂停：在阶段边界退出，run 置为 paused，checkpoint 保留。"""
-    """测试用：模拟进程中断（run 保持 running，便于验证续跑）。"""
+
+
+class RunAborted(RuntimeError):
+    """门禁/守卫要求终止。"""
+
+    def __init__(self, decision: Decision) -> None:
+        super().__init__(decision.code)
+        self.decision = decision
 
 
 def _persist_focus_hint(settings: Settings, run_id: str, focus_hint: str | None) -> None:
@@ -57,6 +68,18 @@ def _set_stage(settings: Settings, run_id: str, stage: str, *, completed: bool) 
         engine.dispose()
 
 
+def _gate_payload(gates: list[GateResult]) -> list[dict[str, Any]]:
+    return [
+        {
+            "name": gate.name,
+            "code": gate.code,
+            "action": gate.action,
+            "reasons": gate.reasons,
+        }
+        for gate in gates
+    ]
+
+
 def run_graph(
     settings: Settings,
     topic_id: str,
@@ -65,6 +88,7 @@ def run_graph(
     checkpoint_path: str | None = None,
     focus_hint: str | None = None,
     resume: bool = False,
+    prestarted: bool = False,
     crash_after_stage: str | None = None,
     budget: RunBudget | None = None,
 ) -> dict[str, Any]:
@@ -75,38 +99,146 @@ def run_graph(
 
     engine = make_engine(settings)
     log = SqliteEventLog(engine, rid)
-    run_budget = budget or RunBudget(limit_usd=settings.routing.run_cost_budget_usd)
+    run_budget = budget or RunBudget.from_db(
+        settings, rid, limit_usd=settings.routing.run_cost_budget_usd
+    )
     ckpt_path = checkpoint_path or f"{settings.storage.data_root}/checkpoints/{rid}.sqlite"
     saver, connection = open_checkpointer(ckpt_path)
+
+    ctx = RunContext(
+        settings=settings,
+        run_id=rid,
+        topic_id=topic_id,
+        budget=run_budget,
+        log=log,
+        transitions_enabled=False,  # S4 打开回边；S3 只执行 abort/degrade
+        gates_enabled=True,
+    )
+    rail = guard_rail(run_budget)
 
     def stage_node(name: str) -> Any:
         from lit_agent.graph.nodes import Phase2Nodes
 
-        impl = Phase2Nodes(settings)
+        impl = Phase2Nodes(settings, ctx=ctx)
 
         def node(state: dict[str, Any]) -> dict[str, Any]:
             if control.is_aborted(rid):
-                raise LitError("E_RUN_ABORTED", "运行被人工中止", context={"run_id": rid, "stage": name})
+                raise LitError(
+                    "E_RUN_ABORTED", "运行被人工中止", context={"run_id": rid, "stage": name}
+                )
             if control.is_paused(rid):
                 raise PauseRequested(f"paused before {name}")
+
+            attempts = dict(state.get("attempts") or {})
+            attempt = int(attempts.get(name, 0)) + 1
+            attempts[name] = attempt
+
             log.emit(
                 EventType.PHASE_CHANGE,
                 stage=name,
-                payload={"phase": "start"},
-                dedupe_key=f"{name}:start",
+                payload={"phase": "start", "attempt": attempt},
+                dedupe_key=f"{name}:start:{attempt}",
             )
             _set_stage(settings, rid, name, completed=False)
-            patch = getattr(impl, name)(state)  # 节点只做数据工作
+
+            patch = getattr(impl, name)(state)  # 只计算，不写库
+            gates = run_gates(name, patch, state, ctx) if ctx.gates_enabled else []
+            guard_verdict = rail.run(ctx.observation({**state, **patch}, name))
+            decision = decide(
+                stage=name, gates=gates, guard=guard_verdict, ctx=ctx, attempt=attempt
+            )
+
+            if decision.action == "abort":
+                log.emit(
+                    EventType.PHASE_CHANGE,
+                    stage=name,
+                    payload={"phase": "end", "attempt": attempt, "ok": False, "gates": _gate_payload(gates)},
+                    dedupe_key=f"{name}:end:{attempt}",
+                )
+                log.emit(
+                    EventType.GUARD_TRIGGER,
+                    stage=name,
+                    agent="supervisor",
+                    severity=Severity.ERROR,
+                    payload={
+                        "gate": gates[0].name if gates else "guard",
+                        "code": decision.code,
+                        "action": decision.action,
+                        "reasons": decision.reasons,
+                        "attempt": attempt,
+                        "source": decision.source,
+                    },
+                    dedupe_key=f"guard:{name}:{attempt}:abort",
+                )
+                raise RunAborted(decision)
+
+            executed = decision
+            if decision.action in {"retry", "repair", "replan"} and not ctx.transitions_enabled:
+                # S3：回边尚未启用 → 显式降级（S4 打开后改为真正的回边）
+                log.emit(
+                    EventType.GUARD_TRIGGER,
+                    stage=name,
+                    agent="supervisor",
+                    severity=Severity.WARNING,
+                    payload={
+                        "gate": gates[0].name if gates else "guard",
+                        "code": decision.code,
+                        "action": decision.action,
+                        "target": decision.target,
+                        "reasons": decision.reasons,
+                        "attempt": attempt,
+                        "source": decision.source,
+                        "deferred": True,
+                    },
+                    dedupe_key=f"guard:{name}:{attempt}:{decision.action}",
+                )
+                executed = decision.model_copy(
+                    update={
+                        "action": "degrade",
+                        "deferred": True,
+                        "reasons": [*decision.reasons, "回边未启用（S4），本次降级继续"],
+                    }
+                )
+            elif decision.action != "continue":
+                log.emit(
+                    EventType.GUARD_TRIGGER,
+                    stage=name,
+                    agent="supervisor",
+                    severity=Severity.WARNING,
+                    payload={
+                        "gate": gates[0].name if gates else "guard",
+                        "code": decision.code,
+                        "action": decision.action,
+                        "target": decision.target,
+                        "reasons": decision.reasons,
+                        "attempt": attempt,
+                        "source": decision.source,
+                    },
+                    dedupe_key=f"guard:{name}:{attempt}:{decision.action}",
+                )
+
+            commit_summary = commit_pending(ctx, state, patch, executed)
+
             _set_stage(settings, rid, name, completed=True)
             log.emit(
                 EventType.PHASE_CHANGE,
                 stage=name,
-                payload={"phase": "end", "artifacts": len(patch.get("artifacts") or {})},
-                dedupe_key=f"{name}:end",
+                payload={
+                    "phase": "end",
+                    "attempt": attempt,
+                    "ok": executed.action in {"continue", "degrade"},
+                    "action": executed.action,
+                    "gates": _gate_payload(gates),
+                    "artifacts": len(patch.get("artifacts") or {}),
+                    **commit_summary,
+                },
+                dedupe_key=f"{name}:end:{attempt}",
             )
             if crash_after_stage == name:
-                # 模拟进程中断：不 finish，checkpoint 已由 LangGraph 写盘
                 raise SimulatedCrash(f"simulated crash after {name}")
+
+            patch["attempts"] = attempts
+            patch["decisions"] = [executed.model_dump(mode="json")]
             return patch
 
         return node
@@ -119,9 +251,10 @@ def run_graph(
         checkpointer=saver,
     )
     config = thread_config(rid)
+    config["recursion_limit"] = 60
 
     try:
-        if not resume:
+        if not resume and not prestarted:
             prepare_run(settings, topic_id, rid, focus_hint, engine=engine)
         state = new_state(run_id=rid, topic_id=topic_id)
         state["budget"] = run_budget.snapshot()
@@ -148,19 +281,11 @@ def run_graph(
 
         final = graph.invoke(payload, config)
 
-        # 条件边：abort 直接终止；其余动作以 annotate 事件记录（由后续步骤解释）
-        edge = final.get("edge")
-        if edge == "abort":
-            log.emit(
-                EventType.GUARD_TRIGGER,
-                stage=final.get("stage") or "run",
-                agent="graph",
-                severity=Severity.ERROR,
-                payload={"edge": "abort", "reason": "conditional edge requested abort"},
-            )
-            jobs.finish(settings, rid, state=RunState.ABORTED, error_code="E_GUARD_LOOP", engine=engine)
-            return {"run_id": rid, "state": "aborted", "stage": final.get("stage")}
-        if edge:
+        # 兼容旧的条件边注解（S4 起由 decisions 驱动，这里只做审计）
+        edges = list(final.get("edges") or [])
+        for edge in edges:
+            if edge == "abort":
+                continue
             log.emit(
                 EventType.GUARD_TRIGGER,
                 stage=final.get("stage") or "run",
@@ -179,6 +304,26 @@ def run_graph(
             "counters": final.get("counters"),
             "events": log.count(),
             "budget": run_budget.snapshot(),
+        }
+    except RunAborted as aborted:
+        log.emit(
+            EventType.ERROR,
+            stage="run",
+            severity=Severity.ERROR,
+            payload={
+                "code": aborted.decision.code,
+                "message": "; ".join(aborted.decision.reasons),
+                "action": aborted.decision.action,
+            },
+        )
+        jobs.finish(
+            settings, rid, state=RunState.ABORTED, error_code=aborted.decision.code, engine=engine
+        )
+        return {
+            "run_id": rid,
+            "state": "aborted",
+            "error_code": aborted.decision.code,
+            "decision": aborted.decision.model_dump(mode="json"),
         }
     except PauseRequested:
         control.clear_pause(rid)
@@ -201,5 +346,6 @@ def run_graph(
         return {"run_id": rid, "state": "failed", "error_code": exc.code, "failure_report": report}
     finally:
         control.clear(rid)
+        ctx.close()
         connection.close()
         engine.dispose()

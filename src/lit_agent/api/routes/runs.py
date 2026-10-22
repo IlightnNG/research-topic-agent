@@ -80,16 +80,20 @@ def get_report(run_id: str, engine: Any = Depends(get_engine)) -> dict[str, Any]
     data = dict(row._mapping)
     data["claims"] = json.loads(data.pop("claims_json", "null") or "[]")
     data.pop("metrics_snapshot_json", None)
-    # S3：目录唯一来源（由 claims 派生，不解析 Markdown）
-    data["sections"] = [
-        {
-            "id": f"claim-{index}",
-            "title": f"Evidence {index + 1}",
-            "body": claim.get("text", ""),
-            "claim_ids": [f"claim-{index}"],
-        }
-        for index, claim in enumerate(data["claims"])
-    ]
+    # S12：分节以库里的 sections_json 为准；旧数据回落"一 claim 一节"
+    stored = json.loads(data.pop("sections_json", "null") or "null")
+    if stored:
+        data["sections"] = stored
+    else:
+        data["sections"] = [
+            {
+                "id": f"claim-{index}",
+                "title": f"Evidence {index + 1}",
+                "body": claim.get("text", ""),
+                "claim_indexes": [index],
+            }
+            for index, claim in enumerate(data["claims"])
+        ]
     return data
 
 

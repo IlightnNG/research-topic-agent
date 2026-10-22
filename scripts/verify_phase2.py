@@ -199,15 +199,13 @@ def probe_runtime_control() -> tuple[bool, str]:
 
 
 def probe_retrieval() -> tuple[bool, str]:
-    """hybrid 检索工具（S10）。"""
-    from lit_agent.tools.registry import Tool, ToolRegistry
+    """混合检索（S10）：固定 20 查询集上 recall@10 比纯词面高 ≥10pp。"""
+    from lit_agent.eval.retrieval_bench import evaluate
 
-    registry = ToolRegistry()
-    try:
-        registry.register(Tool(name="hybrid_search", run=lambda **_: None))
-    except Exception:  # noqa: BLE001 - 只探测能力位
-        return False, "registry unavailable"
-    return False, "hybrid_search=not implemented"
+    metrics = evaluate()
+    gain = metrics["hybrid_recall"] - metrics["keyword_recall"]
+    ok = gain >= 0.10
+    return ok, f"keyword={metrics['keyword_recall']:.2f} hybrid={metrics['hybrid_recall']:.2f} gain=+{gain:.2f}"
 
 
 def probe_eval_suite() -> tuple[bool, str]:

@@ -61,6 +61,30 @@ class RunBudget:
         )
         return self.add(cost_usd=cost, tokens=tokens)
 
+    @classmethod
+    def from_db(cls, settings: Any, run_id: str, *, limit_usd: float | None = None) -> RunBudget:
+        """从库里重建已花预算（续跑不会清零）。"""
+        from sqlalchemy import text as _text
+
+        from lit_agent.db.session import connect, make_engine
+
+        budget = cls(limit_usd=limit_usd if limit_usd is not None else 2.0)
+        engine = make_engine(settings)
+        try:
+            with connect(engine) as conn:
+                row = conn.execute(
+                    _text(
+                        "SELECT COALESCE(SUM(cost), 0), COALESCE(SUM(COALESCE(req_tokens,0)+COALESCE(resp_tokens,0)), 0)"
+                        " FROM llm_calls WHERE run_id = :rid"
+                    ),
+                    {"rid": run_id},
+                ).one()
+        finally:
+            engine.dispose()
+        budget.used_usd = float(row[0] or 0.0)
+        budget.used_tokens = int(row[1] or 0)
+        return budget
+
     def snapshot(self) -> dict[str, Any]:
         return {
             "used_usd": round(self.used_usd, 6),

@@ -37,8 +37,9 @@ PHASE2_STAGES: tuple[str, ...] = (
 class Phase2Nodes:
     """十阶段的实现集合：LangGraph 的节点是这些绑定方法。"""
 
-    def __init__(self, settings: Settings) -> None:
+    def __init__(self, settings: Settings, ctx: Any | None = None) -> None:
         self.settings = settings
+        self.ctx = ctx
 
     # ------------------------------------------------------------------ #
     def _engine(self) -> Any:
@@ -163,7 +164,8 @@ class Phase2Nodes:
         from lit_agent.eval import faultinject
 
         cards = self._cards_by_ids(self._paper_ids(state))
-        claims = analyze(cards)
+        gateway = getattr(self.ctx, "gateway", None) if self.ctx is not None else None
+        claims = analyze(cards, gateway=gateway)
         if faultinject.is_active("bad_artifact") and claims:
             # 注入：把第一条改成"无引用"，用来验证 critic 会拦住
             from lit_agent.models.claim import Claim
@@ -253,21 +255,15 @@ class Phase2Nodes:
         return str((state.get("artifacts") or {}).get("claims_json") or "[]")
 
     def report(self, state: dict[str, Any]) -> dict[str, Any]:
+        """两阶段：这里只声明写入，门禁通过后由 commit 落库。"""
         from lit_agent.agents.analyst import claims_from_json
-        from lit_agent.runtime.runner import persist_report_from_claims
 
         claims = claims_from_json(self._claims_json(state))
-        report_id = persist_report_from_claims(
-            self.settings,
-            str(state.get("run_id")),
-            str(state.get("topic_id")),
-            claims,
-            focus_hint=state.get("focus_hint"),
-        )
         return {
             "stage": "report",
-            "artifacts": {"report_id": report_id, "claims": len(claims)},
-            "counters": {"report_written": 1},
+            "artifacts": {"claims": len(claims)},
+            "counters": {"report_written": 0},
+            "pending_writes": [{"kind": "report"}],
         }
 
     def evaluate(self, state: dict[str, Any]) -> dict[str, Any]:
@@ -282,4 +278,5 @@ class Phase2Nodes:
                 "cost_usd": metrics["cost_usd"],
             },
             "counters": {"eval_done": 1},
+            "pending_writes": [{"kind": "metrics"}],
         }

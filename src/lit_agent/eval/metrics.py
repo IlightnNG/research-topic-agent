@@ -81,6 +81,14 @@ def compute_topic_metrics(settings: Settings, *, topic_id: str | None = None) ->
                 f"SELECT COUNT(*) {_LLM} {where} {conj} l.cost_estimated = 1",
                 params,
             )
+            # S13：成本归因到 agent 维度
+            by_agent = conn.execute(
+                text(
+                    "SELECT l.agent, COUNT(*), COALESCE(SUM(l.cost), 0.0)"
+                    f" {_LLM} {where} {conj} l.agent IS NOT NULL GROUP BY l.agent"
+                ),
+                params,
+            ).all()
     finally:
         engine.dispose()
 
@@ -95,6 +103,9 @@ def compute_topic_metrics(settings: Settings, *, topic_id: str | None = None) ->
         "claims_supported": int(supported),
         "cost_usd": round(cost, 6),
         "cost_estimated_calls": int(estimated),
+        "cost_by_agent": {str(agent): round(float(item_cost), 6) for agent, _n, item_cost in by_agent},
+        "calls_by_agent": {str(agent): int(count) for agent, count, _item_cost in by_agent},
+        "agents_used": len(by_agent),
         "grounding_rate": _ratio(supported, claims),
         "hallucination_rate": _ratio(unsupported, claims),
         "citation_coverage": _ratio(cited, claims),
@@ -136,6 +147,17 @@ def persist_run_metrics(settings: Settings, run_id: str) -> dict[str, Any]:
                         " DO UPDATE SET value = excluded.value, ts = excluded.ts"
                     ),
                     {"sid": run_id, "metric": key, "value": float(value), "ts": stage},
+                )
+            # S13：成本按 agent 落库（scope='agent'，scope_id='<run_id>:<agent>'）
+            for agent, cost in (metrics.get("cost_by_agent") or {}).items():
+                conn.execute(
+                    text(
+                        "INSERT INTO metrics(scope, scope_id, metric, value, ts)"
+                        " VALUES ('agent', :sid, 'cost_usd', :value, :ts)"
+                        " ON CONFLICT(scope, scope_id, metric)"
+                        " DO UPDATE SET value = excluded.value, ts = excluded.ts"
+                    ),
+                    {"sid": f"{run_id}:{agent}", "value": float(cost), "ts": stage},
                 )
     finally:
         engine.dispose()

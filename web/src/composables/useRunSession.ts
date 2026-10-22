@@ -4,6 +4,7 @@ import type { ComputedRef, Ref } from "vue";
 import { useRouter } from "vue-router";
 
 import { describeError } from "@/api/client";
+import { api as endpoints } from "@/api/endpoints";
 import { useSse } from "@/composables/useSse";
 import { useRunsStore } from "@/stores/runs";
 
@@ -120,7 +121,28 @@ export function useRunSession(topicId: Ref<string>, activeRunId: ComputedRef<str
     }
   }
 
+  /** 干预（Phase 2 / S12）：暂停 / 继续 / 注入。 */
+  async function pause(): Promise<void> {
+    if (!activeRunId.value) return;
+    await endpoints.pauseRun(activeRunId.value);
+    await refreshRun(false);
+  }
+
+  async function resume(): Promise<void> {
+    if (!activeRunId.value) return;
+    await endpoints.resumeRun(activeRunId.value);
+    await refreshRun(false);
+  }
+
+  async function inject(prompt: string): Promise<void> {
+    if (!activeRunId.value) return;
+    await endpoints.injectRun(activeRunId.value, prompt);
+  }
+
   return {
+    pause,
+    resume,
+    inject,
     runs,
     view,
     highlightSeq,

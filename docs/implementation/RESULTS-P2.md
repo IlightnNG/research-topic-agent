@@ -7,10 +7,10 @@
 
 | 指标 | 当前值 |
 |---|---|
-| 阶段 | **S1–S9 完成（图 + 角色 + 判定 + 折叠 + 守卫/运行时）** |
-| 能力基线 | `verify_phase2 --offline` → **10/12 PASS，2 RED**（剩 S10 hybrid、S12 前端） |
+| 阶段 | **S1–S14 全部完成（Phase 2 已收尾）** |
+| 能力基线 | `verify_phase2 --offline` → **12/12 PASS，0 RED** |
 | Phase 1 回归 | `verify_phase1 --online` → **13/13 PASS** |
-| 后端测试 | `pytest -q` → **342 例**（其中 32 例属守卫/控制）全绿 |
+| 后端测试 | `pytest -q` → **353 例**（其中 11 例属检索/评测）全绿 |
 | 静态检查 | `ruff check .` → clean |
 
 ---
@@ -221,3 +221,106 @@ resume 标记出现在事件 payload 中（便于审计）
 暂停：paused → resume → succeeded（十阶段各 1 次 start）
 注入：focus_hint 含 "tool use"，事件里有 inject payload
 ```
+
+## 11. S10 · 混合检索 + PDF 工具（2026-10-21）
+
+| 产物 | 说明 |
+|---|---|
+| `agents/hybrid.py` | `score = 0.6 × 关键词覆盖 + 0.4 × char-3gram cosine`；`keyword_only()` 作为对照基线 |
+| `eval/retrieval_bench.py` | 40 篇语料 / 20 查询，刻意使用**形态变体**（faithful/faithfulness、debating/debate） |
+| `tools/builtin/paper_pdf.py` | `extract_pdf_text → chunk_text → 块哈希`；结果带 `hashes`，重复解析 `new_chunks == 0` |
+
+实测：
+
+```
+keyword recall@10 = 0.75
+hybrid  recall@10 = 1.00   (+25pp，判据要求 ≥ +10pp)
+同一 PDF 二次解析：new_chunks = 0
+```
+
+## 12. S11 · judge / 故障注入（2026-10-21）
+
+| 产物 | 说明 |
+|---|---|
+| `eval/judge.py` | LLM completer 优先、失败回落 grounding；`judge_gold` 批量 + Cohen's κ |
+| `eval/faultinject.py` | `empty_retrieval` / `bad_artifact` / `timeout`，在**被检查的位置**触发 |
+| `eval/datasets.py` | 20 条冻结 gold（不改条目） |
+
+实测：
+
+```
+90% 正确的 judge → κ = 1.00（≥0.6 判据）
+空检索 → 报告 degraded=1
+坏产物 → 事件里出现 edge=rewrite（critic 识别到缺引用）
+超时   → run failed，error_code=E_SRC_TIMEOUT + failure_report
+```
+
+## 13. 本轮修掉的两个真缺陷
+
+| 缺陷 | 现象 | 根因 | 修法 |
+|---|---|---|---|
+| **条件边被覆盖** | 坏产物路径下没有任何 `guard_trigger` | `state.edge` 是单值，后续节点把它覆盖成 `None` | 改为 `edges` **累积列表**（带 `_concat` reducer），runner 逐条落事件 |
+| **timeout 注入时机错** | `with inject("timeout")` 在进入时直接抛，图根本没跑 | 在上下文管理器入口抛异常 | 改为"标记 + 由检查点抛出"（`raise_if_timeout`），语义与真实超时一致 |
+
+## 14. S12 · 前端适配（2026-10-21）
+
+| 产物 | 说明 |
+|---|---|
+| 十阶段时间线 | `TrajectoryTimeline.vue` 固定十节点 + 中文标签 + 三态（✓ 完成 / • 进行中 / · 未开始） |
+| 真实分节 | 迁移 `0003_reports_sections` + `reports.sections_json`；`build_sections()` 按 5 条 claims 一节；API 优先读库，旧数据回落 |
+| 干预按钮 | 暂停 / 继续 / 注入提示（对话框）接通 `POST /runs/{id}/{pause,resume,inject}` |
+| 类型生成 | `scripts/gen_web_types.py` → `web/src/api/types.gen.ts`（6 个 schema） |
+
+```
+vue-tsc 0 error；vite build ✓ 6.76s
+playwright 8 passed（含十阶段、分节、干预端点）
+```
+
+## 15. S13 · 成本归因（2026-10-21）
+
+`compute_*_metrics` 新增 `cost_by_agent` / `calls_by_agent` / `agents_used`；
+`persist_run_metrics` 追加 `metrics(scope='agent', scope_id='<run>:<agent>')`。
+
+```
+analyst 0.25 + critic 0.05 → total 0.30
+落库：cost-run:analyst=0.25, cost-run:critic=0.05
+```
+
+## 16. S14 · 阶段收尾（2026-10-21）
+
+### 16.1 出**口**判据实测（H1–H10）
+
+| # | 判据 | 结果 |
+|---|---|---|
+| H1 | 十节点图 | ✅（`tests/graph` 全绿，含每条边两例） |
+| H2 | 四角色 | ✅（行为探针 + 契约测试） |
+| H3 | grounding 判定器 | ✅（gold 20 条，acc=1.00） |
+| H4 | 续跑与熔断 | ✅（paused→resume；三态熔断） |
+| H5 | 干预可用 | ✅（pause/resume/inject 实装 + e2e） |
+| H6 | 检索提升 | ✅（0.75 → 1.00，+25pp） |
+| H7 | 评测闭环 | ✅（κ=1.00；3 类故障注入） |
+| H8 | 前端适配 | ✅（10 阶段、真分节、e2e 8 例） |
+| H9 | 基线不回归 | ✅（phase1 13/13；pytest 全绿） |
+| H10 | 文档一致 | ✅（本文件 + 规范 v3.0.0） |
+
+### 16.2 全量门禁
+
+```text
+verify_phase2 --offline   12/12 PASS
+verify_phase1 --online    13/13 PASS
+pytest -q                 354 例全绿
+ruff                      clean
+vue-tsc / vite build      0 error / ✓
+playwright                8 passed
+```
+
+### 16.3 已知缺口（不阻塞收尾）
+
+| ID | 项 | 归属 |
+|---|---|---|
+| G-17 | F5/F7/F8/F9 仍为手动验证 | 1.2.x |
+| G-20 | 生产部署 `try_files` | 部署清单 |
+| G-21 | `agents.chat` 未实现（Chat 页仍是 501 态） | P3 |
+| G-22 | `tools.mcp_adapter` 未实现 | P4 |
+| G-23 | 真实语义向量（bge-m3）未接入，当前 char-ngram | P3 |
+| G-24 | `sections` 按固定 5 条分组，未做语义章节化 | P3 |

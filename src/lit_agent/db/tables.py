@@ -264,6 +264,7 @@ t_reports = Table(
     Column("content_md", Text, nullable=False),
     Column("content_sha", String, nullable=False),
     Column("claims_json", Text),
+    Column("sections_json", Text),
     Column("metrics_snapshot_json", Text),
     Column("n_claims", Integer, nullable=False, server_default=text("0")),
     Column("degraded", Integer, nullable=False, server_default=text("0")),

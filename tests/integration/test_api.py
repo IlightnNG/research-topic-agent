@@ -67,7 +67,7 @@ def test_run_trigger_and_events(client: TestClient) -> None:
 
     run = client.get("/api/runs/run-api").json()
     assert run["state"] == "succeeded"
-    assert run["stage"] == "report"
+    assert run["stage"] == "evaluate"  # Phase 2：十节点收尾
 
     events = client.get("/api/runs/run-api/events").json()
     assert events["count"] >= 5

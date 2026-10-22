@@ -1,0 +1,62 @@
+"""公共夹具：S1 接线测试用（临时 store + 一个 topic + 一篇有摘要的论文）。"""
+
+from __future__ import annotations
+
+from pathlib import Path
+
+from lit_agent.config import LoggingSettings, Settings, StorageSettings
+from lit_agent.db.repo import papers as paper_repo
+from lit_agent.db.repo import topics as topic_repo
+from lit_agent.db.session import connect, make_engine, upgrade_database
+from lit_agent.models.paper import Paper
+from lit_agent.models.topic import Topic
+
+
+def prepare(tmp_path: Path, *, papers: int = 1) -> Settings:
+    settings = Settings(
+        storage=StorageSettings(data_root=str(tmp_path / "data")),
+        logging=LoggingSettings(console=False),
+    )
+    upgrade_database(settings)
+    engine = make_engine(settings)
+    try:
+        with connect(engine, immediate=True) as conn:
+            topic_repo.upsert(conn, Topic(id="ai-agents", name="AI", scope_statement="agents"))
+            paper_repo.upsert_many(
+                conn,
+                [
+                    Paper(
+                        paper_id=f"P{index}",
+                        title=f"Paper {index}",
+                        abstract="tool use improves task success",
+                        source="arxiv",
+                    )
+                    for index in range(papers)
+                ],
+            )
+    finally:
+        engine.dispose()
+    return settings
+
+
+def fetch_events(settings: Settings, run_id: str) -> list[dict]:
+    import json
+
+    from sqlalchemy import text
+
+    engine = make_engine(settings)
+    try:
+        with connect(engine) as conn:
+            rows = conn.execute(
+                text(
+                    "SELECT type, stage, payload_json FROM run_events"
+                    " WHERE run_id = :rid ORDER BY seq"
+                ),
+                {"rid": run_id},
+            ).all()
+    finally:
+        engine.dispose()
+    return [
+        {"type": row[0], "stage": row[1], "payload": json.loads(row[2] or "{}")}
+        for row in rows
+    ]

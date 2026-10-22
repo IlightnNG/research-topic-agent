@@ -107,6 +107,9 @@ onMounted(async () => {
         :is-failed="runs.isFailed"
         @tab-click="session.onTabClick"
         @abort="session.abort"
+        @pause="session.pause"
+        @resume="session.resume"
+        @inject="session.inject"
         @retry="retry"
         @why="session.jumpToTrajectory"
       />

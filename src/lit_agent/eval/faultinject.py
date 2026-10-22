@@ -35,8 +35,12 @@ def inject(kind: str = "empty_retrieval") -> Iterator[None]:
         raise ValueError(f"未知故障类型：{kind}")
     _ACTIVE.add(kind)
     try:
-        if kind == "timeout":
-            raise LitError(E_SRC_TIMEOUT, "注入故障：数据源超时", context={"fault": kind})
         yield
     finally:
         _ACTIVE.discard(kind)
+
+
+def raise_if_timeout() -> None:
+    """被调用方在真正"会超时"的位置调用。"""
+    if is_active("timeout"):
+        raise LitError(E_SRC_TIMEOUT, "注入故障：数据源超时", context={"fault": "timeout"})

@@ -86,16 +86,24 @@ def trigger_run(
     engine: Any = Depends(get_engine),
 ) -> dict[str, Any]:
     from lit_agent.runtime.budget import RunBudget
-    from lit_agent.runtime.runner import run_topic
+    from lit_agent.runtime.graph_runner import run_graph
 
     body = payload or RunRequest()
     budget = RunBudget(limit_usd=body.max_usd or settings.routing.run_cost_budget_usd)
 
     if body.wait:
-        result = run_topic(
-            settings, topic_id, run_id=body.run_id, budget=budget, focus_hint=body.focus_hint
+        result = run_graph(
+            settings,
+            topic_id,
+            run_id=body.run_id,
+            budget=budget,
+            focus_hint=body.focus_hint,
         )
-        return {"run_id": result["run_id"], "state": result["state"], "events": result["events"]}
+        return {
+            "run_id": result["run_id"],
+            "state": result["state"],
+            "events": result.get("events", 0),
+        }
 
     # S2：异步执行。**先在请求线程里建 run 行 + 拿锁**（批次 1 / B）：
     # 这样 202 返回时 run 一定可查；锁冲突直接 → 409，不会出现"幽灵 run"。
@@ -104,7 +112,7 @@ def trigger_run(
     run_id = body.run_id or f"run-{uuid.uuid4().hex[:10]}"
     prepare_run(settings, topic_id, run_id, body.focus_hint)
     threading.Thread(
-        target=run_topic,
+        target=run_graph,
         kwargs={
             "settings": settings,
             "topic_id": topic_id,
@@ -112,6 +120,7 @@ def trigger_run(
             "budget": budget,
             "focus_hint": body.focus_hint,
             "prestarted": True,
+            "resume": False,
         },
         daemon=True,
         name=f"run-{run_id}",

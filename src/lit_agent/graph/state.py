@@ -13,7 +13,12 @@ from typing import Annotated, Any, TypedDict
 
 __all__ = ["STATE_SCHEMA_VERSION", "AgentState", "new_state"]
 
-STATE_SCHEMA_VERSION = "1.1"
+STATE_SCHEMA_VERSION = "1.2"
+
+
+def _concat(left: list, right: list) -> list:
+    """列表累积（条件边可能在同一轮多次命中）。"""
+    return [*(left or []), *(right or [])]
 
 
 def _merge_dicts(left: dict, right: dict) -> dict:
@@ -39,7 +44,10 @@ class AgentState(TypedDict, total=False):
     verdict: dict[str, Any] | None
     focus_hint: str | None
     edge: str | None
+    edges: Annotated[list[str], _concat]
     budget: dict[str, Any]
+    attempts: Annotated[dict[str, int], _merge_dicts]
+    decisions: Annotated[list[dict[str, Any]], _concat]
 
 
 def new_state(

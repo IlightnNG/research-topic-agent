@@ -103,12 +103,37 @@ def test_control_endpoints_validate_run_existence(client: TestClient) -> None:
     assert injected.status_code == 404
 
 
-def test_report_has_sections_from_claims(client: TestClient) -> None:
-    client.post("/api/topics/ai-agents/run", json={"run_id": "s3-sections"})
-    report = client.get("/api/runs/s3-sections/report").json()
+def test_report_has_sections_from_claims(tmp_path: Path) -> None:
+    """S12：报告分节由 claims 分组落库（Findings N），不再是 API 临时派生。"""
+    from lit_agent.db.repo import papers as paper_repo
+    from lit_agent.models.paper import Paper
+
+    settings = prepare(tmp_path / "sections")
+    engine = make_engine(settings)
+    try:
+        with connect(engine, immediate=True) as conn:
+            paper_repo.upsert_many(
+                conn,
+                [
+                    Paper(
+                        paper_id="P-sections",
+                        title="Tool use for agents",
+                        abstract="tool use improves task success in agent systems",
+                        source="arxiv",
+                    )
+                ],
+            )
+    finally:
+        engine.dispose()
+
+    with TestClient(create_app(settings)) as client:
+        client.post("/api/topics/ai-agents/run", json={"run_id": "s3-sections"})
+        report = client.get("/api/runs/s3-sections/report").json()
+
     assert report["claims"], "报告应含 claims"
-    assert len(report["sections"]) == len(report["claims"]), "目录与 claims 一一对应"
-    assert report["sections"][0]["claim_ids"] == ["claim-0"]
+    section = report["sections"][0]
+    assert section["title"].startswith("Findings"), "S12：真实分节"
+    assert section["claim_indexes"], "分节必须能回指 claims"
 
 
 def test_failed_run_report_is_404(tmp_path: Path) -> None:

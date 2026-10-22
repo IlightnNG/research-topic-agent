@@ -32,6 +32,12 @@ def insert_ignore(conn: Connection, report: Report, *, now: str | None = None) -
             claims_json=json.dumps(
                 [claim.model_dump(mode="json") for claim in report.claims], ensure_ascii=False
             ),
+            sections_json=json.dumps(
+                [section.model_dump(mode="json") for section in report.sections],
+                ensure_ascii=False,
+            )
+            if report.sections
+            else None,
             metrics_snapshot_json=json.dumps(
                 report.metrics_snapshot, ensure_ascii=False, default=str
             ),

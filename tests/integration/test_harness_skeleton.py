@@ -18,7 +18,7 @@ def test_new_state_contract() -> None:
     assert state["stage"] == "intake"
     assert state["errors"] == [] and state["events"] == []
     assert state["retry_budget"] == 2
-    assert STATE_SCHEMA_VERSION == "1.1"
+    assert STATE_SCHEMA_VERSION == "1.2"  # S3：新增 attempts/decisions
 
 
 def test_smoke_graph_runs_three_nodes_in_order() -> None:

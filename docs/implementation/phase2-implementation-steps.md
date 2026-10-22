@@ -1,7 +1,7 @@
 # Phase 2 —— 规范、模块判据与实施步骤
 
 > **文档性质**：**规范性文件（冻结契约）**。Phase 2 的"做什么 / 什么算做完 / 按什么顺序做"以本文件为唯一判据。
-> **版本**：**2.3.0**（2026-10-21，重构版；替代 0.1.0 首版）｜改动必须升版本并在 §11 记录。
+> **版本**：**3.0.0（已收尾）**（2026-10-21，重构版；替代 0.1.0 首版）｜改动必须升版本并在 §11 记录。
 > **前序**：`phase1.1-scope-and-acceptance.md`（收口纪律）、`phase1.2-frontend-spec.md` v1.3.0（已收尾）、`phase1.1-known-gaps.md`（缺口登记册）。
 > **入口基线**（Phase 1.2 收尾实测）：`pytest 260 例全绿`、`verify_phase1 --online 13/13`、`vue-tsc 0 error`、`playwright 5 passed`、OpenAPI 21 路径。
 
@@ -223,11 +223,11 @@ M1 图 ──> M3 上下文 ──> M6 检索
 | **S7** ✅ | M3 | 摘要折叠 + 注入物化 | `SummarizeFolding`（首句 + 数字/引用句）、`slots.materialize_slots()`（事件落库 + `has_dedupe` 幂等） | 折叠后 token 明显下降且保留数字句；同槽重复 0 新增 | 1.5 d |
 | **S8** ✅ | M4 | 15 类守卫 + 阶梯 | `graph/guards.py`：G1–G15 + `GuardRail`（取最重动作）+ `RepeatToolGuard`（先提醒后升级） | 15 类各触发/不触发；阶梯不越级；提醒→replan 升级 | 1.5 d |
 | **S9** ✅ | M5 | 续跑/熔断/干预 | `gateway/breaker.py`（三态）、`control` 的 pause/inject、API `pause/resume/inject` 实装、`pause` 在阶段边界生效 | 熔断三态可测；pause→paused→resume→succeeded；inject 写回 `runs.focus_hint` 并留事件 | 2.0 d |
-| **S10** | M6 | hybrid + rerank + PDF | 检索工具、`paper_pdf` | recall@10 ≥ 基线+10pp | 1.5 d |
-| **S11** | M7 | judge + faultinject + datasets | 三模块实装 | κ ≥0.6；3 类故障走降级 | 1.5 d |
-| **S12** | M8 | 前端适配 | 10 阶段、真分节、干预按钮、类型生成 | e2e ≥8 例、F13 PASS | 1.5 d |
-| **S13** | M5/M7 | 成本归因 + 观测 | agent 维度成本、指标扩展 | 成本可归因到角色 | 1.0 d |
-| **S14** | M0 | 收尾 | H1–H10 全跑、`RESULTS-P2.md` 定稿 | 全绿 + 归档 | 0.5 d |
+| **S10** ✅ | M6 | hybrid + rerank + PDF | `agents/hybrid.py`（0.6 关键词 + 0.4 char-3gram）、`eval/retrieval_bench.py`（20 查询/40 语料）、`tools/builtin/paper_pdf.py`（分块 + 幂等哈希） | **keyword 0.75 → hybrid 1.00（+25pp）**；同 PDF 二次解析 0 新块 | 1.5 d |
+| **S11** ✅ | M7 | judge + faultinject + datasets | `eval/judge.py`（LLM + 回落 + κ）、`eval/faultinject.py`（3 类，检查点触发）、`eval/datasets.py`（20 条 gold 冻结） | **κ=1.00**（90% 正确 judge 仍 ≥0.6）；3 类故障：空检索降级 / 坏产物留痕 / 超时失败 | 1.5 d |
+| **S12** ✅ | M8 | 前端适配 | 十阶段时间线（中文标签 + 未开始态）、真实分节（`reports.sections_json` + 迁移 0003）、暂停/继续/注入按钮、`types.gen.ts`（OpenAPI 生成） | **e2e 8 例全绿**、`vue-tsc` 0 error、build ✓ | 1.5 d |
+| **S13** ✅ | M5/M7 | 成本归因 + 观测 | `cost_by_agent` / `calls_by_agent` / `agents_used`；`metrics(scope='agent')` 落库 | 两角色各 0.25/0.05 正确归因并落库 | 1.0 d |
+| **S14** ✅ | M0 | 收尾 | H1–H10 全跑、`RESULTS-P2.md` 定稿、`verify_phase2` **12/12** | 全绿 + 归档（2026-10-21） | 0.5 d |
 
 **合计约 18.5 人日（≈3.5 周）**，建议 5 批执行（§8）。
 
@@ -304,6 +304,8 @@ M1 图 ──> M3 上下文 ──> M6 检索
 
 | 版本 | 日期 | 变更 |
 |---|---|---|
+| 3.0.0 | 2026-10-21 | **阶段收尾**：S12/S13/S14 完成；生产入口切到十节点图；真实分节落库（迁移 0003）；成本按 agent 归因；`verify_phase2` **12/12**、e2e **8/8**、pytest **354 例**全绿 |
+| 2.4.0 | 2026-10-21 | S10/S11 完成：混合检索（+25pp recall）、PDF 工具幂等、judge/κ、故障注入接入图；修掉"条件边被后续节点覆盖"与"timeout 在进入时抛"两个缺陷；`verify_phase2` **11/12**（仅剩 S12 前端） |
 | 2.3.0 | 2026-10-21 | S8/S9 完成：15 类守卫（含提醒式 retry）、熔断器三态、pause/resume/inject 实装；`verify_phase2` 8/12 → **11/12**（剩 S10 hybrid、S12 前端） |
 | 2.2.0 | 2026-10-21 | S5/S6/S7 完成：四角色（行为探针）、grounding/judge/gold（acc 1.00, κ 1.00）、摘要折叠与注入物化；修掉 artifacts 覆盖缺陷；`verify_phase2` 5/12 → **8/12** |
 | 2.1.0 | 2026-10-21 | S2/S3/S4 完成：十节点图、E1–E13 条件边、断点续跑；`verify_phase2` 由 3/12 → **5/12**。偏差：生产入口仍走四阶段 `run_topic`，十节点 `run_graph` 并行存在，计划 S9 切换 |
@@ -341,3 +343,24 @@ cd web; npm run typecheck; npm run build; npm run test:e2e
 | `gateway/breaker.py` | `gateway.breaker` | M5 / S9 |
 | `tools/mcp_adapter.py` | `tools.mcp_adapter` | P4（可选） |
 | `tools/builtin/paper_pdf.py` | `tools.builtin.paper_pdf` | M6 / S10 |
+
+---
+
+## 12. 收尾结论（2026-10-21）
+
+**Phase 2 COMPLETE。**
+
+```text
+verify_phase2 --offline   12/12 PASS
+verify_phase1 --online    13/13 PASS
+pytest -q                 354 例全绿
+ruff                      clean
+vue-tsc / vite build      0 error / ✓ built
+playwright                8 passed
+```
+
+H1–H10 全部满足；剩余项（F5/F7/F8/F9 的手动验证、真实语义检索、`agents.chat`、`mcp_adapter`）已登记 backlog，不阻塞本阶段。
+
+> 此后新问题：登记 → 分级 → 排入 Phase 3，**不重开 Phase 2**。
+
+> **后续**：Phase 2.1（接线、门禁与契约）见 `phase2.1-wiring-and-contracts.md`（v1.0.0）；它只修"实现了但没生效"，不新增节点。

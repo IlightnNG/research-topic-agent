@@ -32,16 +32,16 @@ def test_every_expected_module_file_imports() -> None:
 
 
 def test_skeleton_entry_points_fail_explicitly() -> None:
+    from lit_agent.agents import chat
     from lit_agent.graph import edges
-    from lit_agent.tools.builtin import paper_pdf
 
     assert edges.backoff_edge("E11") == "replan"  # S3：E1–E13 已全部实现
     with pytest.raises(ValueError):
         edges.backoff_edge("E99")
 
     with pytest.raises(FeatureDisabledError) as second:
-        paper_pdf.run()
-    assert second.value.feature == "tools.builtin.paper_pdf"
+        chat.run()
+    assert second.value.feature == "agents.chat"
 
 
 def test_skeleton_modules_declare_feature_id() -> None:
@@ -53,7 +53,7 @@ def test_skeleton_modules_declare_feature_id() -> None:
         if hasattr(module, "FEATURE"):
             checked += 1
             assert isinstance(module.FEATURE, str) and module.FEATURE
-    assert checked >= 3, f"skeleton module count looks wrong: {checked}"
+    assert checked >= 2, f"skeleton module count looks wrong: {checked}"
 
 
 def test_models_public_names_are_contract_models() -> None:

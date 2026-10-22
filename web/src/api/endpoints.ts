@@ -35,6 +35,15 @@ export const api = {
   getReport: (runId: string) => request<Report>(`/api/runs/${runId}/report`),
   abortRun: (runId: string) =>
     request<{ run_id: string }>(`/api/runs/${runId}/abort`, { method: "POST" }),
+  pauseRun: (runId: string) =>
+    request<{ run_id: string; state: string }>(`/api/runs/${runId}/pause`, { method: "POST" }),
+  resumeRun: (runId: string) =>
+    request<{ run_id: string; state: string }>(`/api/runs/${runId}/resume`, { method: "POST" }),
+  injectRun: (runId: string, prompt: string) =>
+    request<{ run_id: string; pending: number }>(`/api/runs/${runId}/inject`, {
+      method: "POST",
+      body: JSON.stringify({ prompt }),
+    }),
   metrics: () =>
     request<{ runs: number; events: number; reports: number; papers: number; llm_cost_usd: number }>(
       "/api/metrics/summary",

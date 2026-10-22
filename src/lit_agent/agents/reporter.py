@@ -9,6 +9,7 @@
 from __future__ import annotations
 
 import hashlib
+from typing import Any
 
 from lit_agent.models.claim import Claim
 from lit_agent.models.evidence import Citation, EvidenceCard, Support
@@ -85,6 +86,7 @@ def build_report_from_claims(
     else:
         content_md = f"# {title}\n\n本轮未检索到可引用证据。\n"
     return Report(
+        sections=build_sections(claims),
         report_id=f"{run_id}:{digest}",
         topic_id=topic_id,
         run_id=run_id,
@@ -94,3 +96,24 @@ def build_report_from_claims(
         claims=claims or [Claim(text="本轮未检索到可引用证据", citations=[], support=Support.UNSUPPORTED)],
         n_claims=len(claims) if claims else 1,
     )
+
+
+def build_sections(claims: list[Claim], *, per_section: int = 5) -> list[Any]:
+    """把 claims 分成若干"节"（S12）：报告按节渲染，不再依赖 API 派生。"""
+    from lit_agent.models.report import ReportSection
+
+    if not claims:
+        return []
+    sections: list[Any] = []
+    for start in range(0, len(claims), per_section):
+        block = claims[start : start + per_section]
+        body = "\n".join(f"- {claim.text}" for claim in block)
+        sections.append(
+            ReportSection(
+                id=f"S{len(sections) + 1}",
+                title=f"Findings {len(sections) + 1}",
+                body=body,
+                claim_indexes=list(range(start, start + len(block))),
+            )
+        )
+    return sections

@@ -25,7 +25,31 @@ watch(
   },
 );
 
-const STAGES = ["intake", "ingest", "curate", "report"];
+// Phase 2：十节点（S0–S9），顺序与后端 PHASE2_STAGES 一致
+const STAGES = [
+  "intake",
+  "scope",
+  "retrieval",
+  "parse",
+  "normalize",
+  "mapping",
+  "analysis",
+  "critique",
+  "report",
+  "evaluate",
+];
+const STAGE_LABELS: Record<string, string> = {
+  intake: "接入",
+  scope: "界定",
+  retrieval: "检索",
+  parse: "解析",
+  normalize: "归一",
+  mapping: "映射",
+  analysis: "分析",
+  critique: "自查",
+  report: "成文",
+  evaluate: "评测",
+};
 
 const stages = computed(() => {
   const done = new Set<string>();
@@ -36,9 +60,15 @@ const stages = computed(() => {
     if (phase === "end") done.add(event.stage);
     if (phase === "start") started.add(event.stage);
   }
-  const names = STAGES.filter((name) => done.has(name) || started.has(name));
+  // 始终展示十节点：已完成 ✓ / 进行中 • / 未开始 ·
+  const names = [...STAGES];
   for (const name of done) if (!names.includes(name)) names.push(name);
-  return names.map((name) => ({ name, done: done.has(name) }));
+  return names.map((name) => ({
+    name,
+    label: STAGE_LABELS[name] ?? name,
+    done: done.has(name),
+    started: started.has(name),
+  }));
 });
 
 function severityOf(event: RunEvent): string {
@@ -62,8 +92,14 @@ function summary(event: RunEvent): string {
 <template>
   <div class="stack">
     <div class="cluster">
-      <el-tag v-for="stage in stages" :key="stage.name" size="small" :type="stage.done ? 'success' : 'info'">
-        {{ stage.done ? "✓" : "•" }} {{ stage.name }}
+      <el-tag
+        v-for="stage in stages"
+        :key="stage.name"
+        size="small"
+        :type="stage.done ? 'success' : stage.started ? 'warning' : 'info'"
+        :data-stage="stage.name"
+      >
+        {{ stage.done ? "✓" : stage.started ? "•" : "·" }} {{ stage.label }}
       </el-tag>
       <el-switch v-model="follow" size="small" active-text="跟随" />
     </div>

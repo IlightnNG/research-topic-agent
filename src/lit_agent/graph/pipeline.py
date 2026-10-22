@@ -97,10 +97,14 @@ def build_phase2_graph(
 
         def node(state: AgentState) -> dict[str, Any]:
             patch = base(state)
-            next_hop = route_after(name, dict(state))
+            merged = dict(state)
+            merged["counters"] = {**(state.get("counters") or {}), **(patch.get("counters") or {})}
+            merged["artifacts"] = {**(state.get("artifacts") or {}), **(patch.get("artifacts") or {})}
+            next_hop = route_after(name, merged)
             patch.setdefault("counters", {})
             patch["stage"] = name
             patch["edge"] = next_hop if next_hop in actions else None
+            patch["edges"] = [next_hop] if next_hop in actions else []
             return patch
 
         return node

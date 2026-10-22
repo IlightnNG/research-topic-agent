@@ -108,11 +108,9 @@ def test_fault_injection_three_kinds() -> None:
         assert faultinject.is_active("empty_retrieval")
     assert not faultinject.is_active("empty_retrieval")
 
-    from lit_agent.errors import E_SRC_TIMEOUT, LitError
-
-    with pytest.raises(LitError) as excinfo, faultinject.inject("timeout"):
-        pass
-    assert excinfo.value.code == E_SRC_TIMEOUT
+    with faultinject.inject("timeout"):
+        assert faultinject.is_active("timeout")
+    assert not faultinject.is_active("timeout")
 
     with pytest.raises(ValueError), faultinject.inject("nope"):
         pass

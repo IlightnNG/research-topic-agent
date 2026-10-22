@@ -116,7 +116,7 @@ RULES: tuple[EdgeRule, ...] = (
         "证据不足扩检索",
     ),
     EdgeRule("E8", "analysis", "degrade", lambda s: _counter(s, "no_progress") >= 2, "无进展降级"),
-    EdgeRule("E9", "analysis", "rewrite", lambda s: _counter(s, "unresolved_citations") > 0, "重写 claim"),
+    EdgeRule("E9", "critique", "rewrite", lambda s: _counter(s, "unresolved_citations") > 0, "重写 claim"),
     EdgeRule("E10", "evaluate", "warn", lambda s: _counter(s, "eval_below") > 0, "评测不达标告警"),
     EdgeRule("E11", "critique", "replan", lambda s: _counter(s, "loop") > 0, "循环/停滞 replan"),
     EdgeRule("E12", "*", "abort", lambda s: _counter(s, "budget_stop") > 0, "预算超限终止"),
