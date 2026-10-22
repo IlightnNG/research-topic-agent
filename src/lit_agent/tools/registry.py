@@ -5,6 +5,7 @@
 
 from __future__ import annotations
 
+import time
 from collections.abc import Callable
 from concurrent.futures import ThreadPoolExecutor
 from concurrent.futures import TimeoutError as FuturesTimeout
@@ -13,7 +14,7 @@ from typing import Any
 
 from lit_agent.errors import E_SRC_TIMEOUT, E_UNEXPECTED, LitError
 
-__all__ = ["Tool", "ToolRegistry", "ToolResult"]
+__all__ = ["Tool", "ToolRegistry", "ToolResult", "default_registry"]
 
 
 @dataclass(frozen=True)
@@ -78,8 +79,37 @@ class ToolRegistry:
     def list_tools(self) -> list[str]:
         return sorted(self._tools)
 
-    def call(self, name: str, **kwargs: Any) -> ToolResult:
-        return self.get(name)(**kwargs)
+    def call(self, name: str, *, log: Any | None = None, **kwargs: Any) -> ToolResult:
+        """调用工具；`log` 存在时写 `tool_call` 事件（S10 接线）。"""
+        started = time.monotonic()
+        result = self.get(name)(**kwargs)
+        duration_ms = int((time.monotonic() - started) * 1000)
+        result.meta.setdefault("duration_ms", duration_ms)
+        if log is not None:
+            from lit_agent.models.event import EventType
+
+            log.emit(
+                EventType.TOOL_CALL,
+                stage="tools",
+                payload={
+                    "tool": name,
+                    "ok": result.ok,
+                    "duration_ms": duration_ms,
+                    "error_code": result.error_code,
+                },
+                # 每次调用都是独立观测：不设 dedupe_key（用时长做 key 会偶发碰撞）
+                dedupe_key=None,
+            )
+        return result
 
     def __len__(self) -> int:
         return len(self._tools)
+
+
+def default_registry() -> ToolRegistry:
+    """生产默认工具集：内置 PDF 工具（真实下载链路留 P4）。"""
+    from lit_agent.tools.builtin import paper_pdf
+
+    registry = ToolRegistry()
+    registry.register(paper_pdf.build_tool())
+    return registry

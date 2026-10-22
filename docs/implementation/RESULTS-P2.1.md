@@ -7,9 +7,9 @@
 
 | 指标 | 当前值 |
 |---|---|
-| 阶段 | **S1–S6 完成**（图/门禁/回边/指标口径/指标落库） |
-| 测试 | `pytest` 收集 **371 例**（1 skip=浏览器 e2e；2 xfail=待 S7/S9） |
-| 接线测试 | `tests/wiring` 6 条：4 绿（守卫/LLM/回边/指标）、2 xfail（S7 hybrid、S9 scheduler） |
+| 阶段 | **S1–S13 全部完成（Phase 2.1 已收尾）** |
+| 测试 | `pytest` 收集 **439 例**（1 skip=浏览器 e2e；**0 xfail**） |
+| 接线测试 | `tests/wiring` **6 条全绿**；另：工具 4 例、契约 60 例、验证器 13/13 |
 | 门禁测试 | `tests/gates` 11 例全绿（6 类门禁 × 触发/不触发 + 监督者 3 例 + 集成 2 例） |
 | Phase 2 基线 | `verify_phase2 --offline` **12/12**（未回归） |
 | Phase 1 基线 | `verify_phase1 --online` **13/13** |
@@ -170,3 +170,119 @@ metrics 表：scope='run' 每 run 一行集；scope_id=run_id
 API：200 + 与库一致；未知 run → 404
 分节：同一 report 行更新，不再影响历史行
 ```
+
+## 8. S7 · hybrid 进入检索节点（2026-10-22）
+
+| 产物 | 说明 |
+|---|---|
+| `nodes.retrieval` | 有 `focus_hint` → `hybrid_search`；无 → 词面基线；事件/artifacts 记录 `strategy` |
+| `agents/hybrid.py` | 新增**绝对 + 相对分数阈值**（`min_score=0.15`、`min_relative=0.5`） |
+
+### 8.1 本轮抓到的真 bug
+
+首版直接返回 top-k 全部候选 → **聚焦过滤失效**：
+`focus_hint="tool use"` 时，无关论文仍进 `paper_ids`，导致同一话题两次 run 的 claims 都变成 2（指标测试立刻暴露）。
+
+修法：hybrid 排序后按 `max(min_score, top*0.5)` 过滤；既有 benchmark 不变（recall 仍 1.00）。
+
+```
+有 focus → strategy=hybrid；无 focus → strategy=keyword
+接线测试 test_hybrid_wired → 绿
+```
+
+## 9. S8 · LLM 进入分析（2026-10-22）
+
+| 产物 | 说明 |
+|---|---|
+| `run_graph(gateway=...)` | 可注入网关（测试/自托管）；未注入且无 key → 不创建 |
+| `nodes.analysis` | 记录 `llm_used` / `extraction`（`llm` 或 `deterministic`） |
+| `commit` | 报告事件 payload 带 `extraction`、`llm_used` |
+
+```
+注入 FakeGateway → analysis 调用 1 次，报告含 "fake finding from llm"，事件 extraction=llm
+无 key          → state=succeeded，事件 extraction=deterministic、llm_used=false
+```
+
+## 10. S9 · 单流水线（2026-10-22）
+
+`runtime/scheduler.py` 由 `run_topic` 改为 `run_graph`；`run_topic` 仅测试使用。
+静态接线测试（`test_scheduler_wired`）转绿：源码只出现 `run_graph`。
+
+```
+定时任务与手动触发：同一套十阶段/事件/指标
+```
+
+## 11. 阶段小结（S1–S9）
+
+| 维度 | 阶段前 | 现在 |
+|---|---|---|
+| 守卫 | 只存在于旧链路 | 每阶段执行 + 预算硬顶 |
+| 门禁 | 无 | 6 类 + 两阶段提交（坏数据零写入） |
+| 回边 | 只记录 | 图内有界回边（attempt≤2）+ `recovery` |
+| 指标 | topic 口径、不落库 | run 口径、落库、API 可查 |
+| 检索 | 词面 | hybrid（保留聚焦过滤） |
+| LLM | 未接 | 可注入、无 key 显式降级 |
+| 流水线 | 两条 | 一条 |
+| 接线测试 | 0 | 6 条全绿 |
+
+
+## 12. S10 · 工具协议闭环（2026-10-22）
+
+| 产物 | 说明 |
+|---|---|
+| `tools/registry.default_registry()` | 注册内置 `paper_pdf` |
+| `ToolRegistry.call(log=...)` | 调用后发 `tool_call`（tool/ok/duration_ms/error_code） |
+| `parse` 节点 | `pdf_enabled=true` 时对 `pdf_texts/*.txt` 走工具协议（真实下载 P4） |
+
+```
+tools.call("paper_pdf", text=...) → ok + hashes
+二次调用（known_hashes）→ new_chunks = 0
+timeout_s=0.01 的慢工具 → ok=false, E_SRC_TIMEOUT（结构化，不抛穿）
+```
+
+### 12.1 本轮抓到的真 bug
+
+`tool_call` 的 `dedupe_key` 里带了 `duration_ms` → 两次同毫秒调用会**互相去重**，事件丢一条（全量跑时偶发失败）。
+修法：工具调用是独立观测，不设 `dedupe_key`。
+
+---
+
+## 13. S11–S13 · 契约、验证器与收尾（2026-10-22）
+
+### 13.1 S11：NodeIO 契约（60 例自动生成）
+
+`contracts/specs.py` 为十节点声明：版本 / 门禁 / 副作用 / 最大尝试 / 幂等键。
+`tests/contracts` 用 `parametrize` 生成 10 × 6：
+
+| 契约 | 断言 |
+|---|---|
+| C1 | `NodeOutput` 往返一致 |
+| C2 | 门禁非空且 ⊂ 六类门禁 |
+| C3 | 副作用已声明且 ⊂ {reports,claims,metrics,events} |
+| C4 | 幂等键含 run/stage/attempt |
+| C5 | `max_attempts ∈ {1,2}` 且与 `transitions.MAX_ATTEMPTS` 一致 |
+| C6 | 必含 `schema` 门禁 |
+
+### 13.2 S12：验证器
+
+```
+uv run python scripts/verify_phase2_1.py --all
+→ H1..H13 全 PASS，报告写 docs/implementation/phase2.1-report.json
+```
+
+- 每条断言 = 一个 pytest 选择；只读、不碰业务库；
+- `--frozen` 校验 `GOLD_SHA256` / `BENCH_SHA256`；
+- `--print-hashes` / `--update-hashes --i-know-what-i-am-doing`（只打印，需手工改常量）。
+
+### 13.3 S13：收尾实测
+
+| 门禁 | 结果 |
+|---|---|
+| `verify_phase2_1 --all` | **13/13 PASS** |
+| `pytest -q` | **439 例**（1 skip）全绿 |
+| `ruff` | clean |
+| `verify_phase2 --offline` | 12/12 |
+| `verify_phase1 --online` | 13/13 |
+| `playwright` | 8 passed |
+
+**已知偏差**（登记在规范 §14.2）：LLM 调用数硬顶、`evidence_min_cards`、`pipeline.*` 配置进 Settings、PDF 真实下载、漂移检测产出者。

@@ -51,6 +51,9 @@ def commit_pending(
             summary["report_id"] = report_id
             summary["claims_written"] = len(claims)
             summary["dropped_claims"] = len(drop)
+            artifacts = state.get("artifacts") or {}
+            summary["llm_used"] = bool(artifacts.get("llm_used"))
+            summary["extraction"] = str(artifacts.get("extraction") or "deterministic")
         elif kind == "metrics":
             from lit_agent.eval.metrics import persist_run_metrics
 

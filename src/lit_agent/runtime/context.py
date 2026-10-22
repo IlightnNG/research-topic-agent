@@ -28,6 +28,8 @@ class RunContext:
     transitions_enabled: bool = True
     gates_enabled: bool = True
     attempts: dict[str, int] = field(default_factory=dict)
+    tools: Any | None = None
+    pdf_enabled: bool = False
 
     @property
     def engine(self) -> Any:

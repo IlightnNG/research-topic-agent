@@ -17,7 +17,6 @@ from lit_agent.graph.nodes import Phase2Nodes
 from lit_agent.models.evidence import EvidenceCard
 
 
-@pytest.mark.xfail(strict=True, reason="S7：retrieval 仍用 select_cards，未接 hybrid")
 def test_retrieval_uses_hybrid(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
     sentinel = [EvidenceCard(paper_id="HYBRID", title="t", snippet="s", source="arxiv")]
 
@@ -40,5 +39,7 @@ def test_retrieval_uses_hybrid(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) 
         retrieval_mod, "select_cards", lambda *a, **k: pytest.fail("不应再调用 select_cards")
     )
 
-    patch: dict[str, Any] = node.retrieval({"run_id": "r", "topic_id": "t", "artifacts": {}})
+    patch: dict[str, Any] = node.retrieval(
+        {"run_id": "r", "topic_id": "t", "artifacts": {}, "focus_hint": "tool use"}
+    )
     assert patch["artifacts"]["paper_ids"] == ["HYBRID"]

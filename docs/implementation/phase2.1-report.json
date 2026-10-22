@@ -1,0 +1,71 @@
+{
+  "greens": 13,
+  "total": 13,
+  "results": [
+    {
+      "name": "H1 守卫接线",
+      "ok": true,
+      "detail": "ok"
+    },
+    {
+      "name": "H2 门禁挡坏数据",
+      "ok": true,
+      "detail": "ok"
+    },
+    {
+      "name": "H3 健康 run 零误报",
+      "ok": true,
+      "detail": "ok"
+    },
+    {
+      "name": "H4 回边生效",
+      "ok": true,
+      "detail": "ok"
+    },
+    {
+      "name": "H5 续跑幂等",
+      "ok": true,
+      "detail": "ok"
+    },
+    {
+      "name": "H6 指标 run 口径",
+      "ok": true,
+      "detail": "ok"
+    },
+    {
+      "name": "H7 指标与 API 一致",
+      "ok": true,
+      "detail": "ok"
+    },
+    {
+      "name": "H8 hybrid 接线",
+      "ok": true,
+      "detail": "ok"
+    },
+    {
+      "name": "H9 LLM 接线/降级",
+      "ok": true,
+      "detail": "ok"
+    },
+    {
+      "name": "H10 单流水线",
+      "ok": true,
+      "detail": "ok"
+    },
+    {
+      "name": "H11 工具协议闭环",
+      "ok": true,
+      "detail": "ok"
+    },
+    {
+      "name": "H12 节点契约",
+      "ok": true,
+      "detail": "ok"
+    },
+    {
+      "name": "H13 冻结哈希",
+      "ok": true,
+      "detail": "gold=ok bench=ok"
+    }
+  ]
+}

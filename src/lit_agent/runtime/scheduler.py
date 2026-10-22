@@ -12,7 +12,7 @@ from sqlalchemy import text
 
 from lit_agent.config import Settings
 from lit_agent.db.session import connect, make_engine
-from lit_agent.runtime.runner import run_topic
+from lit_agent.runtime.graph_runner import run_graph
 
 __all__ = ["build_scheduler", "cron_kwargs", "list_jobs", "run_once", "weekly_job"]
 
@@ -49,7 +49,7 @@ def weekly_job(settings: Settings, topic_id: str | None = None) -> dict[str, Any
     topic_ids = [topic_id] if topic_id else _active_topics(settings)
     results: dict[str, Any] = {}
     for item in topic_ids:
-        result = run_topic(settings, item)
+        result = run_graph(settings, item)
         # P1：runner 还没有 trigger 参数，这里回填以便区分手动/定时（P2 改为参数下传）
         engine = make_engine(settings)
         try:

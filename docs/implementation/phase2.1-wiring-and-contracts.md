@@ -1,7 +1,7 @@
 # Phase 2.1 —— 接线、门禁与契约（Wiring · Gates · Contracts）
 
 > **文档性质**：**规范性文件（冻结契约）**。Phase 2.1 的"做什么 / 什么算做完 / 按什么顺序"以本文件为唯一判据。
-> **版本**：**1.3.0**（2026-10-22，S1–S6 已落地）
+> **版本**：**2.0.0（已收尾）**（2026-10-22，S1–S13 全部完成）
 > **前序**：`phase2-implementation-steps.md` v3.0.0（已收尾）、`phase1.1-scope-and-acceptance.md`、`phase1.2-frontend-spec.md` v1.3.0、**ADR-0006（事件格式冻结）**、本阶段新增 **ADR-0007（NodeIO 与配置冻结）**。
 > **入口基线**：`verify_phase2 12/12`、`verify_phase1 13/13`、`pytest 354 例`、`e2e 8 passed`、`vue-tsc 0 error`、迁移 head `0003_reports_sections`。
 
@@ -314,13 +314,13 @@ class Decision(BaseModel):
 | **S4** ✅ | M2 | 有界回边 | `graph/transitions.py`、`add_conditional_edges`、attempt 上限、`recovery` 事件 | 坏产物 → analysis attempt=2 → 用尽后 degrade；续跑不重复 | `transitions=false` | 4 h |
 | **S5** ✅ | M3 | 指标 run 口径 | `compute_run_metrics` 全部按 `run_id` 取数；grounding 改判定器口径 | 两 run 指标独立（m1=1, m2=1） | 保留旧函数别名 | 2 h |
 | **S6** ✅ | M3 | 指标落库 + API + 分节回填带主键 | `evaluate` commit 落库、`GET /runs/{id}/metrics`（缺行按需计算）、回填按 `report_id` | 库/接口/报告一致；旧 run 不回填 | `metrics.persist=false` | 2.5 h |
-| **S7** | M4 | hybrid 进节点 | `nodes.retrieval` 用 `ctx.retrieval` | `selected` 与基准一致 | `retrieval.hybrid=false` | 1.5 h |
-| **S8** | M4 | LLM 进分析 | `nodes.analysis(ctx)` + 回落 + `llm_calls` | 有 key 有行、无 key 降级 | `llm.enabled=false` | 2.5 h |
-| **S9** | M5 | 单流水线 | scheduler→`run_graph`；`run_topic` 弃用警告 | 定时 run 十阶段 | 恢复 scheduler 旧调用 | 1.5 h |
-| **S10** | M5 | 工具协议闭环 | `default_registry`、`tools.call`、PDF 注册 | `tool_call` + 幂等 | `tools.pdf.enabled=false` | 2.5 h |
-| **S11** | M6 | NodeIO 契约 + 自动测试 | `contracts/specs.py`、10 节点 spec | 10/10 通过 | 关闭参数化用例 | 3 h |
-| **S12** | M6 | 验证器 + 冻结哈希 | `verify_phase2_1.py`（12 断言）、哈希常量 | `--contracts` 10/10；`--frozen` PASS | 保留脚本但不算门禁 | 2.5 h |
-| **S13** | M0 | 收尾 | H1–H14 全跑、`RESULTS-P2.1.md`、前端成本展示 | 全绿 + 文档 | —— | 2 h |
+| **S7** ✅ | M4 | hybrid 进节点 | `nodes.retrieval` 走 `hybrid_search`（带绝对/相对分数阈值，保留聚焦语义） | 有 focus → hybrid；无 → 词面；接线测试绿 | `retrieval.hybrid=false` | 1.5 h |
+| **S8** ✅ | M4 | LLM 进分析 | `run_graph(gateway=...)`；无 key 不创建；报告事件标 `extraction/llm_used` | 注入 fake gateway → claims 来自 LLM；无 key → deterministic 且不失败 | `llm.enabled=false` | 2.5 h |
+| **S9** ✅ | M5 | 单流水线 | `scheduler` 改调 `run_graph`；`run_topic` 仅测试使用 | 静态断言：scheduler 源码只含 run_graph | 恢复旧调用 | 1.5 h |
+| **S10** ✅ | M5 | 工具协议闭环 | `default_registry()`、`call(log=...)` 发 `tool_call`、PDF 注册、parse 可选调用 | 调用事件 + 幂等（二次 `new_chunks=0`）+ 超时结构化 | `pdf_enabled=false` | 2.5 h |
+| **S11** ✅ | M6 | NodeIO 契约 + 自动测试 | `contracts/nodeio.py`、`contracts/specs.py`、`tests/contracts`（10×6） | **60 例全绿** | 关闭参数化用例 | 3 h |
+| **S12** ✅ | M6 | 验证器 + 冻结哈希 | `scripts/verify_phase2_1.py`（H1–H13，13 条）、gold/bench SHA256 | **13/13 PASS**；`--frozen` 匹配 | 保留脚本但不算门禁 | 2.5 h |
+| **S13** ✅ | M0 | 收尾 | `verify_phase2_1 --all` 13/13、`RESULTS-P2.1.md`、`phase2.1-report.json` | 全绿 + 文档（2026-10-22） | —— | 2 h |
 
 **合计 ≈ 32 人时（约 2 个工作日）**
 
@@ -552,6 +552,10 @@ class PipelineSettings(BaseModel):
 
 | 版本 | 日期 | 变更 |
 |---|---|---|
+| **2.0.0** | 2026-10-22 | **阶段收尾**：S10–S13 完成（工具协议闭环、NodeIO 契约 60 例、验证器 13/13、冻结哈希）；H1–H14 全绿；已知偏差见 `RESULTS-P2.1.md` §13 |
+| 1.4.0 | 2026-10-22 | S7–S9：hybrid 进检索（分数阈值）、LLM 进分析（gateway 注入/无 key 降级）、scheduler 统一；6 条接线测试全部转正 |
+| 1.3.0 | 2026-10-22 | S4–S6：图内条件回边（attempt 上限 + recovery）、指标 run 口径、metrics API、分节回填按主键 |
+| 1.2.0 | 2026-10-22 | S1–S3：接线测试、NodeIO 契约、6 类门禁、两阶段提交、监督者、守卫接线、预算从 DB 重建 |
 | 1.0.0 | 2026-10-22 | 首版：12 项接线缺陷、M1–M6、S1–S13、10 不变量、H1–H12 |
 | **1.1.0** | 2026-10-22 | **工程化重构**：新增两阶段提交（compute→gate→commit）、RunContext 注入、决策物化、预算从 DB 重建、attempt 幂等规则；补 6 类门禁表、指标公式表、配置模型、文件布局、事件 payload 冻结；新增 **C1–C6 通用契约**、**I1–I12 不变量**、**§7.5 返工风险登记**、**每步 DoD 与回滚点**；H 扩到 14 条（新增"健康 run 零误报""冻结"）；验证器补隔离/离线/JSON/退出码契约；明确 **2.1 零迁移、零新增错误码、零新增事件类型** |
 
@@ -579,3 +583,47 @@ cd web; npm run typecheck; npm run build; npm run test:e2e
 | Phase 3 | `agents.chat` + ReAct + 多轮评测 | 并行、MCP |
 | Phase 4 | 并行分支、MCP、PDF 真实链路 | 自进化 |
 | Phase 5 | 契约内自进化（参数 → 配置 → 候选节点） | —— |
+
+---
+
+## 14. 收尾结论（2026-10-22）
+
+**Phase 2.1 COMPLETE。**
+
+```text
+verify_phase2_1 --all     13/13 PASS（H1–H13；H14 由下列基线覆盖）
+verify_phase2 --offline   12/12 PASS
+verify_phase1 --online    13/13 PASS
+pytest -q                 439 例全绿
+ruff                      clean
+playwright                8 passed
+vue-tsc / vite build      0 error / ✓
+```
+
+### 14.1 十二处"实现了但没生效"的处置
+
+| # | 项 | 结果 |
+|---|---|---|
+| 1 | 15 类守卫未进图 | ✅ 每阶段执行 + 预算硬顶 |
+| 2 | hybrid 未接线 | ✅ 有 focus 走 hybrid（带阈值） |
+| 3 | run 指标实为 topic 聚合 | ✅ 按 run 取数 |
+| 4 | 指标不落库 | ✅ evaluate commit 落库 + API |
+| 5 | 条件边只有 abort | ✅ 有界回边 + recovery |
+| 6 | critic 不拦报告 | ✅ 门禁 + 丢弃坏 claim |
+| 7 | 分析不走 LLM | ✅ 可注入 gateway / 无 key 降级 |
+| 8 | 定时任务走旧链路 | ✅ 统一 `run_graph` |
+| 9 | PDF 未注册 | ✅ 默认注册 + parse 可选调用 |
+| 10 | 漂移无产出者 | ⏳ 2.2（语义漂移需要模型判定） |
+| 11 | 预算未进图 | ✅ 门禁读活对象 + DB 重建 |
+| 12 | 分节回填不限行 | ✅ 按 `report_id` |
+
+### 14.2 已知偏差（不阻塞，登记 backlog）
+
+| ID | 偏差 | 归属 |
+|---|---|---|
+| 2.1-a | `limits.max_total_llm_calls` 未接线（仅预算金额约束） | 2.2 |
+| 2.1-b | `gates.evidence_min_cards` 未使用（当前判 `selected == 0`） | 2.2（需扩夹具） |
+| 2.1-c | `pipeline.*` 配置尚未进 `Settings`（当前用参数/常量） | 2.2 |
+| 2.1-d | PDF 真实下载链路未接（只有本地文本缓存） | P4 |
+| 2.1-e | 漂移检测仍无产出者 | 2.2 |
+| 2.1-f | H14 由既有 `verify_phase1/2` 覆盖，未并入本验证器 | 2.2 |

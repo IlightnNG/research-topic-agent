@@ -66,13 +66,25 @@ def hybrid_search(
     *,
     k: int = 10,
     alpha: float = 0.6,
+    min_score: float = 0.15,
+    min_relative: float = 0.5,
 ) -> RetrievalResult:
-    """混合检索：返回 top-k（`scored` 里是浮点分）。"""
-    ranked = rerank(cards, query, alpha=alpha)[:k]
+    """混合检索：返回相关 top-k。
+
+    两道阈值（否则"top-k 全返回"会丢掉聚焦语义）：
+    - 绝对：`score >= min_score`；
+    - 相对：`score >= top_score * min_relative`（去掉明显陪跑项）。
+    """
+    ranked = rerank(cards, query, alpha=alpha)
+    if not ranked:
+        return RetrievalResult(cards=[], scored={}, dropped=0)
+    top = ranked[0][1]
+    floor = max(min_score, top * min_relative)
+    kept = [(card, score) for card, score in ranked if score >= floor][:k]
     return RetrievalResult(
-        cards=[card for card, _score in ranked],
-        scored={card.paper_id: score for card, score in ranked},  # type: ignore[dict-item]
-        dropped=max(0, len(cards) - len(ranked)),
+        cards=[card for card, _score in kept],
+        scored={card.paper_id: score for card, score in kept},  # type: ignore[dict-item]
+        dropped=max(0, len(cards) - len(kept)),
     )
 
 

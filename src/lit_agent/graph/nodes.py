@@ -100,14 +100,27 @@ class Phase2Nodes:
 
             raise LitError(E_SRC_TIMEOUT, "检索阶段注入超时", context={"stage": "retrieval"})
 
+        from lit_agent.agents.hybrid import hybrid_search
+
         cards = self._cards()
+        query = str(state.get("focus_hint") or "")
         if faultinject.is_active("empty_retrieval"):
             selected = []
+            strategy = "fault"
+        elif query:
+            # S7：有聚焦词时走 hybrid（关键词 + char-ngram），无聚焦词回到词面基线
+            selected = hybrid_search(cards, query).cards
+            strategy = "hybrid"
         else:
-            selected = select_cards(cards, focus_hint=state.get("focus_hint")).cards
+            selected = select_cards(cards, focus_hint=None).cards
+            strategy = "keyword"
         return {
             "stage": "retrieval",
-            "artifacts": {"candidates": len(cards), "paper_ids": [card.paper_id for card in selected]},
+            "artifacts": {
+                "candidates": len(cards),
+                "paper_ids": [card.paper_id for card in selected],
+                "strategy": strategy,
+            },
             "counters": {"candidates": len(cards), "selected": len(selected)},
         }
 
@@ -129,14 +142,35 @@ class Phase2Nodes:
             engine.dispose()
 
     def parse(self, state: dict[str, Any]) -> dict[str, Any]:
+        """统计解析状态；`ctx.pdf_enabled` 时对本地文本缓存走一次工具协议。"""
         parsed = self._scalar("SELECT COUNT(*) FROM papers WHERE parse_status = 'ok'")
         pending = self._scalar("SELECT COUNT(*) FROM papers WHERE parse_status IS NULL")
         failed = self._scalar("SELECT COUNT(*) FROM papers WHERE parse_status = 'failed'")
-        return {
-            "stage": "parse",
-            "artifacts": {"parsed": int(parsed), "pending": int(pending), "failed": int(failed)},
-            "counters": {"parse_failed": int(failed)},
+        artifacts: dict[str, Any] = {
+            "parsed": int(parsed),
+            "pending": int(pending),
+            "failed": int(failed),
         }
+        counters = {"parse_failed": int(failed)}
+
+        ctx = self.ctx
+        if ctx is not None and getattr(ctx, "pdf_enabled", False) and ctx.tools is not None:
+            from pathlib import Path as _Path
+
+            cache = _Path(ctx.settings.storage.data_root) / "pdf_texts"
+            used = 0
+            if cache.exists():
+                for text_file in sorted(cache.glob("*.txt"))[:3]:
+                    result = ctx.tools.call(
+                        "paper_pdf",
+                        log=ctx.log,
+                        paper_id=text_file.stem,
+                        text=text_file.read_text(encoding="utf-8"),
+                    )
+                    used += 1 if result.ok else 0
+            artifacts["pdf_tools"] = used
+            counters["pdf_tools"] = used
+        return {"stage": "parse", "artifacts": artifacts, "counters": counters}
 
     def normalize(self, state: dict[str, Any]) -> dict[str, Any]:
         from lit_agent.sources.dedup import run_dedup
@@ -172,9 +206,15 @@ class Phase2Nodes:
             from lit_agent.models.evidence import Support
 
             claims = [Claim(text=claims[0].text, citations=[], support=Support.UNSUPPORTED), *claims[1:]]
+        used_llm = gateway is not None
         return {
             "stage": "analysis",
-            "artifacts": {"claims": len(claims), "claims_json": claims_to_json(claims)},
+            "artifacts": {
+                "claims": len(claims),
+                "claims_json": claims_to_json(claims),
+                "llm_used": used_llm,
+                "extraction": "llm" if used_llm else "deterministic",
+            },
             "counters": {"claims": len(claims), "cards": len(cards)},
         }
 

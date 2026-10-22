@@ -91,6 +91,9 @@ def run_graph(
     prestarted: bool = False,
     crash_after_stage: str | None = None,
     budget: RunBudget | None = None,
+    gateway: Any | None = None,
+    tools: Any | None = None,
+    pdf_enabled: bool = False,
 ) -> dict[str, Any]:
     """执行十节点图。`resume=True` 时从 checkpoint 续跑（同一 run_id）。"""
     rid = run_id or new_run_id()
@@ -105,11 +108,19 @@ def run_graph(
     ckpt_path = checkpoint_path or f"{settings.storage.data_root}/checkpoints/{rid}.sqlite"
     saver, connection = open_checkpointer(ckpt_path)
 
+    if gateway is None and settings.providers.cloud.api_key is not None:
+        from lit_agent.gateway.llm import LLMGateway
+
+        gateway = LLMGateway(settings, budget=run_budget)
+
     ctx = RunContext(
         settings=settings,
         run_id=rid,
         topic_id=topic_id,
         budget=run_budget,
+        gateway=gateway,
+        tools=tools,
+        pdf_enabled=pdf_enabled,
         log=log,
         transitions_enabled=True,  # S4：有界回边已启用
         gates_enabled=True,
