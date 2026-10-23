@@ -7,8 +7,8 @@
 
 | 指标 | 当前值 |
 |---|---|
-| 阶段 | **S1–S2 完成**（配置体系 / LLM 调用硬顶） |
-| 测试 | `pytest` 收集 **448 例**（1 skip=浏览器 e2e） |
+| 阶段 | **S1–S4 完成**（配置 / LLM 硬顶 / 证据阈值 / 漂移产出） |
+| 测试 | `pytest` 收集 **464 例**（1 skip=浏览器 e2e） |
 | Phase 2.1 验证器 | `verify_phase2_1 --all` **13/13 PASS** |
 | Phase 2 基线 | `verify_phase2 --offline` **12/12** |
 | Phase 1 基线 | `verify_phase1 --online` **13/13** |
@@ -80,3 +80,63 @@ max_total_llm_calls=2 + 2 条 → aborted（证明读配置）
 
 **S3**：证据阈值语义收口（`selected < evidence_min_cards` 的完整行为矩阵 + 夹具显式设 1）。
 **S4**：漂移产出者（`eval/scope_drift.py`）→ **S5–S7** 观测/前端/测试 → **S8** 收尾。
+
+---
+
+## 4. S3 · 证据阈值收口（2026-10-23）
+
+### 4.1 交付
+
+| 产物 | 说明 |
+|---|---|
+| `gates.gate_evidence_sufficiency` | 判 `selected < evidence_min_cards`，details 带 `selected/min_cards/repair_target` |
+| `tests/wiring/__init__.prepare()` | **显式**设 `evidence_min_cards=1`（小夹具只有 1 篇论文） |
+| `tests/gates/test_evidence_threshold.py` | 7 例：矩阵 0/1/3 × 阈值 1/3、缺键不误报、回边一次后降级、阈值 1 不回边 |
+
+### 4.2 实测
+
+```
+矩阵：selected=1,min=1 通过；selected=1,min=3 失败；selected=3,min=3 通过
+集成：min=3 + 1 篇论文 → retrieval attempt=[1,2] → 仍不足 → degrade（succeeded）
+集成：min=1 + 1 篇论文 → retrieval attempt=[1]（不回边）
+缺 "selected" 键（阶段未跑）→ 不触发
+```
+
+### 4.3 设计取舍
+
+- **默认 1 = 2.1 行为**，生产建议 3；阈值只从配置读，测试显式声明，避免"阈值测试污染其他用例"。
+- 失败动作是 `repair→retrieval`（可回边），次数用尽后由 runner 降级，不会中止整轮。
+
+---
+
+## 5. S4 · 漂移产出者（2026-10-23）
+
+### 5.1 交付
+
+| 产物 | 说明 |
+|---|---|
+| `eval/scope_drift.py` | `drift_for(scope, claims, warn_below, block_below)`；短 scope（<2 token）不判定 |
+| `nodes.analysis` | 抽取后计算覆盖率，写 `drift_warn/drift_block` 计数 + artifacts `drift_verdict/coverage` |
+| 门禁 | 复用 2.1 的 `gate_drift`（block→abort / warn→annotate） |
+| 测试 | `tests/eval/test_scope_drift.py` 9 例（ok/warn/block/短 scope/空产出/阈值可配/集成 abort/健康零误报） |
+
+### 5.2 实测
+
+```
+scope="protein folding cryo microscopy thermodynamics" + agent 论文
+  → drift_verdict=block → run aborted, error_code=E_GUARD_DRIFT
+scope="tool use agents" + 匹配论文
+  → drift_verdict=ok → 零告警（健康 run）
+```
+
+### 5.3 设计取舍
+
+- **确定性词面覆盖**，不引入 LLM 成本；语义漂移判定留 Phase 3 作为可选工具。
+- **"没有证据" ≠ "跑题"**：空 claims 直接判 ok（证据不足由别的门禁负责）。
+- **尽力而为**：scope 读不到（如单测无库）时跳过检测，不阻断分析。
+- 阈值来自配置 `drift_warn_below / drift_block_below`，改配置即改行为。
+
+### 5.4 本轮修掉的边界问题
+
+`analysis` 新增 scope 查询后，一个只测"节点传 gateway"的单元测试没有建库 → 查询抛错。
+修法：`_scope_text()` 失败返回空串（漂移是辅助判定，不该让主流程失败）。

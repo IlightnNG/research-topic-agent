@@ -1,7 +1,7 @@
 # Phase 2.2 —— 收尾、可观测与前端质量（Closeout · Observability · UX）
 
 > **文档性质**：**规范性文件（冻结契约）**。本阶段"做什么 / 什么算做完 / 按什么顺序"以本文件为唯一判据。
-> **版本**：**1.1.0**（2026-10-23，S1–S2 已落地）
+> **版本**：**1.2.0**（2026-10-23，S1–S4 已落地）
 > **前序**：`phase2.1-wiring-and-contracts.md` v2.0.0（已收尾）、ADR-0007（NodeIO 与配置冻结）、ADR-0006（事件格式冻结）。
 > **入口基线**：`verify_phase2_1 13/13`、`verify_phase2 12/12`、`verify_phase1 13/13`、`pytest 439 例`、`e2e 8 passed`、`ruff clean`、`vue-tsc 0 error`。
 
@@ -210,8 +210,8 @@ class PipelineSettings(BaseModel):
 |---|---|---|---|---|---|---|
 | **S1** ✅ | M1 | 配置进 Settings | `config.py`、`runtime/context.py`、`graph/gates.py`、`graph/nodes.py`、`graph/transitions.py`、`runtime/graph_runner.py` | 默认快照一致；env 生效；非法值 E_CONFIG_INVALID | 回滚提交 | 4 h |
 | **S2** ✅ | M2 | LLM 调用硬顶 | `graph/gates.py`（gate_llm_calls）、事件 `details`、`tests/gates/test_llm_cap.py` | 预插 12 条 → abort（零写入）；11 条可完成；上限可配 | 上限调大即缓解 | 2 h |
-| **S3** | M3 | 证据阈值 | `graph/gates.py`、`tests/wiring/__init__.py`（夹具显式 1） | 1 篇通过 / 3 篇修复后降级 | 阈值设 1（等价现状） | 2.5 h |
-| **S4** | M4 | 漂移产出 | `eval/scope_drift.py`、`graph/nodes.py`（analysis 写计数）、`gates.py` | 跑题 → warn/block；正常 → 0 | 关闭 `drift.enabled` | 3 h |
+| **S3** ✅ | M3 | 证据阈值 | `graph/gates.py`、`tests/wiring/__init__.py`（显式 1）、`tests/gates/test_evidence_threshold.py` | 矩阵 0/1/3 × 阈值 1/3；min=3 → 回边一次后降级 | 阈值设 1 | 2.5 h |
+| **S4** ✅ | M4 | 漂移产出 | `eval/scope_drift.py`、`graph/nodes.py`（analysis 写计数）、`tests/eval/test_scope_drift.py` | 跑题 → block/abort；正常 → 0；短 scope 不判定 | 阈值调 0 或关闭门禁 | 3 h |
 | **S5** | M5 | 耗时 + 指标 | `runtime/graph_runner.py`（duration_ms）、`eval/metrics.py`、`api/routes/runs.py` | 10 条 duration；API 非空 | 前端不读即无影响 | 3 h |
 | **S6** | M5 | 前端展示 | `RunWorkspace.vue`（成本/最慢阶段）、`types.gen.ts` 重生成 | 显示正确；F13 PASS | 回退组件 | 2 h |
 | **S7** | M5 | e2e/组件测试 | `web/e2e/smoke.spec.ts`（+2）、`web/vitest.config.ts`、`web/src/components/__tests__/*`（2）、`package.json` 增 `test:unit` | e2e 10 passed；组件 2 passed | 删除新用例与依赖 | 4 h |
@@ -327,6 +327,7 @@ class PipelineSettings(BaseModel):
 
 | 版本 | 日期 | 变更 |
 |---|---|---|
+| 1.2.0 | 2026-10-23 | S3–S4 落地：证据阈值完整矩阵 + 夹具显式化；漂移产出者（确定性覆盖率，block/warn 可配）接入 analysis 与门禁；`pytest 464 例` |
 | 1.1.0 | 2026-10-23 | S1–S2 落地：pipeline 配置进 Settings（默认=现状）、门禁/回边/hybrid/pdf/llm 全部读配置；新增 LLM 调用数硬顶（DB 计数）；`pytest 448 例`，2.1 验证器 13/13 |
 | **1.0.0** | 2026-10-23 | 首版：M1–M5、S1–S8、H1–H8；明确"不动节点结构"；关闭 2.1-a/b/c/e/f；G-17 用 2 e2e + 2 组件测试收口（需补 Vitest）；ADR-0007 默认值随本阶段更新 |
 

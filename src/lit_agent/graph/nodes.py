@@ -213,6 +213,23 @@ class Phase2Nodes:
 
             claims = [Claim(text=claims[0].text, citations=[], support=Support.UNSUPPORTED), *claims[1:]]
         used_llm = gateway is not None
+
+        from lit_agent.eval.scope_drift import drift_for
+
+        self._topic_id = str(state.get("topic_id") or "")
+        gates_cfg = getattr(getattr(self.ctx, "pipeline", None), "gates", None) \
+            or self.settings.pipeline.gates
+        drift = drift_for(
+            self._scope_text(),
+            [claim.text for claim in claims],
+            warn_below=float(gates_cfg.drift_warn_below),
+            block_below=float(gates_cfg.drift_block_below),
+        )
+        counters = {"claims": len(claims), "cards": len(cards)}
+        if drift.warning:
+            counters["drift_warn"] = 1
+        if drift.blocked:
+            counters["drift_block"] = 1
         return {
             "stage": "analysis",
             "artifacts": {
@@ -220,9 +237,26 @@ class Phase2Nodes:
                 "claims_json": claims_to_json(claims),
                 "llm_used": used_llm,
                 "extraction": "llm" if used_llm else "deterministic",
+                "drift_verdict": drift.verdict,
+                "drift_coverage": drift.coverage,
             },
-            "counters": {"claims": len(claims), "cards": len(cards)},
+            "counters": counters,
         }
+
+    def _scope_text(self) -> str:
+        """读 topic scope；漂移检测是**尽力而为**，读不到就跳过（不阻断主流程）。"""
+        engine = self._engine()
+        try:
+            with connect(engine) as conn:
+                row = conn.execute(
+                    text("SELECT scope_statement FROM topics WHERE id = :t"),
+                    {"t": self._topic_id},
+                ).first()
+        except Exception:  # noqa: BLE001 - 漂移检测失败不应影响分析
+            return ""
+        finally:
+            engine.dispose()
+        return str(row[0]) if row and row[0] else ""
 
     def _paper_ids(self, state: dict[str, Any]) -> list[str]:
         artifacts = state.get("artifacts") or {}
