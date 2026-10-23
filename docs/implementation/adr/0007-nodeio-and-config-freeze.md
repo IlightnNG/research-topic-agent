@@ -42,7 +42,7 @@ Phase 2.1 要在十节点图上接门禁、回边与指标。若等到实现中�
 | 配置 | 默认 |
 |---|---|
 | `gates.enabled` | `true` |
-| `gates.evidence_min_cards` | `3`（当前实现用"selected==0"触发；阈值 S4 起使用） |
+| `gates.evidence_min_cards` | `1`（2.2 起可配；生产建议 3；与 2.1 行为等价） |
 | `gates.support_ratio_min` | `0.6` |
 | `gates.citation_required` | `true` |
 | `limits.max_attempts` | `{analysis:2, retrieval:2, report:1}` |

@@ -627,3 +627,5 @@ vue-tsc / vite build      0 error / ✓
 | 2.1-d | PDF 真实下载链路未接（只有本地文本缓存） | P4 |
 | 2.1-e | 漂移检测仍无产出者 | 2.2 |
 | 2.1-f | H14 由既有 `verify_phase1/2` 覆盖，未并入本验证器 | 2.2 |
+
+> **后续**：`phase2.2-closeout-and-observability.md`（收尾/观测/前端质量）→ `phase3-double-layer-agent.md`（双层 Agent）。

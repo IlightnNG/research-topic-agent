@@ -22,11 +22,12 @@ GATE_NAMES = (
     "citation_integrity",
     "support_ratio",
     "budget",
+    "llm_calls",
     "drift",
 )
 
 MAX_OUTPUT_BYTES = 8 * 1024
-MIN_SUPPORT_RATIO = 0.6
+MIN_SUPPORT_RATIO = 0.6  # 默认值；运行时以 ctx.pipeline.gates.support_ratio_min 为准
 
 
 def _fail(name: str, code: str, action: str, reason: str, **details: Any) -> GateResult:
@@ -87,14 +88,17 @@ def gate_evidence_sufficiency(
     counters = patch.get("counters") or {}
     if "selected" not in counters:
         return None
-    if int(counters.get("selected", 0)) > 0:
+    min_cards = int(getattr(ctx.gates_cfg, "evidence_min_cards", 1))
+    selected = int(counters.get("selected", 0))
+    if selected >= min_cards:
         return None
     return _fail(
         "evidence_sufficiency",
         "E_GROUND_NO_EVIDENCE",
         "repair",
-        "本轮没有可用证据：应先扩大检索，而不是直接成文",
-        selected=0,
+        f"证据不足：选中 {selected} 篇 < 要求 {min_cards} 篇",
+        selected=selected,
+        min_cards=min_cards,
         repair_target="retrieval",
     )
 
@@ -132,14 +136,16 @@ def gate_support_ratio(
         return None
     supported = sum(1 for claim in claims if claim.get("support") == "supported")
     ratio = supported / len(claims)
-    if ratio >= MIN_SUPPORT_RATIO:
+    min_ratio = float(getattr(ctx.gates_cfg, "support_ratio_min", MIN_SUPPORT_RATIO))
+    if ratio >= min_ratio:
         return None
     return _fail(
         "support_ratio",
         "E_GROUND_UNSUPPORTED_RATIO",
         "repair",
-        f"supported 比例 {ratio:.2f} < {MIN_SUPPORT_RATIO}：尝试补一次证据/重写",
+        f"supported 比例 {ratio:.2f} < {min_ratio}：尝试补一次证据/重写",
         ratio=round(ratio, 4),
+        min_ratio=min_ratio,
         repair_target="analysis",
     )
 
@@ -155,6 +161,34 @@ def gate_budget(
         "abort",
         f"预算已达上限：{ctx.budget.snapshot()['ratios']}",
         snapshot=ctx.budget.snapshot(),
+    )
+
+
+def gate_llm_calls(
+    stage: str, patch: dict[str, Any], state: dict[str, Any], ctx: RunContext
+) -> GateResult | None:
+    """单 run 的 LLM 调用数硬顶（S2）：DB 计数，不依赖内存。"""
+    limit = int(getattr(ctx.limits_cfg, "max_total_llm_calls", 12))
+    from sqlalchemy import text as _text
+
+    from lit_agent.db.session import connect
+
+    with connect(ctx.engine) as conn:
+        used = int(
+            conn.execute(
+                _text("SELECT COUNT(*) FROM llm_calls WHERE run_id = :rid"),
+                {"rid": ctx.run_id},
+            ).scalar_one()
+        )
+    if used < limit:
+        return None
+    return _fail(
+        "llm_calls",
+        "E_BUDGET_EXCEEDED",
+        "abort",
+        f"LLM 调用数已达上限（{used}/{limit}）",
+        llm_calls_used=used,
+        limit=limit,
     )
 
 
@@ -186,6 +220,7 @@ def run_gates(
         gate_citation_integrity,
         gate_support_ratio,
         gate_budget,
+        gate_llm_calls,
         gate_drift,
     ):
         try:

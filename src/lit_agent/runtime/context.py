@@ -30,6 +30,19 @@ class RunContext:
     attempts: dict[str, int] = field(default_factory=dict)
     tools: Any | None = None
     pdf_enabled: bool = False
+    pipeline: Any | None = None
+
+    def __post_init__(self) -> None:
+        if self.pipeline is None:
+            self.pipeline = self.settings.pipeline
+
+    @property
+    def gates_cfg(self) -> Any:
+        return self.pipeline.gates
+
+    @property
+    def limits_cfg(self) -> Any:
+        return self.pipeline.limits
 
     @property
     def engine(self) -> Any:

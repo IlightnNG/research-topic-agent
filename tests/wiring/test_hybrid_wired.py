@@ -20,7 +20,7 @@ from lit_agent.models.evidence import EvidenceCard
 def test_retrieval_uses_hybrid(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
     sentinel = [EvidenceCard(paper_id="HYBRID", title="t", snippet="s", source="arxiv")]
 
-    def fake_hybrid(cards, query, *, k=10, alpha=0.6):  # noqa: ANN001
+    def fake_hybrid(cards, query, *, k=10, alpha=0.6, min_score=0.15, **kwargs):  # noqa: ANN001
         return type("R", (), {"cards": sentinel, "paper_ids": ["HYBRID"]})()
 
     monkeypatch.setattr(hybrid_mod, "hybrid_search", fake_hybrid)

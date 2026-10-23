@@ -111,16 +111,17 @@ def build_phase2_graph(
 
     from lit_agent.graph.transitions import next_stage
 
+    limits = dict(settings.pipeline.limits.max_attempts)
+
+    def route(state: Any, stage: str) -> Any:
+        target = next_stage(stage, state, limits)
+        return END if target == "end" else target
+
     for name in PHASE2_STAGES:
         builder.add_node(name, wrap(name))
     builder.add_edge(START, PHASE2_STAGES[0])
     for name in PHASE2_STAGES:
-        builder.add_conditional_edges(
-            name,
-            lambda state, _stage=name: END
-            if next_stage(_stage, state) == "end"
-            else next_stage(_stage, state),
-        )
+        builder.add_conditional_edges(name, lambda state, _stage=name: route(state, _stage))
     return builder.compile(checkpointer=checkpointer)
 
 

@@ -109,7 +109,13 @@ class Phase2Nodes:
             strategy = "fault"
         elif query:
             # S7：有聚焦词时走 hybrid（关键词 + char-ngram），无聚焦词回到词面基线
-            selected = hybrid_search(cards, query).cards
+            pipeline = getattr(self.ctx, "pipeline", None) or self.settings.pipeline
+            selected = hybrid_search(
+                cards,
+                query,
+                alpha=float(pipeline.hybrid_alpha),
+                min_score=float(pipeline.hybrid_min_score),
+            ).cards
             strategy = "hybrid"
         else:
             selected = select_cards(cards, focus_hint=None).cards

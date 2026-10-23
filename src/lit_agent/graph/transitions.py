@@ -33,13 +33,18 @@ def _last(state: dict[str, Any]) -> dict[str, Any] | None:
     return decisions[-1] if decisions else None
 
 
-def next_stage(stage: str, state: dict[str, Any]) -> str:
-    """返回下一节点名或 `"end"`。"""
+def next_stage(
+    stage: str,
+    state: dict[str, Any],
+    limits: dict[str, int] | None = None,
+) -> str:
+    """返回下一节点名或 `"end"`。`limits` 来自 `pipeline.limits.max_attempts`。"""
+    table = limits or MAX_ATTEMPTS
     decision = _last(state)
     if decision and is_back_action(decision.get("action")):
         target = str(decision.get("target") or "")
         attempts = int((state.get("attempts") or {}).get(target, 0))
-        limit = MAX_ATTEMPTS.get(target, 1)
+        limit = int(table.get(target, 1))
         if target and attempts < limit:
             return target
     if stage in MAINLINE:

@@ -75,6 +75,7 @@ def _gate_payload(gates: list[GateResult]) -> list[dict[str, Any]]:
             "code": gate.code,
             "action": gate.action,
             "reasons": gate.reasons,
+            "details": gate.details,
         }
         for gate in gates
     ]
@@ -93,7 +94,7 @@ def run_graph(
     budget: RunBudget | None = None,
     gateway: Any | None = None,
     tools: Any | None = None,
-    pdf_enabled: bool = False,
+    pdf_enabled: bool | None = None,
 ) -> dict[str, Any]:
     """执行十节点图。`resume=True` 时从 checkpoint 续跑（同一 run_id）。"""
     rid = run_id or new_run_id()
@@ -103,15 +104,24 @@ def run_graph(
     engine = make_engine(settings)
     log = SqliteEventLog(engine, rid)
     run_budget = budget or RunBudget.from_db(
-        settings, rid, limit_usd=settings.routing.run_cost_budget_usd
+        settings, rid, limit_usd=settings.pipeline.limits.max_run_usd
     )
     ckpt_path = checkpoint_path or f"{settings.storage.data_root}/checkpoints/{rid}.sqlite"
     saver, connection = open_checkpointer(ckpt_path)
 
-    if gateway is None and settings.providers.cloud.api_key is not None:
-        from lit_agent.gateway.llm import LLMGateway
+    pdf_on = settings.pipeline.pdf_enabled if pdf_enabled is None else pdf_enabled
+    if pdf_on and tools is None:
+        from lit_agent.tools.registry import default_registry
 
-        gateway = LLMGateway(settings, budget=run_budget)
+        tools = default_registry()
+
+    llm_mode = settings.pipeline.llm
+    if gateway is None and llm_mode != "off":
+        has_key = settings.providers.cloud.api_key is not None
+        if llm_mode == "on" or (llm_mode == "auto" and has_key):
+            from lit_agent.gateway.llm import LLMGateway
+
+            gateway = LLMGateway(settings, budget=run_budget)
 
     ctx = RunContext(
         settings=settings,
@@ -120,10 +130,10 @@ def run_graph(
         budget=run_budget,
         gateway=gateway,
         tools=tools,
-        pdf_enabled=pdf_enabled,
+        pdf_enabled=pdf_on,
         log=log,
         transitions_enabled=True,  # S4：有界回边已启用
-        gates_enabled=True,
+        gates_enabled=settings.pipeline.gates.enabled,
     )
     rail = guard_rail(run_budget)
 
@@ -183,13 +193,11 @@ def run_graph(
                 )
                 raise RunAborted(decision)
 
-            from lit_agent.graph.transitions import MAX_ATTEMPTS
-
             executed = decision
             if decision.action in {"retry", "repair", "replan"}:
                 target = decision.target or name
                 done = int(attempts.get(target, 0))
-                limit = MAX_ATTEMPTS.get(target, 1)
+                limit = int(getattr(ctx.limits_cfg, "max_attempts", {}).get(target, 1))
                 if not ctx.transitions_enabled or done >= limit:
                     reason = (
                         "回边未启用"
@@ -313,7 +321,7 @@ def run_graph(
         checkpointer=saver,
     )
     config = thread_config(rid)
-    config["recursion_limit"] = 60
+    config["recursion_limit"] = settings.pipeline.limits.recursion_limit
 
     try:
         if not resume and not prestarted:

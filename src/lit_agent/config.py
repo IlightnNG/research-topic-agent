@@ -43,6 +43,9 @@ __all__ = [
     "SchedulerSettings",
     "Settings",
     "SourcesSettings",
+    "GateSettings",
+    "LimitSettings",
+    "PipelineSettings",
     "StorageSettings",
     "VectorSettings",
     "load_settings",
@@ -211,6 +214,40 @@ class VectorSettings(_Section):
     active_collection: str = "papers_v1"
 
 
+class GateSettings(_Section):
+    """门禁阈值（Phase 2.2）：默认值与 2.1 行为等价。"""
+
+    enabled: bool = True
+    evidence_min_cards: int = Field(default=1, ge=1, description="证据最少篇数；生产建议 3")
+    support_ratio_min: float = Field(default=0.6, ge=0.0, le=1.0)
+    citation_required: bool = True
+    drift_warn_below: float = Field(default=0.15, ge=0.0, le=1.0)
+    drift_block_below: float = Field(default=0.05, ge=0.0, le=1.0)
+
+
+class LimitSettings(_Section):
+    """单 run 的硬上限（Phase 2.2）。"""
+
+    max_attempts: dict[str, int] = Field(
+        default_factory=lambda: {"analysis": 2, "retrieval": 2, "report": 1}
+    )
+    max_total_llm_calls: int = Field(default=12, ge=1)
+    recursion_limit: int = Field(default=60, ge=10)
+    max_run_usd: float = Field(default=2.0, gt=0.0)
+
+
+class PipelineSettings(_Section):
+    """Phase 2.2 冻结的 pipeline 配置（ADR-0007）。"""
+
+    gates: GateSettings = GateSettings()
+    limits: LimitSettings = LimitSettings()
+    transitions: bool = True
+    hybrid_alpha: float = Field(default=0.6, ge=0.0, le=1.0)
+    hybrid_min_score: float = Field(default=0.15, ge=0.0, le=1.0)
+    llm: Literal["auto", "on", "off"] = "auto"
+    pdf_enabled: bool = False
+
+
 class Settings(_Section):
     app_name: str = "lit-agent"
     app_version: str = __version__
@@ -227,6 +264,7 @@ class Settings(_Section):
     eval: EvalSettings = EvalSettings()
     logging: LoggingSettings = LoggingSettings()
     vector: VectorSettings = VectorSettings()
+    pipeline: PipelineSettings = PipelineSettings()
 
     @model_validator(mode="after")
     def _check_vector_dim(self) -> Settings:
