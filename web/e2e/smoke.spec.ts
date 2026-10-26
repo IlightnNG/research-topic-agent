@@ -43,10 +43,10 @@ test("生成周报 → 轨迹 → 报告（稳定路径：打开已有 run）", 
   await expect(firstRun).toBeVisible({ timeout: 30_000 });
   await firstRun.click();
 
-  await page.getByRole("tab", { name: "轨迹" }).click();
+  await page.getByRole("tab", { name: "Trajectory" }).click();
   await expect(page.locator("[data-stage]")).toHaveCount(10);
 
-  await page.getByRole("tab", { name: "报告" }).click();
+  await page.getByRole("tab", { name: "Report" }).click();
   await expect(page.getByText(/Claims|sha /i).first()).toBeVisible({ timeout: 30_000 });
 });
 
@@ -56,7 +56,7 @@ test("3.3: Chat 首轮回答带引用 + 工具轨迹", async ({ page }) => {
   await page.getByRole("button", { name: "Send" }).click();
 
   await expect(
-    page.locator(".chat-msg").filter({ hasText: "根据 [E2E-P" }).last(),
+    page.locator(".chat-msg").filter({ hasText: "According to [E2E-P" }).last(),
   ).toBeVisible({ timeout: 30_000 });
   await expect(page.getByText("Tool trace").last()).toBeVisible();
   await expect(page.locator(".chat-msg").last().locator(".el-tag")).toHaveCount(3);
@@ -68,7 +68,7 @@ test("3.3: Chat 追问保持会话 + 无证据拒答", async ({ page }) => {
   await input.fill("tool use");
   await page.getByRole("button", { name: "Send" }).click();
   await expect(
-    page.locator(".chat-msg").filter({ hasText: "根据 [E2E-P" }).last(),
+    page.locator(".chat-msg").filter({ hasText: "According to [E2E-P" }).last(),
   ).toBeVisible({ timeout: 30_000 });
 
   await input.fill("再具体一点");
@@ -97,9 +97,9 @@ test("S12: 轨迹展示十个阶段（含未开始）", async ({ page }) => {
   await expect(firstRun).toBeVisible({ timeout: 30_000 });
   await firstRun.click();
 
-  await page.getByRole("tab", { name: "轨迹" }).click();
+  await page.getByRole("tab", { name: "Trajectory" }).click();
   await expect(page.locator("[data-stage]")).toHaveCount(10);
-  for (const label of ["接入", "界定", "检索", "分析", "自查", "成文", "评测"]) {
+  for (const label of ["Intake", "Scope", "Retrieval", "Analysis", "Critique", "Report", "Evaluate"]) {
     await expect(page.getByText(label, { exact: false }).first()).toBeVisible();
   }
 });
@@ -109,8 +109,8 @@ test("S12: 报告按真实分节渲染", async ({ page }) => {
   // 打开最近一次 run（若有），再切到报告页
   const firstRun = page.locator(".run-list li").first();
   if (await firstRun.count()) await firstRun.click();
-  await expect(page.getByRole("tab", { name: "报告" })).toBeVisible();
-  await page.getByRole("tab", { name: "报告" }).click();
+  await expect(page.getByRole("tab", { name: "Report" })).toBeVisible();
+  await page.getByRole("tab", { name: "Report" }).click();
   // 新报告由 claims 分组落库（Findings N）；旧数据回落 Claims 表
   await expect(page.getByText(/Findings|Claims/i).first()).toBeVisible({ timeout: 30_000 });
 });
@@ -138,12 +138,12 @@ test("S6/S7: run 头部显示成本与最慢阶段", async ({ page }) => {
   await page.goto(`/topics/${TOPIC}`);
   await waitTopicIdle(page);
 
-  await page.getByRole("button", { name: "生成新周报" }).first().click();
-  await page.getByRole("button", { name: "开始生成" }).click();
+  await page.getByRole("button", { name: "Generate report" }).first().click();
+  await page.getByRole("button", { name: "Start" }).click();
 
   const header = page.locator(".run-workspace");
   await expect(header.getByText(/\$\d+\.\d{4}/)).toBeVisible({ timeout: 60_000 });
-  await expect(header.getByText(/最慢 /)).toBeVisible({ timeout: 60_000 });
+  await expect(header.getByText(/Slowest /)).toBeVisible({ timeout: 60_000 });
 });
 
 test("S7: 409 在对话框内联提示（E_LOCK_HELD）", async ({ page }) => {
@@ -156,9 +156,9 @@ test("S7: 409 在对话框内联提示（E_LOCK_HELD）", async ({ page }) => {
   );
 
   await page.goto(`/topics/${TOPIC}`);
-  await page.getByRole("button", { name: "生成新周报" }).first().click();
-  await page.getByRole("button", { name: "开始生成" }).click();
-  await expect(page.getByText(/E_LOCK_HELD|已有任务在运行/).first()).toBeVisible({ timeout: 15_000 });
+  await page.getByRole("button", { name: "Generate report" }).first().click();
+  await page.getByRole("button", { name: "Start" }).click();
+  await expect(page.getByText(/already has a running job|E_LOCK_HELD/).first()).toBeVisible({ timeout: 15_000 });
 });
 
 test("S7: SSE 断开时轮询兜底仍能完成", async ({ page, request }) => {
@@ -183,7 +183,7 @@ test("S7: SSE 断开时轮询兜底仍能完成", async ({ page, request }) => {
   await expect(page.locator(".run-workspace").getByText("succeeded").first()).toBeVisible({
     timeout: 90_000,
   });
-  await page.getByRole("tab", { name: "报告" }).click();
+  await page.getByRole("tab", { name: "Report" }).click();
   await expect(page.getByText(/Claims|sha /i).first()).toBeVisible({ timeout: 90_000 });
 });
 
@@ -226,9 +226,9 @@ test("S7: 失败运行显示四要素卡片", async ({ page }) => {
   await page.goto(`/topics/${TOPIC}`);
   await page.locator(".run-list li").first().click();
 
-  await expect(page.getByText("本次运行未成功")).toBeVisible({ timeout: 15_000 });
-  await expect(page.getByText("错误码").first()).toBeVisible();
-  await expect(page.getByRole("button", { name: "重跑" })).toBeVisible();
+  await expect(page.getByText("This run did not succeed")).toBeVisible({ timeout: 15_000 });
+  await expect(page.getByText("Error").first()).toBeVisible();
+  await expect(page.getByRole("button", { name: "Retry" })).toBeVisible();
 });
 
 test("S7: API 失败时显示错误条并可重试", async ({ page }) => {
@@ -260,30 +260,39 @@ test("S7: API 失败时显示错误条并可重试", async ({ page }) => {
   await page.locator(".run-list li").first().click();
 
   await expect(page.getByText(/E_UNEXPECTED: boom/)).toBeVisible({ timeout: 15_000 });
-  await expect(page.getByRole("button", { name: "详情" })).toBeVisible();
+  await expect(page.getByRole("button", { name: "Details" })).toBeVisible();
 });
 
 
-test("3.1: 语言切换（默认英文，可切中文）", async ({ page }) => {
+test("3.1: 默认英文 UI，中文提问用中文回答", async ({ page }) => {
   await page.goto(`/topics/${TOPIC}/chat`);
+  await page.getByRole("button", { name: /New chat/ }).click();
   const input = page.getByPlaceholder("Ask about this topic, Enter to send");
 
   await input.fill("zzz-nonexistent");
   await page.getByRole("button", { name: "Send" }).click();
   await expect(page.getByText(/can't answer from this topic/).last()).toBeVisible({ timeout: 30_000 });
 
-  await page.getByRole("button", { name: "Switch to Chinese" }).click();
-  await expect(page.getByText(/无法从本 topic 的证据回答/).last()).toBeVisible();
-
-  await page.getByRole("button", { name: "Switch to English" }).click();
-  await expect(page.getByText(/can't answer from this topic/).last()).toBeVisible();
+  await input.fill("工具使用");
+  await page.getByRole("button", { name: "Send" }).click();
+  await expect(page.getByText(/根据 \[E2E-P/).last()).toBeVisible({ timeout: 30_000 });
 });
 
-test("3.1: 会话列表可切换", async ({ page }) => {
+test("3.1: 会话列表可切换并刷新保持", async ({ page }) => {
   await page.goto(`/topics/${TOPIC}/chat`);
+
+  await page.getByRole("button", { name: /New chat/ }).click();
+  await expect(page.locator(".chat-msg")).toHaveCount(0);
+  await page.getByPlaceholder("Ask about this topic, Enter to send").fill("tool use");
+  await page.getByRole("button", { name: "Send" }).click();
+  await expect(page.getByText(/According to \[E2E-P/).last()).toBeVisible({ timeout: 30_000 });
+
   await page.getByRole("button", { name: /New chat/ }).click();
   await expect(page.locator(".chat-msg")).toHaveCount(0);
 
-  await page.locator(".chat-sessions li").nth(1).click();
-  await expect(page.locator(".chat-msg").first()).toBeVisible({ timeout: 15_000 });
+  await page.locator(".chat-sessions li").filter({ hasText: "tool use" }).first().click();
+  await expect(page.getByText(/According to \[E2E-P/).last()).toBeVisible({ timeout: 15_000 });
+
+  await page.reload();
+  await expect(page.getByText(/According to \[E2E-P/).last()).toBeVisible({ timeout: 15_000 });
 });

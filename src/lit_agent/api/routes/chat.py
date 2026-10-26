@@ -83,7 +83,22 @@ def post_chat(
         history = chat_repo.list_messages(conn, session["id"])
         chat_repo.append_message(conn, session_id=session["id"], role="user", content=body.message)
 
-    reply = answer(settings, topic_id=topic_id, message=body.message, history=history)
+    gateway = None
+    if settings.providers.cloud.api_key is not None and settings.pipeline.llm != "off":
+        from lit_agent.gateway.llm import LLMGateway
+
+        gateway = LLMGateway(settings)
+    try:
+        reply = answer(
+            settings,
+            topic_id=topic_id,
+            message=body.message,
+            history=history,
+            gateway=gateway,
+        )
+    finally:
+        if gateway is not None:
+            gateway.close()
 
     with connect(engine, immediate=True) as conn:
         assistant = chat_repo.append_message(
@@ -101,4 +116,5 @@ def post_chat(
         "message": assistant,
         "answered": reply.answered,
         "reason": reply.reason,
+        "llm_used": reply.llm_used,
     }

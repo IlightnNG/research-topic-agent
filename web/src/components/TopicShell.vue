@@ -1,8 +1,6 @@
 <script setup lang="ts">
 import { useRouter } from "vue-router";
 
-import { locale, setLocale } from "@/i18n";
-
 import PageHeader from "./PageHeader.vue";
 import TwoPaneLayout from "./TwoPaneLayout.vue";
 
@@ -32,15 +30,7 @@ function go(name: "topic-reports" | "topic-chat"): void {
     >
       <template #actions>
         <slot name="actions" />
-        <button
-          type="button"
-          class="switch-item"
-          :aria-label="locale === 'en' ? 'Switch to Chinese' : 'Switch to English'"
-          @click="setLocale(locale === 'en' ? 'zh' : 'en')"
-        >
-          {{ locale === "en" ? "中文" : "EN" }}
-        </button>
-        <nav class="page-switch" aria-label="页面切换">
+        <nav class="page-switch" aria-label="Page switch">
           <button
             type="button"
             class="switch-item"

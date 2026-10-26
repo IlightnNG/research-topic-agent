@@ -2,8 +2,8 @@ import { ref } from "vue";
 
 export type Locale = "en" | "zh";
 
-const saved = typeof localStorage !== "undefined" ? localStorage.getItem("lit-locale") : null;
-export const locale = ref<Locale>(saved === "zh" ? "zh" : "en");
+// UI is English by default. A language switch will live in Settings later.
+export const locale = ref<Locale>("en");
 
 export function setLocale(next: Locale): void {
   locale.value = next;

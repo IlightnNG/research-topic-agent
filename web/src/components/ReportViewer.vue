@@ -33,7 +33,7 @@ async function jump(sectionId: string): Promise<void> {
 
 async function copyMarkdown(): Promise<void> {
   await navigator.clipboard.writeText(props.report.content_md);
-  ElMessage.success("Markdown 已复制");
+  ElMessage.success("Markdown copied");
 }
 </script>
 
@@ -44,7 +44,7 @@ async function copyMarkdown(): Promise<void> {
       type="warning"
       show-icon
       :closable="false"
-      title="本次未获得可引用证据，报告为降级版"
+      title="No citable evidence; the report is degraded"
     />
     <div class="between">
       <div class="stack" style="gap: var(--space-1)">
@@ -53,7 +53,7 @@ async function copyMarkdown(): Promise<void> {
           sha {{ sha }} · run {{ report.run_id }} · {{ report.n_claims }} claims
         </p>
       </div>
-      <el-button size="small" @click="copyMarkdown">复制 Markdown</el-button>
+      <el-button size="small" @click="copyMarkdown">Copy Markdown</el-button>
     </div>
 
     <div class="report-body">
@@ -72,7 +72,7 @@ async function copyMarkdown(): Promise<void> {
         <ClaimTable :claims="report.claims" @why="(index) => emit('why', index)" />
 
         <details style="margin-top: var(--space-4)">
-          <summary class="muted">原始 Markdown</summary>
+          <summary class="muted">Raw Markdown</summary>
           <pre class="raw mono">{{ report.content_md }}</pre>
         </details>
       </article>

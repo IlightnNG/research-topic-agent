@@ -33,13 +33,13 @@ function duration(run: RunItem): string {
         <span v-if="run.stage">stage {{ run.stage }}</span>
         <span v-if="duration(run)">{{ duration(run) }}</span>
         <span>${{ Number(run.cost_usd ?? 0).toFixed(4) }}</span>
-        <StatusBadge v-if="run.report_id" state="ok" label="报告" />
-        <StatusBadge v-else-if="run.state === 'succeeded'" state="archived" label="无报告" />
+        <StatusBadge v-if="run.report_id" state="ok" label="Report" />
+        <StatusBadge v-else-if="run.state === 'succeeded'" state="archived" label="No report" />
       </div>
       <p v-if="run.focus_hint" class="muted truncate">🎯 {{ run.focus_hint }}</p>
     </li>
   </ul>
-  <p v-if="!items.length" class="muted" style="padding: var(--space-4)">还没有运行记录。</p>
+  <p v-if="!items.length" class="muted" style="padding: var(--space-4)">No runs yet.</p>
 </template>
 
 <style scoped>

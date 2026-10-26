@@ -60,3 +60,19 @@ def test_healthy_run_has_no_stagnation_false_positive(tmp_path: Path) -> None:
         if event["type"] == "guard_trigger"
     ]
     assert "E_GUARD_STAGNATION" not in codes
+
+
+def test_empty_retrieval_still_degrades(tmp_path: Path) -> None:
+    from lit_agent.eval.faultinject import inject
+
+    settings = prepare(tmp_path, papers=2)
+    with inject("empty_retrieval"):
+        out = run_graph(settings, "ai-agents", run_id="t-empty", focus_hint="tool use")
+
+    assert out["state"] == "succeeded"
+    events = fetch_events(settings, "t-empty")
+    codes = [event["payload"].get("code") for event in events if event["type"] == "guard_trigger"]
+    assert "E_GROUND_NO_EVIDENCE" in codes
+    actions = [event["payload"].get("action") for event in events if event["type"] == "guard_trigger"]
+    assert "repair" in actions
+    assert "degrade" in actions

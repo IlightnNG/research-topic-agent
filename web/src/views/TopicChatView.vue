@@ -51,7 +51,10 @@ function send(): void {
           :class="{ current: item.id === chat.session?.id }"
           @click="chat.selectSession(topicId, item.id)"
         >
-          {{ new Date(item.created_at || Date.now()).toLocaleString() }}
+          <span class="session-preview">{{ item.preview || t("chat.new") }}</span>
+          <small class="muted">
+            {{ new Date(item.last_message_at || item.created_at || Date.now()).toLocaleString() }}
+          </small>
         </li>
       </ul>
       <EmptyState v-else compact :title="t('chat.emptyTitle')" :hint="t('chat.emptyHint')" />
@@ -62,7 +65,7 @@ function send(): void {
 
       <div class="chat-log">
         <div v-for="message in chat.messages" :key="message.id" class="chat-msg" :class="message.role">
-          <p>{{ message.reason_code ? t(`chat.${message.reason_code}`) : message.content }}</p>
+          <p>{{ message.content }}</p>
           <div v-if="message.citations.length" class="cluster">
             <el-tag v-for="citation in message.citations" :key="citation.paper_id" size="small" type="info">
               {{ citation.paper_id }}
@@ -103,6 +106,10 @@ function send(): void {
   border-bottom: 1px solid var(--border);
   font-size: 13px;
   color: var(--muted);
+}
+.session-preview {
+  display: block;
+  color: var(--text);
 }
 .chat-sessions li.current {
   color: var(--text);

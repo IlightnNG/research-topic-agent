@@ -111,7 +111,7 @@ export function useRunSession(topicId: Ref<string>, activeRunId: ComputedRef<str
     highlightSeq.value = target ? target.seq : null;
     runs.userPinnedView = true;
     view.value = "trajectory";
-    ElMessage.info(target ? `claim #${claimIndex + 1} ← 事件 #${target.seq}` : "没有可定位的事件");
+    ElMessage.info(target ? `claim #${claimIndex + 1} ← 事件 #${target.seq}` : "No matching event");
   }
 
   watch(view, (value) => {

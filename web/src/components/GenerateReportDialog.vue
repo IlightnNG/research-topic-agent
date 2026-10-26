@@ -22,19 +22,19 @@ watch(
 <template>
   <DialogForm
     :model-value="modelValue"
-    title="生成新周报"
-    confirm-text="开始生成"
+    title="Generate report"
+    confirm-text="Start"
     :busy="busy"
     :error-text="errorText"
     @update:model-value="emit('update:modelValue', $event)"
     @confirm="emit('submit', hint.trim() ? hint.trim() : null)"
   >
-    <p class="muted">源与时间窗沿用 topic 设定；这里只填本次的聚焦提示（可选）。</p>
+    <p class="muted">Source and time window come from the topic; only set an optional focus hint.</p>
     <el-input
       v-model="hint"
       maxlength="120"
       show-word-limit
-      placeholder="例如：LLM agent 的工具使用与评测"
+      placeholder="e.g. tool use and evaluation of LLM agents"
     />
   </DialogForm>
 </template>

@@ -26,9 +26,9 @@ function close(): void {
     </div>
     <template #footer>
       <div class="cluster" style="justify-content: flex-end">
-        <el-button @click="close">取消</el-button>
+        <el-button @click="close">Cancel</el-button>
         <el-button type="primary" :loading="busy" @click="emit('confirm')">
-          {{ confirmText ?? "确定" }}
+          {{ confirmText ?? "OK" }}
         </el-button>
       </div>
     </template>

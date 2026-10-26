@@ -73,7 +73,7 @@ function summary(event: RunEvent): string {
     const ms = p.duration_ms;
     return typeof ms === "number" ? `${phase} · ${ms}ms` : phase;
   }
-  if (event.type === "guard_trigger") return `${p.code ?? ""} ${(p.reasons as string[] | undefined)?.[0] ?? ""}`.trim();
+  if (event.type === "guard_trigger") return String(p.code ?? "");
   if (event.type === "report_written") return `report ${p.report_id ?? ""} · claims ${p.claims ?? "?"}`;
   if (event.type === "error") return `${p.code ?? ""} ${p.message ?? ""}`.trim();
   if (event.type === "llm_call") return `${p.model ?? ""} · $${Number(p.cost ?? 0).toFixed(4)}`;
@@ -94,7 +94,7 @@ function summary(event: RunEvent): string {
       >
         {{ stage.done ? "✓" : stage.started ? "•" : "·" }} {{ stage.label }}
       </el-tag>
-      <el-switch v-model="follow" size="small" active-text="跟随" />
+      <el-switch v-model="follow" size="small" active-text="Follow" />
     </div>
 
     <ol ref="listEl" class="timeline">
@@ -110,7 +110,7 @@ function summary(event: RunEvent): string {
         <span class="summary">{{ summary(event) }}</span>
       </li>
     </ol>
-    <p v-if="!events.length" class="muted">暂无事件。</p>
+    <p v-if="!events.length" class="muted">No events yet.</p>
   </div>
 </template>
 

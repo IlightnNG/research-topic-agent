@@ -38,7 +38,7 @@ async function generate(hint: string | null): Promise<void> {
   } catch (err) {
     dialogError.value =
       httpErrorCode(err) === "E_LOCK_HELD"
-        ? "该 topic 已有任务在运行，请等它结束"
+        ? "This topic already has a running job; wait for it to finish"
         : describeError(err);
   } finally {
     busy.value = false;
@@ -69,13 +69,13 @@ onMounted(async () => {
     active="report"
   >
     <template #actions>
-      <el-button type="primary" @click="dialogOpen = true">生成新周报</el-button>
+      <el-button type="primary" @click="dialogOpen = true">Generate report</el-button>
     </template>
 
     <template #side>
       <div class="between pad-3">
         <strong>Runs</strong>
-        <el-button size="small" type="primary" text @click="dialogOpen = true">+ 生成</el-button>
+        <el-button size="small" type="primary" text @click="dialogOpen = true">+ Generate</el-button>
       </div>
       <RunList :items="runs.items" :active-id="activeRunId" @select="session.openRun" />
     </template>
@@ -89,10 +89,10 @@ onMounted(async () => {
       <EmptyState
         v-if="!activeRunId"
         compact
-        title="还没有运行记录"
-        hint="点击右上角「生成新周报」开始第一次运行。"
+        title="No runs yet"
+        hint="Click Generate report to start the first run."
       >
-        <el-button type="primary" @click="dialogOpen = true">生成第一份周报</el-button>
+        <el-button type="primary" @click="dialogOpen = true">Generate first report</el-button>
       </EmptyState>
 
       <RunWorkspace

@@ -6,6 +6,7 @@
 
 from __future__ import annotations
 
+import re
 from dataclasses import dataclass, field
 from typing import Any
 
@@ -34,6 +35,7 @@ class ChatReply:
     trace: list[dict[str, Any]] = field(default_factory=list)
     answered: bool = False
     reason: str = ""
+    llm_used: bool = False
 
 
 def _cards(settings: Settings, topic_id: str) -> list[Any]:
@@ -57,6 +59,19 @@ _BILINGUAL = {
     "上下文": "context",
     "压缩": "compression",
 }
+
+
+_CJK = re.compile(r"[\u4e00-\u9fff]")
+
+
+def _reply_lang(message: str) -> str:
+    """English by default; mirror Chinese questions; explicit request wins."""
+    lower = message.lower()
+    if any(marker in lower for marker in ("in english", "用英文", "english answer")):
+        return "en"
+    if any(marker in lower for marker in ("in chinese", "用中文", "中文回答")):
+        return "zh"
+    return "zh" if _CJK.search(message) else "en"
 
 
 def _expand(query: str) -> str:
@@ -85,20 +100,52 @@ def answer(
     topic_id: str,
     message: str,
     history: list[dict[str, Any]] | None = None,
+    gateway: Any | None = None,
 ) -> ChatReply:
     cards = _cards(settings, topic_id)
     history = history or []
 
+    reply_lang = _reply_lang(message)
     query = _expand(message.strip())
     last_user = next(
         (str(item.get("content") or "") for item in reversed(history) if item.get("role") == "user"),
         "",
     )
-    if len(query.split()) <= 1 and last_user:
+    followup_markers = ("再", "继续", "为什么", "具体", "more", "why", "details", "continue")
+    if (
+        len(query.split()) <= 1
+        and last_user
+        and any(marker in message.lower() for marker in followup_markers)
+    ):
         query = f"{last_user} {query}".strip()
 
     selected: list[Any] = []
     trace: list[dict[str, Any]] = []
+    llm_used = False
+
+    if gateway is not None:
+        try:
+            payload, _call = gateway.chat_json(
+                [
+                    {
+                        "role": "system",
+                        "content": (
+                            "Rewrite the user question into short English search keywords. "
+                            'Return JSON: {"query": str}. Do not answer the question.'
+                        ),
+                    },
+                    {"role": "user", "content": message},
+                ],
+                max_tokens=80,
+                agent="chat",
+            )
+            rewritten = str(payload.get("query") or "").strip() if isinstance(payload, dict) else ""
+            if rewritten:
+                query = f"{query} {rewritten}".strip()
+                llm_used = True
+                trace.append({"tool": "llm_rewrite", "ok": True})
+        except Exception:  # noqa: BLE001 - LLM 失败必须回落确定性检索
+            trace.append({"tool": "llm_rewrite", "ok": False})
 
     def search(*, query: str = "") -> dict[str, Any]:
         nonlocal selected
@@ -149,29 +196,44 @@ def answer(
 
     if not selected:
         return ChatReply(
-            text="I can't answer from this topic's evidence: no citable snippets matched.",
+            text=(
+                "无法从本 topic 的证据回答这个问题（没有命中可引用的片段）。"
+                if reply_lang == "zh"
+                else "I can't answer from this topic's evidence: no citable snippets matched."
+            ),
             citations=[],
             trace=trace,
             answered=False,
             reason="no_evidence",
+            llm_used=llm_used,
         )
 
     top = selected[0]
     if not _supported(top.snippet, top.snippet):
         return ChatReply(
-            text="The matched snippets are insufficient to verify an answer.",
+            text=(
+                "命中的片段不足以验证回答，已拒答。"
+                if reply_lang == "zh"
+                else "The matched snippets are insufficient to verify an answer."
+            ),
             citations=[],
             trace=trace,
             answered=False,
             reason="unsupported",
+            llm_used=llm_used,
         )
 
     citations = [
         {"paper_id": card.paper_id, "snippet": card.snippet[:240]} for card in selected
     ]
     return ChatReply(
-        text=f"根据 [{citations[0]['paper_id']}]：{citations[0]['snippet']}",
+        text=(
+            f"根据 [{citations[0]['paper_id']}]：{citations[0]['snippet']}"
+            if reply_lang == "zh"
+            else f"According to [{citations[0]['paper_id']}]: {citations[0]['snippet']}"
+        ),
         citations=citations,
         trace=trace,
         answered=True,
+        llm_used=llm_used,
     )

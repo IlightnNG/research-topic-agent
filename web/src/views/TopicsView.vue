@@ -28,11 +28,11 @@ function openDialog(): void {
 async function submit(): Promise<void> {
   dialogError.value = "";
   if (!/^[a-z0-9][a-z0-9-]{1,40}$/.test(form.value.id)) {
-    dialogError.value = "id 只能是小写字母/数字/短横线，2–41 字符";
+    dialogError.value = "id must be lowercase letters/digits/hyphens, 2-41 chars";
     return;
   }
   if (form.value.scope.trim().length < 10) {
-    dialogError.value = "scope 至少写 10 个字（写清研究什么、不研究什么）";
+    dialogError.value = "scope needs at least 10 characters (in/out of scope)";
     return;
   }
   busy.value = true;
@@ -74,9 +74,9 @@ onMounted(store.load);
 
 <template>
   <div class="stack" style="padding: var(--space-5)">
-    <PageHeader title="Topics" subtitle="一个 topic 是一个研究纲领；报告与对话都在它下面。">
+    <PageHeader title="Topics" subtitle="A topic is a research program; reports and chat live under it.">
       <template #actions>
-        <el-button type="primary" @click="openDialog">新建 topic</el-button>
+        <el-button type="primary" @click="openDialog">New topic</el-button>
       </template>
     </PageHeader>
 
@@ -84,12 +84,12 @@ onMounted(store.load);
     <el-skeleton v-if="store.loading" :rows="4" animated />
 
     <el-collapse v-if="!store.loading && archived.length" class="archived">
-      <el-collapse-item :title="`已归档（${archived.length}）`" name="archived">
+      <el-collapse-item :title="`Archived (${archived.length})`" name="archived">
         <div class="topic-grid">
           <article v-for="topic in archived" :key="topic.id" class="topic-card stack">
             <div class="between">
               <strong class="mono">{{ topic.id }}</strong>
-              <el-button size="small" text @click="archive(topic)">恢复</el-button>
+              <el-button size="small" text @click="archive(topic)">Restore</el-button>
             </div>
             <p class="muted line-clamp-2">{{ topic.scope_statement }}</p>
           </article>
@@ -108,7 +108,7 @@ onMounted(store.load);
               <template #dropdown>
                 <el-dropdown-menu>
                   <el-dropdown-item @click="archive(topic)">
-                    {{ topic.status === "archived" ? "恢复" : "归档" }}
+                    {{ topic.status === "archived" ? "Restore" : "Archive" }}
                   </el-dropdown-item>
                 </el-dropdown-menu>
               </template>
@@ -118,7 +118,7 @@ onMounted(store.load);
         <h3 class="title-md clickable" @click="openReport(topic.id)">{{ topic.name }}</h3>
         <p class="muted line-clamp-2">{{ topic.scope_statement }}</p>
         <p class="muted mono">
-          {{ store.counts[topic.id]?.reports ?? 0 }} 份报告 · {{ store.counts[topic.id]?.runs ?? 0 }} 次运行
+          {{ store.counts[topic.id]?.reports ?? 0 }} reports · {{ store.counts[topic.id]?.runs ?? 0 }} runs
         </p>
         <div class="cluster">
           <el-button type="primary" size="small" @click="openReport(topic.id)">Report</el-button>
@@ -129,34 +129,34 @@ onMounted(store.load);
 
     <EmptyState
       v-if="!store.loading && !store.items.length"
-      title="还没有 topic"
-      hint="先建一个研究纲领，然后在 Report 页生成第一份周报。"
+      title="No topics yet"
+      hint="Create a research program, then generate your first report."
     >
-      <el-button type="primary" @click="openDialog">新建 topic</el-button>
+      <el-button type="primary" @click="openDialog">New topic</el-button>
     </EmptyState>
 
     <DialogForm
       v-model="dialogOpen"
-      title="新建 topic"
-      confirm-text="创建"
+      title="New topic"
+      confirm-text="Create"
       :busy="busy"
       :error-text="dialogError"
       @confirm="submit"
     >
-      <el-input v-model="form.id" placeholder="id（slug，如 ai-agents）" />
-      <el-input v-model="form.name" placeholder="名称" />
+      <el-input v-model="form.id" placeholder="id (slug, e.g. ai-agents)" />
+      <el-input v-model="form.name" placeholder="Name" />
       <el-input
         v-model="form.scope"
         type="textarea"
         :rows="3"
-        placeholder="scope：研究什么、不研究什么"
+        placeholder="scope: what is in / out"
       />
-      <el-input v-model="form.keywords" placeholder="keywords（逗号分隔，可选）" />
+      <el-input v-model="form.keywords" placeholder="keywords (comma separated, optional)" />
       <el-alert
         type="info"
         :closable="false"
         show-icon
-        title="不配置数据源时，运行会跳过抓取（报告会标注 degraded）"
+        title="Without a data source, runs skip fetching (report marked degraded)"
       />
     </DialogForm>
   </div>

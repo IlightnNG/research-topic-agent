@@ -32,26 +32,44 @@ def create_session(conn: Connection, topic_id: str) -> str:
     return session_id
 
 
+def _session_row(row: Any) -> dict[str, Any]:
+    preview = str(row[4] or "").strip()
+    return {
+        "id": row[0],
+        "topic_id": row[1],
+        "created_at": row[2],
+        "last_message_at": row[3],
+        "preview": preview[:40],
+    }
+
+
+_SESSION_SQL = (
+    "SELECT s.id, s.topic_id, s.created_at,"
+    " (SELECT MAX(m.ts) FROM chat_messages m WHERE m.session_id = s.id) AS last_message_at,"
+    " (SELECT m.content FROM chat_messages m"
+    "  WHERE m.session_id = s.id AND m.role = 'user' ORDER BY m.ts ASC LIMIT 1) AS preview"
+    " FROM chat_sessions s"
+)
+
+
 def latest_session(conn: Connection, topic_id: str) -> dict[str, Any] | None:
     row = conn.execute(
-        text(
-            "SELECT id, topic_id, created_at FROM chat_sessions"
-            " WHERE topic_id = :topic ORDER BY created_at DESC LIMIT 1"
-        ),
+        text(_SESSION_SQL + " WHERE s.topic_id = :topic"
+             " ORDER BY COALESCE(last_message_at, s.created_at) DESC LIMIT 1"),
         {"topic": topic_id},
     ).first()
-    return {"id": row[0], "topic_id": row[1], "created_at": row[2]} if row else None
+    return _session_row(row) if row else None
 
 
 def list_sessions(conn: Connection, topic_id: str, limit: int = 20) -> list[dict[str, Any]]:
     rows = conn.execute(
         text(
-            "SELECT id, topic_id, created_at FROM chat_sessions"
-            " WHERE topic_id = :topic ORDER BY created_at DESC LIMIT :limit"
+            _SESSION_SQL + " WHERE s.topic_id = :topic"
+            " ORDER BY COALESCE(last_message_at, s.created_at) DESC LIMIT :limit"
         ),
         {"topic": topic_id, "limit": limit},
     ).all()
-    return [{"id": row[0], "topic_id": row[1], "created_at": row[2]} for row in rows]
+    return [_session_row(row) for row in rows]
 
 
 def append_message(

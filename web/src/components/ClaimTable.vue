@@ -8,7 +8,7 @@ const emit = defineEmits<{ why: [number] }>();
 </script>
 
 <template>
-  <el-table :data="claims" size="small" empty-text="暂无 claim">
+  <el-table :data="claims" size="small" empty-text="No claims">
     <el-table-column type="expand">
       <template #default="scope">
         <div class="stack" style="padding: var(--space-2) var(--space-4)">
@@ -32,12 +32,12 @@ const emit = defineEmits<{ why: [number] }>();
         />
       </template>
     </el-table-column>
-    <el-table-column label="引用" width="80">
+    <el-table-column label="Citations" width="80">
       <template #default="scope">{{ scope.row.citations?.length ?? 0 }}</template>
     </el-table-column>
     <el-table-column label="" width="90">
       <template #default="scope">
-        <el-button text size="small" @click="emit('why', scope.$index)">为什么</el-button>
+        <el-button text size="small" @click="emit('why', scope.$index)">Why</el-button>
       </template>
     </el-table-column>
   </el-table>

@@ -22,7 +22,7 @@ export default defineConfig({
         // 批次 4 / O：`npm run test:e2e` 单独运行也能起后端（已存在则复用）
         {
           command:
-            "powershell -NoProfile -Command \". .\\scripts\\env.ps1; uv run uvicorn lit_agent.api.app:app --port 8000\"",
+            "powershell -NoProfile -Command \". .\\scripts\\env.ps1; $env:LIT_AGENT_PIPELINE__LLM='off'; uv run uvicorn lit_agent.api.app:app --port 8000\"",
           cwd: "..",
           url: "http://127.0.0.1:8000/api/health",
           reuseExistingServer: true,

@@ -105,6 +105,8 @@ export interface ChatSession {
   id: string;
   topic_id: string;
   created_at: string;
+  last_message_at?: string | null;
+  preview?: string | null;
 }
 
 export interface ChatState {

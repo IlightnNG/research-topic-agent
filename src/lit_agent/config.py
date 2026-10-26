@@ -451,12 +451,16 @@ def load_settings(
 
     _apply_env_overrides(raw, env)
 
-    # 密钥只从环境变量读（覆盖 YAML 中可能的残留）
+    # 密钥只从环境变量读（覆盖 YAML 中可能的残留）。
+    # 两种写法都支持：
+    #   1) LIT_AGENT_PROVIDERS__CLOUD__API_KEY=sk-...      （直接，推荐）
+    #   2) LIT_AGENT_PROVIDERS__CLOUD__API_KEY_ENV=OPENAI_API_KEY + OPENAI_API_KEY=sk-...
     cloud = raw.setdefault("providers", {}).setdefault("cloud", {})
     if isinstance(cloud, dict):
         key_env = str(cloud.get("api_key_env") or "DEEPSEEK_API_KEY")
-        secret = env.get(key_env, "")
-        cloud["api_key"] = secret or None
+        direct = env.get(f"{ENV_PREFIX}PROVIDERS__CLOUD__API_KEY", "")
+        indirect = env.get(key_env, "")
+        cloud["api_key"] = direct or indirect or None
 
     raw["config_version"] = _config_hash(raw)
     raw["config_path"] = str(path) if path is not None else ""

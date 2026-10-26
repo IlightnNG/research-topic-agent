@@ -7,11 +7,11 @@ const emit = defineEmits<{ jump: [string] }>();
 
 <template>
   <nav class="toc stack">
-    <p class="muted">目录</p>
+    <p class="muted">Contents</p>
     <button v-for="section in sections" :key="section.id" class="toc-item" @click="emit('jump', section.id)">
       {{ section.title }}
     </button>
-    <p v-if="!sections.length" class="muted">暂无章节</p>
+    <p v-if="!sections.length" class="muted">No sections</p>
   </nav>
 </template>
 

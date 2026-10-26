@@ -20,7 +20,7 @@ __all__ = ["build_report", "render_markdown"]
 
 def render_markdown(cards: list[EvidenceCard], *, title: str) -> str:
     """确定性渲染：按 `paper_id` 排序，标题 + 每条证据一段（含年份/venue/片段）。"""
-    lines = [f"# {title}", "", f"共 {len(cards)} 条证据。", ""]
+    lines = [f"# {title}", "", f"{len(cards)} evidence items.", ""]
     for card in sorted(cards, key=lambda item: (item.paper_id, item.snippet)):
         year = card.year if card.year is not None else "n.d."
         lines.append(f"- **{card.title}** ({year}, {card.source})")
@@ -52,7 +52,7 @@ def build_report(
     if not claims:
         # 空证据也必须给出可解释产物，而不是"看起来成功但没内容"
         claims.append(
-            Claim(text="本轮未检索到可引用证据", citations=[], support=Support.UNSUPPORTED)
+            Claim(text="No citable evidence was found in this run.", citations=[], support=Support.UNSUPPORTED)
         )
 
     return Report(
@@ -78,13 +78,13 @@ def build_report_from_claims(
     digest_source = "\n".join(claim.text for claim in claims) or f"empty:{run_id}"
     digest = hashlib.sha256(digest_source.encode("utf-8")).hexdigest()[:12]
     if claims:
-        lines = [f"# {title}", "", f"共 {len(claims)} 条结论（每条含引用）。", ""]
+        lines = [f"# {title}", "", f"{len(claims)} findings (each with citations).", ""]
         for claim in claims:
-            refs = ", ".join(citation.paper_id for citation in claim.citations) or "（无引用）"
+            refs = ", ".join(citation.paper_id for citation in claim.citations) or "(no citation)"
             lines.append(f"- {claim.text}  \n  refs: {refs}")
         content_md = "\n".join(lines) + "\n"
     else:
-        content_md = f"# {title}\n\n本轮未检索到可引用证据。\n"
+        content_md = f"# {title}\n\nNo citable evidence was found in this run.\n"
     return Report(
         sections=build_sections(claims),
         report_id=f"{run_id}:{digest}",
@@ -93,7 +93,7 @@ def build_report_from_claims(
         title=title,
         content_md=content_md,
         content_sha=digest,
-        claims=claims or [Claim(text="本轮未检索到可引用证据", citations=[], support=Support.UNSUPPORTED)],
+        claims=claims or [Claim(text="No citable evidence was found in this run.", citations=[], support=Support.UNSUPPORTED)],
         n_claims=len(claims) if claims else 1,
     )
 

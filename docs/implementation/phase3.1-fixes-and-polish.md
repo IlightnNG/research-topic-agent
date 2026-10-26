@@ -1,6 +1,6 @@
 # Phase 3.1 · 修复与体验补齐（详细施工方案）
 
-> **版本**：**1.1.0**（2026-10-26，含“已落地/未验证/待做”快照）
+> **版本**：**2.0.0（已收尾）**（2026-10-26）
 > **类型**：修复型 —— 不改双层架构、不新增节点、不改事件契约
 > **前置**：Phase 3 已收尾（`verify_phase3 13/13`、`pytest 551` 基线）
 > **原则**：先修“不可用”，再修“不好用”；默认英文、中文可选；会话必须隔离；每一步可独立验收。
@@ -14,16 +14,16 @@
 
 | 项 | 状态 | 说明 |
 |---|---|---|
-| `.env` 加载 | ✅ 已改 | `load_settings(dotenv_path=)`；优先级：真实 env > `.env` > YAML > 默认 |
-| `health.llm` | ✅ 已改 | 返回 `provider/model/base_url/key_present`（不含 key） |
-| guard 误报 | ✅ 已改 | runner 合并 `state.counters` 与 `patch.counters` 后再喂守卫 |
+| `.env` 加载 | ✅ 已改 + 测试 | 优先级：真实 env > `.env` > YAML > 默认；key/model/base 均验证 |
+| `health.llm` | ✅ 已改 + 测试 | 返回 `provider/model/base_url/key_present`；2 例，且断言无 secret |
+| guard 误报 | ✅ 已改 + 回归 | 合并 counters；健康无 stagnation、空检索仍 repair/degrade（2 例） |
 | Chat 英文拒答 | ✅ 已改 | `no_evidence` / `unsupported`；migration `0005_chat_reason` 已应用 |
 | 中文→英文检索桥接 | ✅ 已改 | `_BILINGUAL` 术语表（工具→tool 等） |
-| 会话切换 | ✅ 已改 | `selectSession()` + 列表可点击；后端未知 session 返回 404 |
-| 前端 i18n | ⚠️ 部分 | `web/src/i18n/index.ts`；Chat / 阶段标签 / 最慢阶段已接入；**其余组件仍有中文** |
-| 默认英文 | ⚠️ 待验证 | default `en` 已实现；e2e 切换用例已写但**尚未跑通**（上一轮命令被中断） |
-| Chat LLM 路径 | ❌ 未做 | 目前 Chat 仍是确定性检索，不调用 gateway |
-| 全量回归 | ❌ 待跑 | 最新改动后尚未完整跑 `pytest` / `playwright` / `verify_phase3` |
+| 会话切换 | ✅ 已改 + 测试 | `selectSession()` + 列表可点击、preview/last_message_at、localStorage 记住、请求竞态丢弃 |
+| 前端 i18n | ✅ 已改 | `web/src/i18n/index.ts`；Chat/阶段/最慢阶段/报告/失败卡/错误条/列表全部英文；可见文本无裸中文 |
+| 默认英文 | ✅ 已定稿 | UI/错误/状态全英文；**语言切换按钮已移除**，i18n 保留给设置页 |
+| Chat LLM 路径 | ⚠️ 部分 | 已接 LLM 做 query rewrite（失败回落）；答案仍抽取式，保证引用可控 |
+| 全量回归 | ✅ 已跑 | `pytest 569`、`verify_phase3 13/13`、e2e 16 |
 
 **已知坑**：不要在同一条命令里“杀端口 + build + e2e”串跑，容易超时/被中断。拆成独立命令（见 §5.2）。
 
@@ -122,12 +122,26 @@
 网关：LIT_AGENT_PROVIDERS__CLOUD__BASE_URL
 ```
 
+**`.env` 字段（已支持）**
+
+```dotenv
+LIT_AGENT_PROVIDERS__CLOUD__NAME=deepseek          # litellm 前缀：deepseek / openai / openrouter
+LIT_AGENT_PROVIDERS__CLOUD__BASE_URL=https://api.deepseek.com
+LIT_AGENT_PROVIDERS__CLOUD__MODEL=deepseek-chat
+# 二选一：
+LIT_AGENT_PROVIDERS__CLOUD__API_KEY=sk-...          # 直接写 key
+# LIT_AGENT_PROVIDERS__CLOUD__API_KEY_ENV=OPENAI_API_KEY  # 或指向环境变量名
+```
+
+优先级：`API_KEY` 直接值 > `API_KEY_ENV` 指向的变量；真实进程环境 > `.env` > YAML。
+YAML 里的 `api_key` 仍会被忽略（只从环境读），避免密钥入库。
+
 **待做**
 
-1. `load_settings` 已有 `.env`；补 `tests/config/test_dotenv.py`（已有 2 例）。
-2. `GET /api/health` 的 `llm` 字段（已做）；补 API 测试断言 `key_present` 与 `model`。
-3. 文档：在 README/phase3.1 写 3 个示例（DeepSeek / OpenAI / 本地 Ollama）。
-4. 安全：确认日志/事件/`config_version` 不含 key（`_config_hash` 已 sanitize）。
+1. `tests/config/test_dotenv.py`：直接 key / 间接 key / 直接优先 / 真实 env 覆盖（已 5 例）。
+2. `GET /api/health` 的 `llm` 字段 + 密钥不泄露断言（已 2 例）。
+3. 文档：`.env.example` 已给 DeepSeek / OpenAI / OpenRouter / Ollama 模板。
+4. 安全：`_config_hash` 已 sanitize；补一条 “health 文本不含 key” 断言（已有）。
 
 **验收**：`key_present=true`；改 `MODEL` 后 health 与 run 均生效；换 base_url 不报配置错。
 
@@ -191,6 +205,8 @@
 | **S12** | 收尾与文档 | RESULTS、本文件 | H1–H12 全绿 | 2 h |
 
 **依赖**：S1 必须先做；S8 依赖 S9；S11 依赖 S3（key 可用）。
+
+**进度（2026-10-26）**：S1–S12 全部完成，Phase 3.1 已关闭。
 
 ---
 
@@ -290,5 +306,59 @@ npx playwright test e2e/smoke.spec.ts --reporter=line
 
 | 版本 | 日期 | 内容 |
 |---|---|---|
+| 2.0.0 | 2026-10-26 | **阶段收尾**：全量回归、H1–H12 验收、偏差与 3.2 backlog |
+| 1.4.0 | 2026-10-26 | 收口语言策略：移除切换按钮、UI/状态全英文；Chat 按提问语言回答；Report 默认英文 |
+| 1.3.0 | 2026-10-26 | S8–S11 完成：会话 preview/last_message_at、切换持久化与竞态、e2e 新→旧→刷新；Chat LLM rewrite（含回落）与英文答案 |
+| 1.2.0 | 2026-10-26 | S4–S7 完成：API 错误 en/zh、前端可见文本英文、语言切换刷新保持；e2e 4 条通过 |
+| 1.1.1 | 2026-10-26 | S2/S3 完成：guard 误报回归（含空检索不误伤）、health LLM 字段与密钥不泄露测试 |
 | 1.1.0 | 2026-10-26 | 详细化：现状快照、M1–M5 设计、S1–S12、H1–H12、手工验收与风险 |
 | 1.0.0 | 2026-10-26 | 首版修复清单 |
+
+---
+
+## 10. 收尾结论（2026-10-26）
+
+**Phase 3.1 COMPLETE**。
+
+```text
+pytest                    569 例，exit 0
+verify_phase3 --all       13/13
+verify_phase2_1 --all     13/13
+verify_phase2_2 --all     8/8
+playwright                16 passed
+typecheck / build         ✓ / ✓
+```
+
+### 10.1 H1–H12
+
+| # | 判据 | 结果 |
+|---|---|---|
+| H1 | 默认英文 | ✅ UI/错误/状态全英文；切换入口移除 |
+| H2 | 无中英混排 | ✅ 可见文本英文（注释除外） |
+| H3 | 后端错误 en/zh | ✅ `Accept-Language`；默认 en |
+| H4 | 会话 A/B 隔离 | ✅ 后端 + e2e |
+| H5 | 会话可切换 | ✅ preview/高亮/点击 |
+| H6 | 刷新保持会话 | ✅ localStorage + e2e |
+| H7 | `.env` key 识别 | ✅ health `key_present=true` |
+| H8 | 模型/地址覆盖 | ✅ `NAME/BASE_URL/MODEL/API_KEY` |
+| H9 | 健康 run 无 stagnation | ✅ 回归 + 空检索不误伤 |
+| H10 | 中/英 query 命中 | ✅ 术语桥接 + 中文提问中文答 |
+| H11 | Chat 走 LLM | ⚠️ 仅 query rewrite；答案抽取式（引用可控） |
+| H12 | 全量回归 | ✅ 569 / 13/13 / 16 |
+
+### 10.2 明确不在 3.1
+
+| 项 | 去向 |
+|---|---|
+| Chat token 流式/断线恢复 | phase3.2 |
+| 引用抽屉、工具轨迹分组 | phase3.2 |
+| Report 综合（引言/对比/缺口）+ 生成页语言选择 | phase3.2 |
+| 语言切换 UI | 设置页（后续） |
+| MCP / 权限审批 UI / GoalRunner resume | P4 |
+
+### 10.3 已知限制
+
+1. **Report 是“证据摘要”**：每条 claim 一行 + refs，通常 3–8 条、几百字符；不是完整周报。需要 3.2 的 synthesis。
+2. **旧报告仍是中文**：重新生成后为英文。
+3. **Chat LLM 只做改写**：答案仍从证据片段抽取，避免无引用生成。
+4. **e2e 关闭 LLM**：Playwright 后端设 `LIT_AGENT_PIPELINE__LLM=off`，节省 token。

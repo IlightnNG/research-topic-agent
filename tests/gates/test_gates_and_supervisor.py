@@ -157,7 +157,7 @@ def test_bad_claim_is_not_persisted(tmp_path: Path) -> None:
     finally:
         engine.dispose()
 
-    placeholder = "本轮未检索到可引用证据"
+    placeholder = "No citable evidence was found in this run."
     if row is not None:
         claims = json.loads(row[0] or "[]")
         for claim in claims:

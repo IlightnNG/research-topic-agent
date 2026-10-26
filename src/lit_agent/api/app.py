@@ -48,8 +48,16 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     )
 
     @app.exception_handler(LitError)
-    async def _lit_error(_request: Request, exc: LitError) -> JSONResponse:
-        return JSONResponse(status_code=_STATUS.get(exc.code, 500), content=exc.to_dict())
+    async def _lit_error(request: Request, exc: LitError) -> JSONResponse:
+        from lit_agent.i18n import resolve_locale, translate_error
+
+        payload = exc.to_dict()
+        payload["message"] = translate_error(
+            exc.code,
+            resolve_locale(request.headers.get("accept-language")),
+            fallback=str(payload.get("message") or ""),
+        )
+        return JSONResponse(status_code=_STATUS.get(exc.code, 500), content=payload)
 
     app.include_router(health.router, prefix="/api", tags=["health"])
     app.include_router(topics.router, prefix="/api/topics", tags=["topics"])

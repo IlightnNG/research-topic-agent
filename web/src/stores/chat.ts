@@ -13,15 +13,38 @@ export const useChatStore = defineStore("chat", () => {
   const error = ref("");
 
   let controller: AbortController | null = null;
+  let requestSeq = 0;
+
+  function storageKey(topicId: string): string {
+    return `chat-session:${topicId}`;
+  }
+
+  function remember(topicId: string, sessionId: string): void {
+    if (typeof localStorage !== "undefined") localStorage.setItem(storageKey(topicId), sessionId);
+  }
 
   async function load(topicId: string): Promise<void> {
+    const seq = ++requestSeq;
+    const saved =
+      typeof localStorage !== "undefined" ? localStorage.getItem(storageKey(topicId)) : null;
     try {
-      const state = await api.getChat(topicId);
+      let state;
+      if (saved) {
+        try {
+          state = await api.getChat(topicId, saved);
+        } catch {
+          state = await api.getChat(topicId);
+        }
+      } else {
+        state = await api.getChat(topicId);
+      }
+      if (seq !== requestSeq) return;
       sessions.value = state.sessions;
       session.value = state.session;
       messages.value = state.messages;
+      if (state.session) remember(topicId, state.session.id);
     } catch (err) {
-      error.value = describeError(err);
+      if (seq === requestSeq) error.value = describeError(err);
     }
   }
 
@@ -57,7 +80,7 @@ export const useChatStore = defineStore("chat", () => {
       }
     } catch (err) {
       if ((err as Error).name === "AbortError") {
-        error.value = "已中止本次回答";
+        error.value = "Answer aborted";
       } else {
         error.value = describeError(err);
       }
@@ -68,13 +91,16 @@ export const useChatStore = defineStore("chat", () => {
   }
 
   async function selectSession(topicId: string, sessionId: string): Promise<void> {
+    const seq = ++requestSeq;
     try {
       const state = await api.getChat(topicId, sessionId);
+      if (seq !== requestSeq) return;
       session.value = state.session;
       messages.value = state.messages;
       error.value = "";
+      remember(topicId, sessionId);
     } catch (err) {
-      error.value = describeError(err);
+      if (seq === requestSeq) error.value = describeError(err);
     }
   }
 
@@ -89,6 +115,7 @@ export const useChatStore = defineStore("chat", () => {
       sessions.value = [session.value, ...sessions.value];
       messages.value = [];
       error.value = "";
+      remember(topicId, result.session_id);
     } catch (err) {
       error.value = describeError(err);
     }

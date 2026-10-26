@@ -71,23 +71,23 @@ const tabs = ref(props.view);
           }
         "
       >
-        <el-tab-pane label="轨迹" name="trajectory" />
-        <el-tab-pane label="报告" name="report" />
+        <el-tab-pane label="Trajectory" name="trajectory" />
+        <el-tab-pane label="Report" name="report" />
       </el-tabs>
       <div class="cluster">
         <el-tag v-if="run" size="small">{{ run.state }}</el-tag>
         <el-tag v-if="run?.period" size="small" type="info">{{ run.period }}</el-tag>
         <span v-if="costText" class="muted">{{ costText }}</span>
         <el-tag v-if="slowestText" size="small" type="info">{{ slowestText }}</el-tag>
-        <el-button v-if="isRunning" size="small" text @click="emit('pause')">暂停</el-button>
+        <el-button v-if="isRunning" size="small" text @click="emit('pause')">Pause</el-button>
         <el-button v-if="run?.state === 'paused'" size="small" type="primary" text @click="emit('resume')">
-          继续
+          Resume
         </el-button>
         <el-button v-if="isRunning || run?.state === 'paused'" size="small" text @click="injectOpen = true">
-          注入提示
+          Inject
         </el-button>
         <el-button v-if="isRunning" size="small" type="danger" text @click="emit('abort')">
-          中止
+          Abort
         </el-button>
       </div>
     </div>
@@ -96,11 +96,11 @@ const tabs = ref(props.view);
       run {{ run?.id }} state {{ run?.state ?? "unknown" }}, events {{ events.length }}
     </p>
 
-    <el-dialog v-model="injectOpen" title="注入提示词" width="420">
-      <el-input v-model="injectText" placeholder="下一阶段将合并进 focus_hint" maxlength="500" />
+    <el-dialog v-model="injectOpen" title="Inject prompt" width="420">
+      <el-input v-model="injectText" placeholder="Merged into focus_hint for the next stage" maxlength="500" />
       <template #footer>
-        <el-button @click="injectOpen = false">取消</el-button>
-        <el-button type="primary" @click="submitInject">注入</el-button>
+        <el-button @click="injectOpen = false">Cancel</el-button>
+        <el-button type="primary" @click="submitInject">Inject</el-button>
       </template>
     </el-dialog>
 
@@ -122,7 +122,7 @@ const tabs = ref(props.view);
         :error-code="run?.error_code"
         @retry="emit('retry')"
       />
-      <p v-else class="muted">{{ reportError || "报告尚未生成。" }}</p>
+      <p v-else class="muted">{{ reportError || "Report not generated yet." }}</p>
     </template>
   </div>
 </template>
