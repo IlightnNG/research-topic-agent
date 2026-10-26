@@ -1,7 +1,7 @@
 # Phase 3 —— 双层 Agent：可控 Workflow + 微观 ReAct
 
 > **文档性质**：**规范性文件（冻结契约）**。Phase 3 的"做什么 / 什么算做完 / 按什么顺序"以本文件为唯一判据。
-> **版本**：**1.4.0**（2026-10-26，3.0 + 3.1 retrieval L2 已落地）
+> **版本**：**1.5.0**（2026-10-26，3.0 + 3.1 + 3.2 已落地）
 > **前序**：`phase2.2-closeout-and-observability.md`、`phase2.1-wiring-and-contracts.md` v2.0.0、ADR-0006（事件）、ADR-0007（NodeIO/配置）。
 > **入口基线**：`verify_phase2_1 13/13`、`pytest 439+`、`e2e 8+`、`verify_phase1 13/13`、`vue-tsc 0 error`。
 > **重要度**：**本阶段是项目从"可演示的系统"变成"有研究贡献的系统"的分水岭**，预计投入 2.5–3 周；允许拆成 3.0 → 3.5 六个子阶段独立验收。
@@ -604,9 +604,9 @@ class Executor(Protocol):
 
 | 步 | 目标 | 产物 | 关键门禁 | 预估 |
 |---|---|---|---|---|
-| **S10** | 抽取/校验/重写工具 | `extract_claims`、`verify_claim`、`rewrite_claim` | 复用 grounding 判定 | 4 h |
-| **S11** | 逐条修复循环 | analysis goal + 接线 | 只改坏 claim；仍坏则丢弃 | 4 h |
-| **S12** | 一致性与基准 | 报告一致性、grounding、成本 | 不低于 2.2；+≤50% | 2 h |
+| **S10** ✅ | 抽取/校验/重写工具 | `extract_claims`、`verify_claim`、`rewrite_claim` + `tool_runtime_for` 白名单 | 复用 grounding；坏 claim 可被改写/丢弃 | 4 h |
+| **S11** ✅ | 逐条修复循环 | `_analysis_l2`（verify → rewrite → 仍坏丢弃），`analysis_l2` 开关默认关 | 只改坏 claim；5 例全绿 | 4 h |
+| **S12** ✅ | 一致性与基准 | `scripts/ab_analysis.py`（L1/L2 × 正常/坏产物） | L2 把 unsupported 从 1 降到 0；成本 0 | 2 h |
 
 ### 7.4 3.3 Chat L3（≈4–5 天）
 
@@ -853,6 +853,7 @@ P5 只做"参数/配置层自优化"，**不自动生成节点**；生成节点�
 
 | 版本 | 日期 | 变更 |
 |---|---|---|
+| 1.5.0 | 2026-10-26 | **3.2 analysis L2 落地**：逐条 verify→rewrite→drop、`analysis_l2` 开关、A/B 脚本；偏差 3.2-a/3.2-b 见 `RESULTS-P3.md` |
 | 1.4.0 | 2026-10-26 | **3.1 retrieval L2 落地**：`rewrite_query → hybrid_search` 两步循环、`retrieval_l2` 开关（默认 L1）、A/B 脚本；偏差 3.1-a/3.1-b 见 `RESULTS-P3.md` |
 | 1.3.0 | 2026-10-26 | **3.0 Foundations 落地**：NodeGoal/ShellSpec（提前）、MicroAgent 七相位、ToolSpec v2 四段流水线、默认关接线、验证器骨架；偏差与结果见 `RESULTS-P3.md` |
 | 1.2.0 | 2026-10-26 | **新增壳规范**：§3.0 定义壳/内核/能力/治理四层、S1–S6 硬规则、`ShellSpec`（可序列化/哈希/可删）、六项厚度指标、SH1–SH7 测试矩阵、壳优化与生成闭环；新增 I21–I23、H21–H22、S27/S28、附录 H |

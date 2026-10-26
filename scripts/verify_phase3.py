@@ -20,6 +20,7 @@ CHECKS: list[tuple[str, str, list[str]]] = [
     ("H2 NodeGoal / ShellSpec", "goals", ["tests/contracts/test_goals_and_shell.py"]),
     ("H3 工具协议 v2", "tools", ["tests/tools/test_protocol_v2.py"]),
     ("H4 retrieval L2", "retrieval", ["tests/runtime/test_retrieval_l2.py"]),
+    ("H5 analysis L2", "analysis", ["tests/runtime/test_analysis_l2.py"]),
     ("H6 默认关闭等价", "defaults", ["tests/runtime/test_phase3_defaults.py"]),
 ]
 

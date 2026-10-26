@@ -284,6 +284,10 @@ class Phase2Nodes:
 
             claims = [Claim(text=claims[0].text, citations=[], support=Support.UNSUPPORTED), *claims[1:]]
         used_llm = gateway is not None
+        pipeline = getattr(self.ctx, "pipeline", None) or self.settings.pipeline
+        repair: dict[str, int] = {}
+        if bool(getattr(pipeline, "analysis_l2", False)) and claims:
+            claims, repair = self._analysis_l2(claims)
 
         from lit_agent.eval.scope_drift import drift_for
 
@@ -297,6 +301,7 @@ class Phase2Nodes:
             block_below=float(gates_cfg.drift_block_below),
         )
         counters = {"claims": len(claims), "cards": len(cards)}
+        counters.update(repair)
         if drift.warning:
             counters["drift_warn"] = 1
         if drift.blocked:
@@ -308,10 +313,60 @@ class Phase2Nodes:
                 "claims_json": claims_to_json(claims),
                 "llm_used": used_llm,
                 "extraction": "llm" if used_llm else "deterministic",
+                "analysis_l2": bool(repair),
+                "repair": repair,
                 "drift_verdict": drift.verdict,
                 "drift_coverage": drift.coverage,
             },
             "counters": counters,
+        }
+
+    def _analysis_l2(self, claims: list[Any]) -> tuple[list[Any], dict[str, int]]:
+        """L2：逐条 verify → 失败 rewrite → 仍失败丢弃（只改坏 claim）。"""
+        from lit_agent.tools.spec import tool_runtime_for
+
+        runtime = tool_runtime_for(("verify_claim", "rewrite_claim"))
+        log = getattr(self.ctx, "log", None)
+        kept: list[Any] = []
+        rewritten = 0
+        dropped = 0
+
+        for claim in claims:
+            snippet = claim.citations[0].snippet if claim.citations else ""
+            verdict = runtime.call(
+                "verify_claim",
+                args={"text": claim.text, "snippet": snippet or ""},
+                log=log,
+            )
+            supported = bool(verdict.output.get("supported")) if verdict.ok else False
+
+            if not supported and snippet:
+                fixed = runtime.call(
+                    "rewrite_claim",
+                    args={"text": claim.text, "snippet": snippet},
+                    log=log,
+                )
+                new_text = str(fixed.output.get("text") or "") if fixed.ok else ""
+                if new_text and new_text != claim.text:
+                    recheck = runtime.call(
+                        "verify_claim",
+                        args={"text": new_text, "snippet": snippet},
+                        log=log,
+                    )
+                    if recheck.ok and bool(recheck.output.get("supported")):
+                        claim = claim.model_copy(update={"text": new_text})
+                        rewritten += 1
+                        supported = True
+
+            if supported:
+                kept.append(claim)
+            else:
+                dropped += 1
+
+        return kept, {
+            "claims_verified": len(claims),
+            "claims_rewritten": rewritten,
+            "claims_dropped": dropped,
         }
 
     def _scope_text(self) -> str:

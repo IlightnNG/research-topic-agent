@@ -7,9 +7,9 @@
 
 | 指标 | 当前值 |
 |---|---|
-| 阶段 | **3.0 Foundations + 3.1 retrieval L2 完成** |
-| 测试 | `pytest` 收集 **510 例**（2.2 为 467） |
-| 3.x 验证器 | `verify_phase3 --all` **5/5 PASS** |
+| 阶段 | **3.0 + 3.1 + 3.2 完成** |
+| 测试 | `pytest` 收集 **515 例**（2.2 为 467） |
+| 3.x 验证器 | `verify_phase3 --all` **6/6 PASS** |
 | 基线 | `verify_phase2_1 13/13`、`verify_phase2 12/12`、`verify_phase1 13/13` |
 | 行为变化 | **零**（`micro_enabled=false`，十阶段事件与 2.2 一致） |
 
@@ -111,3 +111,44 @@ ruff                         clean
 1. analysis 开 L2：`extract_claims → verify_claim → rewrite_claim`（逐条校验-修复）；
 2. 用 `rewrite_claim` 降 unsupported 率，对比 grounding/成本；
 3. 把 `before_request` 的剪枝/摘要策略接上（长上下文用例）。
+
+
+---
+
+## 7. 3.2 · analysis L2（2026-10-26）
+
+### 7.1 交付
+
+| 产物 | 说明 |
+|---|---|
+| `tool_runtime_for(names)` | 工具白名单工厂，避免节点拿到全部工具 |
+| `extract_claims` / `rewrite_claim` | 确定性抽取首句 / 改写成片段中可支持的最相关句 |
+| `_analysis_l2` | 逐条 `verify_claim → rewrite_claim → 复验`；仍失败丢弃；只改坏 claim |
+| `pipeline.analysis_l2` | 开关，默认 `False` |
+| `scripts/ab_analysis.py` | L1/L2 × 正常/坏产物 四组对比 |
+| `tests/runtime/test_analysis_l2.py` | 5 例：默认 L1、逐条校验、丢弃不可修复、改写转支持、工具注册 |
+
+### 7.2 A/B 实测（3 篇）
+
+| 模式 | 状态 | claims | unsupported | 改写 | 丢弃 | tool_call | grounding |
+|---|---|---|---|---|---|---|---|
+| L1 | succeeded | 3 | 0 | 0 | 0 | 0 | 1.0 |
+| L2 | succeeded | 3 | 0 | 0 | 0 | 3 | 1.0 |
+| L1+bad | succeeded | 3 | **1** | 0 | 0 | 0 | 1.0* |
+| L2+bad | succeeded | 2 | **0** | 0 | 1 | 3 | 1.0 |
+
+**结论**：坏产物场景下，L2 通过"丢弃不可修复 claim"把 unsupported 从 1 降到 0；
+正常场景只多 3 次 verify 调用，无 LLM 成本。
+（*L1+bad 的 `grounding` 由 evaluate 口径计算，未计入无引用 claim；所以另列 `unsupported`。）
+
+### 7.3 偏差
+
+| ID | 偏差 | 理由 |
+|---|---|---|
+| 3.2-a | `rewrite_claim` 用**片段句**替换，未接 LLM | 保证"改写后必被支持"；语义更精细的改写留 LLM 版 |
+| 3.2-b | 不可修复 claim **直接丢弃**，不降级整轮 | 报告宁可少一条，也不留无引用断言 |
+| 3.2-c | 每条 claim 一次 verify（坏 claim 再 +rewrite+verify） | tool_call 事件随 claims 线性增长，当前规模可接受 |
+
+### 7.4 下一步（3.3）
+
+Chat L3：迁移 0004 + 会话 API + `agents/chat.py`（ReAct 工具白名单、无引用不作答、可中止）+ 前端 Chat 页。

@@ -1,0 +1,49 @@
+{
+  "papers": 3,
+  "rows": [
+    {
+      "mode": "L1",
+      "state": "succeeded",
+      "claims": 3,
+      "unsupported": 0,
+      "rewritten": 0,
+      "dropped": 0,
+      "tool_calls": 0,
+      "wall_ms": 1188,
+      "grounding": 1.0
+    },
+    {
+      "mode": "L2",
+      "state": "succeeded",
+      "claims": 3,
+      "unsupported": 0,
+      "rewritten": 0,
+      "dropped": 0,
+      "tool_calls": 3,
+      "wall_ms": 218,
+      "grounding": 1.0
+    },
+    {
+      "mode": "L1+bad",
+      "state": "succeeded",
+      "claims": 3,
+      "unsupported": 1,
+      "rewritten": 0,
+      "dropped": 0,
+      "tool_calls": 0,
+      "wall_ms": 219,
+      "grounding": 1.0
+    },
+    {
+      "mode": "L2+bad",
+      "state": "succeeded",
+      "claims": 2,
+      "unsupported": 0,
+      "rewritten": 0,
+      "dropped": 1,
+      "tool_calls": 3,
+      "wall_ms": 296,
+      "grounding": 1.0
+    }
+  ]
+}

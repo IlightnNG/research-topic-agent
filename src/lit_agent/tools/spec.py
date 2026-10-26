@@ -30,6 +30,7 @@ from lit_agent.tools.registry import ToolResult
 
 __all__ = [
     "DEFAULT_TOOL_SPECS",
+    "TOOL_IMPLEMENTATIONS",
     "TOOL_NAMES",
     "ToolRuntime",
     "ToolSpec",
@@ -87,6 +88,26 @@ DEFAULT_TOOL_SPECS: dict[str, ToolSpec] = {
             "type": "object",
             "required": ["supported"],
             "properties": {"supported": {"type": "boolean"}, "coverage": {"type": "number"}},
+        },
+    ),
+    "extract_claims": ToolSpec(
+        name="extract_claims",
+        description="从片段抽取原子 claim（确定性首句版）",
+        parameters={"snippets": "array"},
+        output_schema={
+            "type": "object",
+            "required": ["claims"],
+            "properties": {"claims": {"type": "array"}},
+        },
+    ),
+    "rewrite_claim": ToolSpec(
+        name="rewrite_claim",
+        description="把不被支持的 claim 改写为片段中可支持的最相关句",
+        parameters={"text": "string", "snippet": "string"},
+        output_schema={
+            "type": "object",
+            "required": ["text"],
+            "properties": {"text": {"type": "string"}, "changed": {"type": "boolean"}},
         },
     ),
     "compress_context": ToolSpec(
@@ -293,6 +314,32 @@ def _verify_claim(*, text: str, snippet: str) -> dict[str, Any]:
     return {"supported": bool(result.supported), "coverage": float(result.coverage)}
 
 
+def _extract_claims(*, snippets: list[dict[str, Any]]) -> dict[str, Any]:
+    claims = []
+    for item in snippets[:50]:
+        snippet = str(item.get("snippet") or "").strip()
+        if not snippet:
+            continue
+        sentence = re.split(r"(?<=[.!?])\s+", snippet)[0]
+        claims.append({"text": sentence[:240], "paper_id": str(item.get("paper_id") or "")})
+    return {"claims": claims}
+
+
+def _rewrite_claim(*, text: str, snippet: str) -> dict[str, Any]:
+    body = snippet.strip()
+    if not body:
+        return {"text": text, "changed": False}
+    from lit_agent.agents.retrieval import tokens
+
+    wanted = tokens(text)
+    sentences = [part for part in re.split(r"(?<=[.!?])\s+", body) if part.strip()]
+    best = max(sentences, key=lambda part: len(tokens(part) & wanted)) if sentences else body
+    if not (tokens(best) & wanted):
+        best = body[:240]
+    changed = best.strip() != text.strip()
+    return {"text": best.strip()[:240], "changed": changed}
+
+
 def _compress_context(*, texts: list[str]) -> dict[str, Any]:
     from lit_agent.context.folding import SummarizeFolding
     from lit_agent.parsing.chunking import count_tokens
@@ -302,9 +349,24 @@ def _compress_context(*, texts: list[str]) -> dict[str, Any]:
     return {"text": folded.text, "tokens_before": before, "tokens_after": folded.tokens}
 
 
-def default_runtime() -> ToolRuntime:
+TOOL_IMPLEMENTATIONS: dict[str, Callable[..., Any]] = {
+    "rewrite_query": _rewrite_query,
+    "verify_claim": _verify_claim,
+    "rewrite_claim": _rewrite_claim,
+    "extract_claims": _extract_claims,
+    "compress_context": _compress_context,
+}
+
+
+def tool_runtime_for(names: tuple[str, ...] | list[str]) -> ToolRuntime:
+    """按需组装只含指定工具的 runtime（白名单）。"""
     runtime = ToolRuntime()
-    runtime.register(DEFAULT_TOOL_SPECS["rewrite_query"], _rewrite_query)
-    runtime.register(DEFAULT_TOOL_SPECS["verify_claim"], _verify_claim)
-    runtime.register(DEFAULT_TOOL_SPECS["compress_context"], _compress_context)
+    for name in names:
+        if name not in TOOL_IMPLEMENTATIONS or name not in DEFAULT_TOOL_SPECS:
+            raise LitError(E_UNEXPECTED, f"未实现的工具：{name}")
+        runtime.register(DEFAULT_TOOL_SPECS[name], TOOL_IMPLEMENTATIONS[name])
     return runtime
+
+
+def default_runtime() -> ToolRuntime:
+    return tool_runtime_for(("rewrite_query", "verify_claim", "compress_context"))

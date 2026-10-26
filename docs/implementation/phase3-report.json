@@ -1,6 +1,6 @@
 {
-  "greens": 5,
-  "total": 5,
+  "greens": 6,
+  "total": 6,
   "results": [
     {
       "name": "H1 MicroAgent 六路径 + 相位",
@@ -19,6 +19,11 @@
     },
     {
       "name": "H4 retrieval L2",
+      "ok": true,
+      "detail": "ok"
+    },
+    {
+      "name": "H5 analysis L2",
       "ok": true,
       "detail": "ok"
     },
