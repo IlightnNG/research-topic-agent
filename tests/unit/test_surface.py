@@ -10,7 +10,6 @@ from pydantic import BaseModel
 
 from lit_agent import models, structure
 from lit_agent.db import tables
-from lit_agent.errors import FeatureDisabledError
 
 PACKAGES = [name for name in structure.PACKAGES if name != "."]
 
@@ -35,13 +34,13 @@ def test_skeleton_entry_points_fail_explicitly() -> None:
     from lit_agent.agents import chat
     from lit_agent.graph import edges
 
-    assert edges.backoff_edge("E11") == "replan"  # S3：E1–E13 已全部实现
+    assert edges.backoff_edge("E11") == "replan"
     with pytest.raises(ValueError):
         edges.backoff_edge("E99")
 
-    with pytest.raises(FeatureDisabledError) as second:
-        chat.run()
-    assert second.value.feature == "agents.chat"
+    # Chat 已在 3.3 实装；这里校验它不再以 skeleton 方式报错
+    assert chat.CHAT_GOAL.autonomy == "L3"
+    assert callable(chat.answer)
 
 
 def test_skeleton_modules_declare_feature_id() -> None:
@@ -53,7 +52,7 @@ def test_skeleton_modules_declare_feature_id() -> None:
         if hasattr(module, "FEATURE"):
             checked += 1
             assert isinstance(module.FEATURE, str) and module.FEATURE
-    assert checked >= 2, f"skeleton module count looks wrong: {checked}"
+    assert checked >= 1, f"skeleton module count looks wrong: {checked}"
 
 
 def test_models_public_names_are_contract_models() -> None:

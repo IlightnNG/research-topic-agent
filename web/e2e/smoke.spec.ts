@@ -50,9 +50,36 @@ test("生成周报 → 轨迹 → 报告（稳定路径：打开已有 run）", 
   await expect(page.getByText(/Claims|sha /i).first()).toBeVisible({ timeout: 30_000 });
 });
 
-test("Chat 页显示未开放（501 整页态）", async ({ page }) => {
+test("3.3: Chat 首轮回答带引用 + 工具轨迹", async ({ page }) => {
   await page.goto(`/topics/${TOPIC}/chat`);
-  await expect(page.getByText("对话功能尚未开放")).toBeVisible();
+  await page.getByPlaceholder("输入问题，回车发送").fill("tool use");
+  await page.getByRole("button", { name: "发送" }).click();
+
+  await expect(
+    page.locator(".chat-msg").filter({ hasText: "根据 [E2E-P" }).last(),
+  ).toBeVisible({ timeout: 30_000 });
+  await expect(page.getByText("工具轨迹").last()).toBeVisible();
+  await expect(page.locator(".chat-msg").last().locator(".el-tag")).toHaveCount(3);
+});
+
+test("3.3: Chat 追问保持会话 + 无证据拒答", async ({ page }) => {
+  await page.goto(`/topics/${TOPIC}/chat`);
+  const input = page.getByPlaceholder("输入问题，回车发送");
+  await input.fill("tool use");
+  await page.getByRole("button", { name: "发送" }).click();
+  await expect(
+    page.locator(".chat-msg").filter({ hasText: "根据 [E2E-P" }).last(),
+  ).toBeVisible({ timeout: 30_000 });
+
+  await input.fill("再具体一点");
+  await page.getByRole("button", { name: "发送" }).click();
+  await expect(
+    page.locator(".chat-msg").filter({ hasText: "根据 [E2E-P" }).last(),
+  ).toBeVisible({ timeout: 30_000 });
+
+  await input.fill("zzz-nonexistent");
+  await page.getByRole("button", { name: "发送" }).click();
+  await expect(page.getByText(/无法从本 topic 的证据回答/).last()).toBeVisible({ timeout: 30_000 });
 });
 
 test("F12: 基线健康检查可用", async ({ request }) => {

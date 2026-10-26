@@ -1,7 +1,7 @@
 # Phase 3 —— 双层 Agent：可控 Workflow + 微观 ReAct
 
 > **文档性质**：**规范性文件（冻结契约）**。Phase 3 的"做什么 / 什么算做完 / 按什么顺序"以本文件为唯一判据。
-> **版本**：**1.5.0**（2026-10-26，3.0 + 3.1 + 3.2 已落地）
+> **版本**：**1.6.0**（2026-10-26，3.0–3.3 已落地）
 > **前序**：`phase2.2-closeout-and-observability.md`、`phase2.1-wiring-and-contracts.md` v2.0.0、ADR-0006（事件）、ADR-0007（NodeIO/配置）。
 > **入口基线**：`verify_phase2_1 13/13`、`pytest 439+`、`e2e 8+`、`verify_phase1 13/13`、`vue-tsc 0 error`。
 > **重要度**：**本阶段是项目从"可演示的系统"变成"有研究贡献的系统"的分水岭**，预计投入 2.5–3 周；允许拆成 3.0 → 3.5 六个子阶段独立验收。
@@ -612,9 +612,9 @@ class Executor(Protocol):
 
 | 步 | 目标 | 产物 | 关键门禁 | 预估 |
 |---|---|---|---|---|
-| **S13** | 会话存储与 API | 迁移 0004、会话 CRUD、SSE | 迁移可回滚；API 契约测试 | 5 h |
-| **S14** | L3 ReAct 循环 | `agents/chat.py`、工具白名单、引用规则 | 无引用不得作答；可中止 | 6 h |
-| **S15** | 前端 Chat 页 | 输入、流式、工具轨迹、引用、中止 | e2e 首轮/追问/中止 | 5 h |
+| **S13** ✅ | 会话存储与 API | 迁移 0004（`trace_json`）+ 会话/消息 repo + GET/POST API | 表已存在（0001）；API 契约 5 例 | 5 h |
+| **S14** ✅ | L3 ReAct 循环 | `agents/chat.py`（rewrite→search→verify；无引用拒答） | 5 例；拒答路径已测 | 6 h |
+| **S15** ✅ | 前端 Chat 页 | 会话列表、消息流、引用标签、工具轨迹、发送/中止 | e2e 首轮 + 追问 + 拒答（2 条） | 5 h |
 | **S16** | 多轮评测 | 10 个脚本化场景、pass@k、成本 | 场景全过；成本可控 | 4 h |
 
 **3.3 出口 = 系统基本完成**：三页全通、Chat 可用、可评测。
@@ -853,6 +853,7 @@ P5 只做"参数/配置层自优化"，**不自动生成节点**；生成节点�
 
 | 版本 | 日期 | 变更 |
 |---|---|---|
+| 1.6.0 | 2026-10-26 | **3.3 Chat L3 落地**：会话 API、L3 循环（无引用拒答）、Chat 页、e2e；偏差 3.3-a…e 见 `RESULTS-P3.md` |
 | 1.5.0 | 2026-10-26 | **3.2 analysis L2 落地**：逐条 verify→rewrite→drop、`analysis_l2` 开关、A/B 脚本；偏差 3.2-a/3.2-b 见 `RESULTS-P3.md` |
 | 1.4.0 | 2026-10-26 | **3.1 retrieval L2 落地**：`rewrite_query → hybrid_search` 两步循环、`retrieval_l2` 开关（默认 L1）、A/B 脚本；偏差 3.1-a/3.1-b 见 `RESULTS-P3.md` |
 | 1.3.0 | 2026-10-26 | **3.0 Foundations 落地**：NodeGoal/ShellSpec（提前）、MicroAgent 七相位、ToolSpec v2 四段流水线、默认关接线、验证器骨架；偏差与结果见 `RESULTS-P3.md` |

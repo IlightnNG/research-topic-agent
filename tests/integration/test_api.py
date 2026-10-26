@@ -85,10 +85,10 @@ def test_unknown_run_is_404(client: TestClient) -> None:
     assert response.json()["code"] == "E_NOT_FOUND"
 
 
-def test_chat_and_graph_are_501_not_404(client: TestClient) -> None:
+def test_chat_is_implemented_and_graph_is_501(client: TestClient) -> None:
     chat = client.get("/api/topics/ai-agents/chat")
-    assert chat.status_code == 501
-    assert chat.json()["code"] == "E_FEATURE_DISABLED"
+    assert chat.status_code == 200
+    assert chat.json()["messages"] == []
 
     graph = client.get("/api/graph/authors/A1")
     assert graph.status_code == 501

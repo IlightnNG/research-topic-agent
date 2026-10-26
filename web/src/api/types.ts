@@ -77,3 +77,45 @@ export interface RunMetrics {
   slowest_stage?: string | null;
   [key: string]: unknown;
 }
+
+export interface ChatCitation {
+  paper_id: string;
+  snippet: string;
+}
+
+export interface ChatTraceStep {
+  tool: string;
+  ok: boolean;
+  hits?: number;
+  steps?: number;
+  stop?: string;
+}
+
+export interface ChatMessage {
+  id: string;
+  role: "user" | "assistant";
+  content: string;
+  citations: ChatCitation[];
+  trace: ChatTraceStep[];
+  ts: string;
+}
+
+export interface ChatSession {
+  id: string;
+  topic_id: string;
+  created_at: string;
+}
+
+export interface ChatState {
+  topic_id: string;
+  sessions: ChatSession[];
+  session: ChatSession | null;
+  messages: ChatMessage[];
+}
+
+export interface ChatPost {
+  topic_id: string;
+  session_id: string;
+  message: ChatMessage;
+  answered: boolean;
+}

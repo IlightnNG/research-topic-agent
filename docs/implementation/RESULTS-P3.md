@@ -7,8 +7,8 @@
 
 | 指标 | 当前值 |
 |---|---|
-| 阶段 | **3.0 + 3.1 + 3.2 完成** |
-| 测试 | `pytest` 收集 **515 例**（2.2 为 467） |
+| 阶段 | **3.0 + 3.1 + 3.2 + 3.3 完成** |
+| 测试 | `pytest` 收集 **520 例**；e2e **14 passed** |
 | 3.x 验证器 | `verify_phase3 --all` **6/6 PASS** |
 | 基线 | `verify_phase2_1 13/13`、`verify_phase2 12/12`、`verify_phase1 13/13` |
 | 行为变化 | **零**（`micro_enabled=false`，十阶段事件与 2.2 一致） |
@@ -152,3 +152,44 @@ ruff                         clean
 ### 7.4 下一步（3.3）
 
 Chat L3：迁移 0004 + 会话 API + `agents/chat.py`（ReAct 工具白名单、无引用不作答、可中止）+ 前端 Chat 页。
+
+
+---
+
+## 8. 3.3 · Chat L3（2026-10-26）
+
+### 8.1 交付
+
+| 产物 | 说明 |
+|---|---|
+| 迁移 0004 | `chat_messages.trace_json`（表本身在 0001 已建） |
+| `db/repo/chat.py` | 会话创建/列表、消息追加/读取（含 citations/trace） |
+| `agents/chat.py` | L3：`rewrite_query → search_topic → verify_claim`，无引用拒答 |
+| Chat API | `GET /api/topics/{id}/chat`、`POST /api/topics/{id}/chat`（同步回答） |
+| Chat 页 | 会话列表、消息流、引用标签、工具轨迹、发送/中止 |
+| 测试 | `tests/chat/test_chat_l3.py`（5 例）+ e2e 2 条（首轮/追问/拒答） |
+
+### 8.2 实测
+
+```text
+pytest                520 例（3.2 的 515 + 5）
+verify_phase3 --all   6/6
+playwright            14 passed
+首轮：根据 [E2E-P0]：tool use improves task success…
+追问：同一 session 继续回答
+拒答：zzz-nonexistent → 无法从本 topic 的证据回答
+```
+
+### 8.3 偏差
+
+| ID | 偏差 | 理由 |
+|---|---|---|
+| 3.3-a | 会话表在 0001 已建，0004 只加 `trace_json` | 避免重复建表；迁移幂等 |
+| 3.3-b | Chat 检索用**全局 papers**（schema 无 topic_papers） | 与周报同源；多 topic 隔离需要后续迁移 |
+| 3.3-c | 无 token 级 SSE，同步返回 + 前端 AbortController | 回答确定性、毫秒级；中止测试用单元/手动覆盖 |
+| 3.3-d | L3 无 LLM（规则 search/verify） | 零成本、可复现；LLM 版留配置位 |
+| 3.3-e | e2e 用 `scripts/seed_e2e.py` 预置 3 篇论文 | dev DB 原本 0 篇；CI 需先 seed 或扩展 fixture |
+
+### 8.4 下一步（3.4）
+
+治理（权限/沙盒/工具检索）→ 3.5 评测与收尾（含壳规范、执行器等价）。

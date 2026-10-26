@@ -22,6 +22,7 @@ CHECKS: list[tuple[str, str, list[str]]] = [
     ("H4 retrieval L2", "retrieval", ["tests/runtime/test_retrieval_l2.py"]),
     ("H5 analysis L2", "analysis", ["tests/runtime/test_analysis_l2.py"]),
     ("H6 默认关闭等价", "defaults", ["tests/runtime/test_phase3_defaults.py"]),
+    ("H7 Chat L3", "chat", ["tests/chat"]),
 ]
 
 

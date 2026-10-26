@@ -305,8 +305,9 @@ def check_api(settings: Settings) -> str:
         raise AssertionError(f"health: {health.status_code}")
     if client.get("/api/runs/does-not-exist").status_code != 404:
         raise AssertionError("未知 run 应为 404")
-    if client.get("/api/topics/ai-agents/chat").status_code != 501:
-        raise AssertionError("chat 应为 501")
+    # 3.3 起 Chat 已实装：不再要求 501（P3 的契约变化）
+    if client.get("/api/topics/ai-agents/chat").status_code == 501:
+        raise AssertionError("chat 已实装，不应再返回 501")
     with client.stream("GET", "/api/runs/verify-run-1/stream") as response:
         body = "".join(response.iter_text())
     if "event: end" not in body:
@@ -314,7 +315,7 @@ def check_api(settings: Settings) -> str:
     paths = len(client.get("/openapi.json").json()["paths"])
     if paths < 16:
         raise AssertionError(f"openapi paths: {paths}")
-    return f"health/404/501/sse ok; openapi paths={paths}"
+    return f"health/404/chat/sse ok; openapi paths={paths}"
 
 
 def check_doctor(settings: Settings) -> str:

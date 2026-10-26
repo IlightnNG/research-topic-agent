@@ -1,5 +1,5 @@
 import { request } from "./client";
-import type { Report, RunDetail, RunEvent, RunItem, RunMetrics, Topic } from "./types";
+import type { ChatPost, ChatState, Report, RunDetail, RunEvent, RunItem, RunMetrics, Topic } from "./types";
 
 export interface EventsPage {
   run_id: string;
@@ -34,6 +34,16 @@ export const api = {
     request<EventsPage>(`/api/runs/${runId}/events?after_seq=${afterSeq}&limit=500`),
   getReport: (runId: string) => request<Report>(`/api/runs/${runId}/report`),
   getRunMetrics: (runId: string) => request<RunMetrics>(`/api/runs/${runId}/metrics`),
+  getChat: (topicId: string, sessionId?: string) =>
+    request<ChatState>(
+      `/api/topics/${topicId}/chat${sessionId ? `?session_id=${encodeURIComponent(sessionId)}` : ""}`,
+    ),
+  postChat: (topicId: string, body: { message: string; session_id?: string }, signal?: AbortSignal) =>
+    request<ChatPost>(`/api/topics/${topicId}/chat`, {
+      method: "POST",
+      body: JSON.stringify(body),
+      signal,
+    }),
   abortRun: (runId: string) =>
     request<{ run_id: string }>(`/api/runs/${runId}/abort`, { method: "POST" }),
   pauseRun: (runId: string) =>
