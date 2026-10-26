@@ -1,0 +1,26 @@
+{
+  "greens": 4,
+  "total": 4,
+  "results": [
+    {
+      "name": "H1 MicroAgent 六路径 + 相位",
+      "ok": true,
+      "detail": "ok"
+    },
+    {
+      "name": "H2 NodeGoal / ShellSpec",
+      "ok": true,
+      "detail": "ok"
+    },
+    {
+      "name": "H3 工具协议 v2",
+      "ok": true,
+      "detail": "ok"
+    },
+    {
+      "name": "H6 默认关闭等价",
+      "ok": true,
+      "detail": "ok"
+    }
+  ]
+}

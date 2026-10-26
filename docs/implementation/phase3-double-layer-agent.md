@@ -1,7 +1,7 @@
 # Phase 3 —— 双层 Agent：可控 Workflow + 微观 ReAct
 
 > **文档性质**：**规范性文件（冻结契约）**。Phase 3 的"做什么 / 什么算做完 / 按什么顺序"以本文件为唯一判据。
-> **版本**：**1.2.0**（2026-10-26，新增壳规范 ShellSpec 与可生成闭环）
+> **版本**：**1.3.0**（2026-10-26，3.0 Foundations 已落地）
 > **前序**：`phase2.2-closeout-and-observability.md`、`phase2.1-wiring-and-contracts.md` v2.0.0、ADR-0006（事件）、ADR-0007（NodeIO/配置）。
 > **入口基线**：`verify_phase2_1 13/13`、`pytest 439+`、`e2e 8+`、`verify_phase1 13/13`、`vue-tsc 0 error`。
 > **重要度**：**本阶段是项目从"可演示的系统"变成"有研究贡献的系统"的分水岭**，预计投入 2.5–3 周；允许拆成 3.0 → 3.5 六个子阶段独立验收。
@@ -440,6 +440,9 @@ class Executor(Protocol):
 
 ## 4. 模块与验收判据（M1–M9）
 
+> **3.0 状态（2026-10-26）**：S1–S6 完成；`pytest 505 例`、`verify_phase3 --foundations 4/4`。
+> 3.0 只落"可测的骨架"，不改变任何节点行为（`micro_enabled=false`）。
+
 > **能力三件套**（借 DSH 的 seam 写法）：每个新能力先写清 **定义（接口）/ 实现（provider）/ 消费者（工具或节点）**，再写代码。新增能力放哪层见附录 G。
 
 ### M1 MicroAgent 运行时
@@ -580,12 +583,12 @@ class Executor(Protocol):
 
 | 步 | 目标 | 产物 | 关键门禁 | 回滚 | 预估 |
 |---|---|---|---|---|---|
-| **S1** | NodeGoal 契约 + 10 goal 注册 | `contracts/goals.py`、specs 扩展、契约测试 | 10/10；postconditions 合法 | 开关关闭 | 3 h |
-| **S2** | MicroAgent 核心（相位化） | `runtime/micro_agent.py`（before_request/after_action 分离）、`LoopState` | 6 路径 + 相位分离测试全绿；事件完整 | `micro.enabled=false` | 5 h |
-| **S3** | 工具协议 v2 | `tools/spec.py`（四段流水线/guard/concurrency）、registry 升级、3 个新工具 | spec 校验；deny/guard/post 各 1 例；幂等/超时/截断 | 保留旧调用 | 5 h |
-| **S4** | runner 接线（默认关） | `graph_runner` 支持 per-node autonomy | 关闭时行为与 2.2 逐字节一致（事件差异=0） | 同上 | 3 h |
-| **S5** | 确定性测试台 | `tests/support/scripted.py`（ScriptedCompleter/FakeTool）、golden trace | 无网络、无睡眠、可重复 | 删除 | 2 h |
-| **S6** | 契约、验证器与不变量测试 | `tests/contracts/test_micro_contracts.py`、`scripts/verify_phase3.py`（骨架 + H1/H6/H7） | 全绿；`--foundations` PASS | —— | 3 h |
+| **S1** ✅ | NodeGoal 契约 + 10 goal 注册 | `contracts/goals.py`、`contracts/shell.py`（提前落地）、契约测试 | 10/10；postconditions 合法且 ≤2；`ShellSpec` 可哈希 | 开关关闭 | 3 h |
+| **S2** ✅ | MicroAgent 核心（相位化） | `runtime/micro_agent.py`（7 相位 + `LoopState` 外置） | 6 路径 + 相位分离 + 状态隔离测试全绿（8 例） | `micro.enabled=false` | 5 h |
+| **S3** ✅ | 工具协议 v2 | `tools/spec.py`（pre/guard/execute/post）、3 个新工具（rewrite/verify/compress） | 10 例：deny/guard/post/超时/截断/校验/预算/事件 | 旧 `tools.registry` 不动 | 5 h |
+| **S4** ✅ | runner 接线（默认关） | `ctx.shell` + `pipeline.micro_enabled`；per-node autonomy 执行留给 3.1 | 关闭时仍十阶段、无 tool_call、指标不变（3 例） | 同上 | 3 h |
+| **S5** ✅ | 确定性测试台 | 测试内 `Scripted` completer + `FakeTool`（不新增 support 包，记偏差 3.0-c） | 无网络、无睡眠、可重复 | 删除 | 2 h |
+| **S6** ✅ | 契约、验证器与不变量测试 | `tests/contracts/test_goals_and_shell.py`、`scripts/verify_phase3.py`（H1/H2/H3/H6） | `--foundations` **4/4 PASS** | —— | 3 h |
 
 **3.0 出口**：开/关前后行为等价；MicroAgent 6 路径可测；工具 spec 全覆盖；`verify_phase3 --foundations` PASS。
 
@@ -850,6 +853,7 @@ P5 只做"参数/配置层自优化"，**不自动生成节点**；生成节点�
 
 | 版本 | 日期 | 变更 |
 |---|---|---|
+| 1.3.0 | 2026-10-26 | **3.0 Foundations 落地**：NodeGoal/ShellSpec（提前）、MicroAgent 七相位、ToolSpec v2 四段流水线、默认关接线、验证器骨架；偏差与结果见 `RESULTS-P3.md` |
 | 1.2.0 | 2026-10-26 | **新增壳规范**：§3.0 定义壳/内核/能力/治理四层、S1–S6 硬规则、`ShellSpec`（可序列化/哈希/可删）、六项厚度指标、SH1–SH7 测试矩阵、壳优化与生成闭环；新增 I21–I23、H21–H22、S27/S28、附录 H |
 | 1.1.0 | 2026-10-26 | **借鉴 DSH 内核**：MicroAgent 相位化（before_request/after_action）、工具四段流水线 + 单调 guard + 并发分类、日志唯一真源与双域事件、取消/冻结/提交边界、pre-step 压缩（先剪枝后摘要）、执行器可替换与等价测试；新增 M9、I15–I20、H17–H20、S25/S26、附录 E–G |
 | **1.0.0** | 2026-10-23 | 首版：双层架构、NodeGoal/MicroAgent/ToolSpec、L0–L3 与升级策略、3.0–3.5 六子阶段（S1–S24）、I1–I14、H1–H16、评测与消融设计、AI 实施建议 |

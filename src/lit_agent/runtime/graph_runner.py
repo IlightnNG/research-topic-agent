@@ -124,6 +124,10 @@ def run_graph(
 
             gateway = LLMGateway(settings, budget=run_budget)
 
+    from lit_agent.contracts.shell import default_shell
+
+    shell = default_shell()
+
     ctx = RunContext(
         settings=settings,
         run_id=rid,
@@ -135,6 +139,8 @@ def run_graph(
         log=log,
         transitions_enabled=True,  # S4：有界回边已启用
         gates_enabled=settings.pipeline.gates.enabled,
+        shell=shell,
+        micro_enabled=settings.pipeline.micro_enabled,
     )
     rail = guard_rail(run_budget)
 

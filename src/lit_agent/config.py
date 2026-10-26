@@ -246,6 +246,7 @@ class PipelineSettings(_Section):
     hybrid_min_score: float = Field(default=0.15, ge=0.0, le=1.0)
     llm: Literal["auto", "on", "off"] = "auto"
     pdf_enabled: bool = False
+    micro_enabled: bool = False  # Phase 3：节点内 MicroAgent（默认关，3.0 只接线）
 
 
 class Settings(_Section):

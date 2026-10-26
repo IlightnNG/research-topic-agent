@@ -31,6 +31,8 @@ class RunContext:
     tools: Any | None = None
     pdf_enabled: bool = False
     pipeline: Any | None = None
+    shell: Any | None = None
+    micro_enabled: bool = False
 
     def __post_init__(self) -> None:
         if self.pipeline is None:
