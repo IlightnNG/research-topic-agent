@@ -1,6 +1,15 @@
 import { expect, test } from "@playwright/test";
+import type { Page } from "@playwright/test";
 
 const TOPIC = "e2e-topic";
+
+/** 等上一条 run 结束，避免"topic 已锁"导致后续生成 409。 */
+async function waitTopicIdle(page: Page): Promise<void> {
+  const first = page.locator(".run-list li").first();
+  if (await first.count()) {
+    await expect(first).not.toContainText("running", { timeout: 60_000 });
+  }
+}
 
 test.beforeAll(async ({ request }) => {
   // 幂等准备：topic 已存在则忽略 400/409（PATCH/POST 由后端判重）
@@ -91,4 +100,128 @@ test("S9: 干预端点已实装（不再是 501）", async ({ request }) => {
 
   const inject = await request.post(`/api/runs/${run.id}/inject`, { data: { prompt: "e2e hint" } });
   expect(inject.status()).not.toBe(501);
+});
+
+
+// ---------------------------------------------------------------------------
+// S6/S7：可观测与前端质量（成本/最慢阶段、409 内联、SSE 断线、失败卡、错误条）
+// ---------------------------------------------------------------------------
+
+test("S6/S7: run 头部显示成本与最慢阶段", async ({ page }) => {
+  await page.goto(`/topics/${TOPIC}`);
+  await waitTopicIdle(page);
+
+  await page.getByRole("button", { name: "生成新周报" }).first().click();
+  await page.getByRole("button", { name: "开始生成" }).click();
+
+  const header = page.locator(".run-workspace");
+  await expect(header.getByText(/\$\d+\.\d{4}/)).toBeVisible({ timeout: 60_000 });
+  await expect(header.getByText(/最慢 /)).toBeVisible({ timeout: 60_000 });
+});
+
+test("S7: 409 在对话框内联提示（E_LOCK_HELD）", async ({ page }) => {
+  await page.route("**/api/topics/*/run", (route) =>
+    route.fulfill({
+      status: 409,
+      contentType: "application/json",
+      body: JSON.stringify({ code: "E_LOCK_HELD", message: "该 topic 已有任务在运行" }),
+    }),
+  );
+
+  await page.goto(`/topics/${TOPIC}`);
+  await page.getByRole("button", { name: "生成新周报" }).first().click();
+  await page.getByRole("button", { name: "开始生成" }).click();
+  await expect(page.getByText(/E_LOCK_HELD|已有任务在运行/).first()).toBeVisible({ timeout: 15_000 });
+});
+
+test("S7: SSE 断开时轮询兜底仍能完成", async ({ page }) => {
+  await page.route("**/api/runs/*/stream*", (route) => route.abort());
+
+  await page.goto(`/topics/${TOPIC}`);
+  await waitTopicIdle(page);
+  await page.getByRole("button", { name: "生成新周报" }).first().click();
+  await page.getByRole("button", { name: "开始生成" }).click();
+
+  // SSE 被断开后，轮询仍应把 run 推进到终态（看 run 头部状态，不看左侧列表）
+  await expect(page.locator(".run-workspace").getByText("succeeded").first()).toBeVisible({
+    timeout: 60_000,
+  });
+  await page.getByRole("tab", { name: "报告" }).click();
+  await expect(page.getByText(/Claims|sha /i).first()).toBeVisible({ timeout: 60_000 });
+});
+
+test("S7: 失败运行显示四要素卡片", async ({ page }) => {
+  const failed = {
+    id: "fail-1",
+    topic_id: TOPIC,
+    state: "failed",
+    stage: "report",
+    period: "2026-W43",
+    focus_hint: null,
+    scope_sha: null,
+    error_code: "E_UNEXPECTED",
+    next_seq: 0,
+  };
+  const item = {
+    id: "fail-1",
+    period: "2026-W43",
+    state: "failed",
+    stage: "report",
+    focus_hint: null,
+    error_code: "E_UNEXPECTED",
+    started_at: null,
+    finished_at: null,
+    report_id: null,
+    cost_usd: 0,
+  };
+
+  await page.route("**/api/runs/fail-1/events*", (route) =>
+    route.fulfill({ json: { run_id: "fail-1", after_seq: 0, items: [], count: 0 } }),
+  );
+  await page.route("**/api/runs/fail-1/metrics", (route) =>
+    route.fulfill({ status: 404, json: { code: "E_NOT_FOUND", message: "no metrics" } }),
+  );
+  await page.route("**/api/topics/*/runs?*", (route) =>
+    route.fulfill({ json: { items: [item], count: 1 } }),
+  );
+  await page.route("**/api/runs/fail-1", (route) => route.fulfill({ json: failed }));
+
+  await page.goto(`/topics/${TOPIC}`);
+  await page.locator(".run-list li").first().click();
+
+  await expect(page.getByText("本次运行未成功")).toBeVisible({ timeout: 15_000 });
+  await expect(page.getByText("错误码").first()).toBeVisible();
+  await expect(page.getByRole("button", { name: "重跑" })).toBeVisible();
+});
+
+test("S7: API 失败时显示错误条并可重试", async ({ page }) => {
+  const item = {
+    id: "err-1",
+    period: "2026-W43",
+    state: "failed",
+    stage: "report",
+    focus_hint: null,
+    error_code: "E_UNEXPECTED",
+    started_at: null,
+    finished_at: null,
+    report_id: null,
+    cost_usd: 0,
+  };
+
+  await page.route("**/api/topics/*/runs?*", (route) =>
+    route.fulfill({ json: { items: [item], count: 1 } }),
+  );
+  await page.route("**/api/runs/err-1", (route) =>
+    route.fulfill({
+      status: 500,
+      contentType: "application/json",
+      body: JSON.stringify({ code: "E_UNEXPECTED", message: "boom" }),
+    }),
+  );
+
+  await page.goto(`/topics/${TOPIC}`);
+  await page.locator(".run-list li").first().click();
+
+  await expect(page.getByText(/E_UNEXPECTED: boom/)).toBeVisible({ timeout: 15_000 });
+  await expect(page.getByRole("button", { name: "详情" })).toBeVisible();
 });

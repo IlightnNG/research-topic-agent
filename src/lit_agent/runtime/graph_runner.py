@@ -8,6 +8,7 @@
 
 from __future__ import annotations
 
+import time
 from typing import Any
 
 from lit_agent.config import Settings
@@ -153,6 +154,7 @@ def run_graph(
             attempts = dict(state.get("attempts") or {})
             attempt = int(attempts.get(name, 0)) + 1
             attempts[name] = attempt
+            started = time.monotonic()
 
             log.emit(
                 EventType.PHASE_CHANGE,
@@ -173,7 +175,13 @@ def run_graph(
                 log.emit(
                     EventType.PHASE_CHANGE,
                     stage=name,
-                    payload={"phase": "end", "attempt": attempt, "ok": False, "gates": _gate_payload(gates)},
+                    payload={
+                        "phase": "end",
+                        "attempt": attempt,
+                        "ok": False,
+                        "gates": _gate_payload(gates),
+                        "duration_ms": int((time.monotonic() - started) * 1000),
+                    },
                     dedupe_key=f"{name}:end:{attempt}",
                 )
                 log.emit(
@@ -263,6 +271,7 @@ def run_graph(
                             "ok": False,
                             "action": decision.action,
                             "gates": _gate_payload(gates),
+                            "duration_ms": int((time.monotonic() - started) * 1000),
                         },
                         dedupe_key=f"{name}:end:{attempt}",
                     )
@@ -300,6 +309,7 @@ def run_graph(
                     "action": executed.action,
                     "gates": _gate_payload(gates),
                     "artifacts": len(patch.get("artifacts") or {}),
+                    "duration_ms": int((time.monotonic() - started) * 1000),
                     **commit_summary,
                 },
                 dedupe_key=f"{name}:end:{attempt}",
@@ -350,6 +360,15 @@ def run_graph(
         )
 
         final = graph.invoke(payload, config)
+
+        # S5：evaluate 的耗时在它自己提交时还不可知；图跑完后补一次幂等汇总，
+        # 让 duration_by_stage 覆盖全部十个阶段（含 evaluate 自身）。
+        try:
+            from lit_agent.eval.metrics import persist_run_metrics
+
+            persist_run_metrics(settings, rid)
+        except Exception:  # noqa: BLE001 - 指标补写失败不应改变 run 结果
+            pass
 
         # 兼容旧的条件边注解（S4 起由 decisions 驱动，这里只做审计）
         edges = list(final.get("edges") or [])

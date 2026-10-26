@@ -3,7 +3,7 @@ import { computed, ref } from "vue";
 
 import { describeError } from "@/api/client";
 import { api } from "@/api/endpoints";
-import type { Report, RunDetail, RunEvent, RunItem } from "@/api/types";
+import type { Report, RunDetail, RunEvent, RunItem, RunMetrics } from "@/api/types";
 
 const TERMINAL = new Set(["succeeded", "failed", "aborted"]);
 
@@ -12,6 +12,7 @@ export const useRunsStore = defineStore("runs", () => {
   const current = ref<RunDetail | null>(null);
   const report = ref<Report | null>(null);
   const reportError = ref("");
+  const metrics = ref<RunMetrics | null>(null);
   const events = ref<RunEvent[]>([]);
   const lastSeq = ref(0);
   const streaming = ref(false);
@@ -56,9 +57,18 @@ export const useRunsStore = defineStore("runs", () => {
     lastSeq.value = event.seq;
   }
 
+  async function loadMetrics(runId: string): Promise<void> {
+    try {
+      metrics.value = await api.getRunMetrics(runId);
+    } catch {
+      metrics.value = null; // 指标是增强信息，失败不影响主流程
+    }
+  }
+
   async function loadReport(runId: string): Promise<void> {
     report.value = null;
     reportError.value = "";
+    metrics.value = null;
     try {
       report.value = await api.getReport(runId);
     } catch (err) {
@@ -91,6 +101,7 @@ export const useRunsStore = defineStore("runs", () => {
     current,
     report,
     reportError,
+    metrics,
     events,
     lastSeq,
     streaming,
@@ -105,6 +116,7 @@ export const useRunsStore = defineStore("runs", () => {
     loadEvents,
     mergeEvent,
     loadReport,
+    loadMetrics,
     abort,
     triggerRun,
     reset,

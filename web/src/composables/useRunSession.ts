@@ -61,12 +61,17 @@ export function useRunSession(topicId: Ref<string>, activeRunId: ComputedRef<str
       if (full || !runs.current) await runs.loadRun(runId);
       else await runs.loadSnapshot(runId);
       decideView();
+      if (!runs.isRunning && !runs.metrics) {
+        void runs.loadMetrics(runId);
+      }
       if (runs.isRunning) {
         runs.streaming = true;
         sse.start(runs.lastSeq);
         startPolling();
       } else {
         stopPolling();
+        // run 进入终态后刷新左侧列表，避免"头部 succeeded、列表还 running"
+        void runs.loadList(topicId.value);
       }
     } catch (err) {
       runs.error = describeError(err);

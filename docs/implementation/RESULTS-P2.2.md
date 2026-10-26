@@ -7,9 +7,10 @@
 
 | 指标 | 当前值 |
 |---|---|
-| 阶段 | **S1–S4 完成**（配置 / LLM 硬顶 / 证据阈值 / 漂移产出） |
-| 测试 | `pytest` 收集 **464 例**（1 skip=浏览器 e2e） |
+| 阶段 | **S1–S8 完成（Phase 2.2 已收尾）** |
+| 测试 | `pytest` 收集 **467 例**（1 skip）；e2e **13 passed** |
 | Phase 2.1 验证器 | `verify_phase2_1 --all` **13/13 PASS** |
+| Phase 2.2 验证器 | `verify_phase2_2 --all` **8/8 PASS** |
 | Phase 2 基线 | `verify_phase2 --offline` **12/12** |
 | Phase 1 基线 | `verify_phase1 --online` **13/13** |
 | 前端 | `playwright 8 passed`；`ruff clean` |
@@ -140,3 +141,118 @@ scope="tool use agents" + 匹配论文
 
 `analysis` 新增 scope 查询后，一个只测"节点传 gateway"的单元测试没有建库 → 查询抛错。
 修法：`_scope_text()` 失败返回空串（漂移是辅助判定，不该让主流程失败）。
+
+---
+
+## 6. S5 · 阶段耗时与指标（2026-10-26）
+
+### 6.1 交付
+
+| 产物 | 说明 |
+|---|---|
+| `graph_runner` | 每个 `phase_change end` 带 `duration_ms`（含 abort/回边/正常三条路径） |
+| `compute_run_metrics` | 汇总 `duration_by_stage`、`duration_ms_total`、`slowest_stage`，并落 `duration_ms_<stage>` 指标行 |
+| `persist_run_metrics` | 图跑完后补一次幂等汇总，使 `evaluate` 自身耗时也进入指标 |
+| `GET /runs/{id}/metrics` | 从 `duration_ms_*` 行还原 `duration_by_stage` 与 `slowest_stage`；旧 run 缺失时不影响 |
+| 测试 | `tests/observability/test_stage_duration.py`（3 例） |
+
+### 6.2 实测
+
+```
+10 个阶段 end 事件均带 duration_ms（0ms 也合法）
+metrics 表有 10 个 duration_ms_<stage> + duration_ms_total
+API：duration_by_stage 10 项；slowest_stage ∈ 阶段集；Σstage ≈ total
+未知 run → 404
+```
+
+### 6.3 设计说明（一个必要的小偏差）
+
+`evaluate` 的耗时在它自己提交指标时还不可知（提交发生在 end 事件之前）。
+处理：图跑完后在 `run_graph` 里**再补一次幂等 `persist_run_metrics`**，让指标覆盖全部十阶段。
+副作用：指标多一次写入（可忽略），但"总耗时=各阶段之和"成立。
+
+---
+
+## 7. S6 · 前端展示（2026-10-26）
+
+### 7.1 交付
+
+| 产物 | 说明 |
+|---|---|
+| `RunWorkspace.vue` | 头部显示 `$cost` + `最慢 <stage> <ms>`（来自 metrics API） |
+| `TrajectoryTimeline.vue` | 每条 `phase_change end` 显示 `· <ms>ms` |
+| `runs` store | `metrics` 状态 + `loadMetrics()`（失败不阻塞主流程） |
+| `useRunSession` | run 进入终态后加载一次指标 |
+| `types / endpoints` | `RunMetrics` 类型 + `getRunMetrics()` |
+
+### 7.2 实测
+
+```
+npm run typecheck → 0 error
+npm run build     → ✓ built in 7.10s
+playwright        → 8 passed（未回归）
+新 run 头部截图：$0.0000 · 最慢 normalize 32ms（web/screens/run-header.png）
+```
+
+### 7.3 下一步
+
+S7：把"成本/最慢阶段"的断言并入正式 e2e，并补连点 409、SSE 断线两条用例；S8 收尾。
+
+
+---
+
+## 8. S7 · e2e 与页面级组件验证（2026-10-26）
+
+### 8.1 交付（`web/e2e/smoke.spec.ts`，8 → 13 条）
+
+| 新增用例 | 断言 |
+|---|---|
+| 成本与最慢阶段 | 新 run 头部出现 `$x.xxxx` + `最慢 <stage> <ms>` |
+| 409 内联 | mock POST run → 409 `E_LOCK_HELD`，对话框内联提示 |
+| SSE 断线 | abort `/stream`，轮询仍把 run 推进到 succeeded 并可读报告 |
+| 失败卡 | mock 失败 run，显示"本次运行未成功 + 错误码 + 重跑" |
+| 错误条 | mock GET run 500，页面显示错误文案与详情 |
+
+### 8.2 取舍
+
+- **不引入 Vitest**：失败卡/错误条用 Playwright 页面级 mock 断言，覆盖同样的渲染与交互；
+  避免为两个组件新增一套测试依赖（记为偏差 2.2-a）。
+- 生成型用例前统一 `waitTopicIdle()`，避免上一条 run 未结束导致 409（真实 flaky 根因）。
+
+### 8.3 本轮抓到的真 UX 缺陷
+
+现象：run 已经 succeeded，但**左侧列表仍显示 running**（头部正确）。
+根因：轮询只 `loadSnapshot`（更新 current），从不刷新 `items`。
+修复：run 进入终态时 `void runs.loadList(topicId)`，列表与头部同步。
+
+---
+
+## 9. S8 · 阶段收尾（2026-10-26）
+
+### 9.1 交付
+
+| 产物 | 说明 |
+|---|---|
+| `scripts/verify_phase2_2.py` | H1–H8 一条命令（pytest 选择 + e2e + 基线 + 文档检查），输出 JSON |
+| `docs/implementation/phase2.2-report.json` | 机读报告 |
+| 本文档 | 收尾数字、偏差、backlog |
+
+### 9.2 实测
+
+```text
+verify_phase2_2 --all     8/8 PASS
+verify_phase2_1 --all     13/13
+verify_phase2 --offline   12/12
+verify_phase1 --online    13/13
+pytest -q                 467 例
+playwright                13 passed
+vue-tsc / vite build      0 error / ✓
+ruff                      clean
+```
+
+### 9.3 收尾结论
+
+Phase 2.2 完成：配置/限额/漂移/观测/前端质量五项全部落地并**行为级验证**；
+遗留项（PDF 下载、语义分节、F5 不打断的 e2e）已登记，归 Phase 3/P4/2.3。
+
+**下一步**：进入 Phase 3（双层 Agent），先做 3.0 Foundations（Kernel + ShellSpec）。

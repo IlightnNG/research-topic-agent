@@ -1,7 +1,7 @@
 <script setup lang="ts">
-import { ref } from "vue";
+import { computed, ref } from "vue";
 
-import type { Report, RunDetail, RunEvent } from "@/api/types";
+import type { Report, RunDetail, RunEvent, RunMetrics } from "@/api/types";
 
 import FailureCard from "./FailureCard.vue";
 import ReportViewer from "./ReportViewer.vue";
@@ -16,6 +16,7 @@ const props = defineProps<{
   highlightSeq: number | null;
   isRunning: boolean;
   isFailed: boolean;
+  metrics?: RunMetrics | null;
 }>();
 const emit = defineEmits<{
   "update:view": ["trajectory" | "report"];
@@ -27,6 +28,18 @@ const emit = defineEmits<{
   resume: [];
   inject: [string];
 }>();
+
+const costText = computed(() =>
+  props.metrics?.cost_usd === undefined || props.metrics?.cost_usd === null
+    ? ""
+    : `$${Number(props.metrics.cost_usd).toFixed(4)}`,
+);
+const slowestText = computed(() => {
+  const stage = props.metrics?.slowest_stage;
+  if (!stage) return "";
+  const ms = Number(props.metrics?.duration_by_stage?.[stage] ?? 0);
+  return `最慢 ${stage} ${Math.round(ms)}ms`;
+});
 
 const injectOpen = ref(false);
 const injectText = ref("");
@@ -62,6 +75,8 @@ const tabs = ref(props.view);
       <div class="cluster">
         <el-tag v-if="run" size="small">{{ run.state }}</el-tag>
         <el-tag v-if="run?.period" size="small" type="info">{{ run.period }}</el-tag>
+        <span v-if="costText" class="muted">{{ costText }}</span>
+        <el-tag v-if="slowestText" size="small" type="info">{{ slowestText }}</el-tag>
         <el-button v-if="isRunning" size="small" text @click="emit('pause')">暂停</el-button>
         <el-button v-if="run?.state === 'paused'" size="small" type="primary" text @click="emit('resume')">
           继续

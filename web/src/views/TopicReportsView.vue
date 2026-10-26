@@ -102,6 +102,7 @@ onMounted(async () => {
         :events="runs.events"
         :report="runs.report"
         :report-error="runs.reportError"
+        :metrics="runs.metrics"
         :highlight-seq="highlightSeq"
         :is-running="runs.isRunning"
         :is-failed="runs.isFailed"

@@ -234,4 +234,16 @@ def get_metrics(
     else:
         payload = compute_run_metrics(settings, run_id)
         source = "computed"
+
+    # S5：把 duration_ms_<stage> 还原成前端友好的 duration_by_stage + slowest_stage
+    durations = {
+        key[len("duration_ms_") :]: float(value)
+        for key, value in payload.items()
+        if key.startswith("duration_ms_")
+        and key != "duration_ms_total"
+        and isinstance(value, (int, float))
+    }
+    if durations:
+        payload["duration_by_stage"] = durations
+        payload["slowest_stage"] = max(durations, key=durations.get)
     return {"run_id": run_id, "source": source, **payload}

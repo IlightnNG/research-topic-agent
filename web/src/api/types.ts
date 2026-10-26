@@ -66,3 +66,14 @@ export interface RunDetail {
   error_code?: string | null;
   next_seq?: number;
 }
+
+export interface RunMetrics {
+  run_id: string;
+  source: "persisted" | "computed";
+  claims_total?: number;
+  cost_usd?: number;
+  duration_by_stage?: Record<string, number>;
+  duration_ms_total?: number;
+  slowest_stage?: string | null;
+  [key: string]: unknown;
+}

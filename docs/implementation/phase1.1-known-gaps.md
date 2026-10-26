@@ -36,7 +36,7 @@
 | G-11 | `gateway/breaker.py` 熔断未实现 | P2 | P2 | 无 key 时无实际调用，先做无意义 |
 | G-12 | run 同步执行（未异步 + 202） | P2 | P2 | 已有 409 阻塞语义，UI 可用 |
 | G-13 | `phase2-implementation-steps.md` 不存在 | P1 | F9 | 本阶段末产出首版（含出口标准，不写实现） |
-| G-17 | F5/F7/F8/F9 仅有手动验证（无 e2e 用例） | P1 | 1.2.x | 见 `phase1.2-frontend-spec.md` §15.4 |
+| G-17 | F5/F7/F8/F9 仅有手动验证 | ~~P1~~ **部分关闭 2026-10-26** | 2.3 | F7/F8/F9 已 e2e；F5（不打断）仍手动 |
 | G-18 | ~~`sections[]` 仍是 claims 的派生~~ | ~~P2~~ **已关闭 2026-10-21** | Phase 2 S12 ✅ | `reports.sections_json` + 迁移 0003，按 claims 分组落库 |
 | G-19 | ~~前端类型手写~~ | ~~P2~~ **已关闭 2026-10-21** | Phase 2 S12 ✅ | `scripts/gen_web_types.py` → `types.gen.ts`（6 schemas） |
 | G-20 | 生产部署缺 history 路由回退（`try_files`） | P2 | 部署清单 | dev 由 Vite 兜底 |

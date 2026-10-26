@@ -189,6 +189,41 @@ def compute_run_metrics(settings: Settings, run_id: str) -> dict[str, Any]:
         if check_claim(claim).supported:
             grounded += 1
 
+    # S5：阶段耗时（从 phase_change end 事件汇总；重试会累加）
+    import json as _json
+
+    duration_by_stage: dict[str, float] = {}
+    engine = make_engine(settings)
+    try:
+        with connect(engine) as conn:
+            rows = conn.execute(
+                text(
+                    "SELECT stage, payload_json FROM run_events"
+                    " WHERE run_id = :rid AND type = 'phase_change'"
+                ),
+                {"rid": run_id},
+            ).all()
+    finally:
+        engine.dispose()
+    for stage, payload_json in rows:
+        try:
+            payload = _json.loads(payload_json or "{}")
+        except _json.JSONDecodeError:
+            continue
+        if payload.get("phase") != "end":
+            continue
+        if "duration_ms" not in payload:
+            continue
+        try:
+            value = max(0.0, float(payload.get("duration_ms") or 0))
+        except (TypeError, ValueError):
+            continue
+        duration_by_stage[str(stage)] = round(
+            duration_by_stage.get(str(stage), 0.0) + value, 3
+        )
+    duration_total = round(sum(duration_by_stage.values()), 3)
+    slowest_stage = max(duration_by_stage, key=duration_by_stage.get) if duration_by_stage else None
+
     cost, estimated, _calls = (float(cost_row[0]), int(cost_row[1]), int(cost_row[2]))
     return {
         "scope": "run",
@@ -210,6 +245,10 @@ def compute_run_metrics(settings: Settings, run_id: str) -> dict[str, Any]:
         "agents_used": len(by_agent),
         "grounding_rate": _ratio(grounded, claims),
         "supported_rate_db": _ratio(supported_db, claims),
+        "duration_by_stage": duration_by_stage,
+        "duration_ms_total": duration_total,
+        "slowest_stage": slowest_stage,
+        **{f"duration_ms_{stage}": value for stage, value in duration_by_stage.items()},
         "hallucination_rate": _ratio(claims - grounded, claims),
         "citation_coverage": _ratio(cited, claims),
         "dedup_rate": _ratio(merges, papers),

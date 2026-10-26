@@ -79,7 +79,11 @@ function severityOf(event: RunEvent): string {
 
 function summary(event: RunEvent): string {
   const p = event.payload as Record<string, unknown>;
-  if (event.type === "phase_change") return String(p.phase ?? "");
+  if (event.type === "phase_change") {
+    const phase = String(p.phase ?? "");
+    const ms = p.duration_ms;
+    return typeof ms === "number" ? `${phase} · ${ms}ms` : phase;
+  }
   if (event.type === "guard_trigger") return `${p.code ?? ""} ${(p.reasons as string[] | undefined)?.[0] ?? ""}`.trim();
   if (event.type === "report_written") return `report ${p.report_id ?? ""} · claims ${p.claims ?? "?"}`;
   if (event.type === "error") return `${p.code ?? ""} ${p.message ?? ""}`.trim();

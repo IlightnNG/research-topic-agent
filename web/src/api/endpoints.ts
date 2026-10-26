@@ -1,5 +1,5 @@
 import { request } from "./client";
-import type { Report, RunDetail, RunEvent, RunItem, Topic } from "./types";
+import type { Report, RunDetail, RunEvent, RunItem, RunMetrics, Topic } from "./types";
 
 export interface EventsPage {
   run_id: string;
@@ -33,6 +33,7 @@ export const api = {
   listEvents: (runId: string, afterSeq = 0) =>
     request<EventsPage>(`/api/runs/${runId}/events?after_seq=${afterSeq}&limit=500`),
   getReport: (runId: string) => request<Report>(`/api/runs/${runId}/report`),
+  getRunMetrics: (runId: string) => request<RunMetrics>(`/api/runs/${runId}/metrics`),
   abortRun: (runId: string) =>
     request<{ run_id: string }>(`/api/runs/${runId}/abort`, { method: "POST" }),
   pauseRun: (runId: string) =>

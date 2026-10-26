@@ -1,10 +1,11 @@
 # Phase 3 —— 双层 Agent：可控 Workflow + 微观 ReAct
 
 > **文档性质**：**规范性文件（冻结契约）**。Phase 3 的"做什么 / 什么算做完 / 按什么顺序"以本文件为唯一判据。
-> **版本**：**1.0.0**（2026-10-23）
+> **版本**：**1.2.0**（2026-10-26，新增壳规范 ShellSpec 与可生成闭环）
 > **前序**：`phase2.2-closeout-and-observability.md`、`phase2.1-wiring-and-contracts.md` v2.0.0、ADR-0006（事件）、ADR-0007（NodeIO/配置）。
 > **入口基线**：`verify_phase2_1 13/13`、`pytest 439+`、`e2e 8+`、`verify_phase1 13/13`、`vue-tsc 0 error`。
-> **重要度**：**本阶段是项目从"可演示的系统"变成"有研究贡献的系统"的分水岭**，预计投入 2–2.5 周；允许拆成 3.0 → 3.5 六个子阶段独立验收。
+> **重要度**：**本阶段是项目从"可演示的系统"变成"有研究贡献的系统"的分水岭**，预计投入 2.5–3 周；允许拆成 3.0 → 3.5 六个子阶段独立验收。
+> **外部参考**：DeepSeek Harness（DSH）的 turn/step 内核、工具四段流水线、会话日志真源、pre-step 压缩与 subagent seam。**只借机制，不搬框架**（见 §3.5–§3.9 与附录 E）。
 
 ---
 
@@ -17,21 +18,23 @@
 ### 0.2 三层结构（本阶段的核心思想）
 
 ```
-┌──────────────── 编排层：10 个可见节点（Workflow）────────────────┐
-│ 契约 NodeIO · 门禁 postconditions · 事件 · checkpoint · 预算 · 人审  │
-│        每个节点 = NodeGoal（配置），不是"一段写死的实现"            │
-└───────────────────────────┬──────────────────────────────────────┘
-                            │ NodeGoal(objective, postconditions, tools, max_steps)
-┌───────────────────────────▼──────────────────────────────────────┐
-│ 控制层：MicroAgent（通用兼用卡）                                   │
-│  plan → act(工具) → observe → evaluate(门禁) → replan/stop/fail    │
-│  每步可观测、可预算、可终止；L1 失败才升级到 L2（省成本）           │
-└───────────────────────────┬──────────────────────────────────────┘
-                            │ ToolSpec + 结构化结果
-┌───────────────────────────▼──────────────────────────────────────┐
-│ 能力层：工具库（rewrite/retrieve/verify/rewrite_claim/compress…）  │
-│ 治理层：预算 · 调用数 · 熔断 · 权限 · 沙盒 · 注入防护              │
-└──────────────────────────────────────────────────────────────────┘
+┌─ 编排层（壳）──────────────────────────────────────────────
+│  Goal 列表 + 顺序 + postconditions + 预算/checkpoint 放置
+│  每个节点 = NodeGoal（配置），不是"一段写死的实现"
+└──────────────┬────────────────────────────────────────────
+               │ NodeGoal(objective, postconditions, tools, max_steps)
+┌──────────────▼────────────────────────────────────────────
+│  控制层：MicroAgent（通用兼用卡）
+│  before_request → request → act(工具) → after_action(门禁) → replan/stop
+│  每步可观测、可预算、可终止；L1 失败才升级到 L2（省成本）
+└──────────────┬────────────────────────────────────────────
+               │ ToolSpec + 结构化结果
+┌──────────────▼────────────────────────────────────────────
+│  能力层：工具库（rewrite/retrieve/verify/rewrite_claim/compress…）
+│  治理层：预算 · 调用数 · 熔断 · 权限 · 沙盒 · 注入防护
+└───────────────────────────────────────────────────────────
+横切（不在调用栈里）：**记录层 = 仅追加日志（唯一真源）**，事件分"持久/实时"两域。
+内部状态（LoopState）可从日志重建；内存丢了，事实不丢。
 ```
 
 ### 0.3 四条硬规则
@@ -45,7 +48,7 @@
 
 ### 0.4 反向定义
 
-> **Phase 3 结束 ⇔ §10 的 H1–H16 全绿，且 3.5 的消融实验有结论（不是"跑通了"）。**
+> **Phase 3 结束 ⇔ §10 的 H1–H22 全绿，且 3.5 的消融实验有结论（不是"跑通了"）。**
 > 子阶段可以独立交付；**3.3 结束 = 系统基本完成**；3.5 结束 = 论文实验数据齐备。
 
 ---
@@ -93,6 +96,126 @@
 
 ## 3. 目标架构（冻结设计）
 
+> 命名约定：本节 `§3.x` 是**架构组件**（壳/NodeGoal/微运行时/工具/记录/取消/上下文/治理/断点）；子阶段编号是 `3.0–3.5`（见 §7），两者不是一回事。
+
+### 3.0 壳（Shell）：定义、边界与可生成规范
+
+**一句话**：壳是**任务相关的编排声明**（Goal 列表、顺序、postconditions、自主性、限额、预设），
+**不含业务实现、不做 IO、不调 LLM**；内核负责执行，工具负责干活。
+
+#### 3.0.1 四层归属（冻结）
+
+| 层 | 负责 | 归属判断 | 例子 |
+|---|---|---|---|
+| **内核** | 循环、工具调度、门禁执行、取消、预算计数、日志、提交 | 换任务**不改** | `before_request → request → tools → after_action` |
+| **壳** | 有哪几个 Goal、什么顺序、每 Goal 的验收/自主性/限额 | 换任务**要改**，且是**声明** | 周报 10 个 Goal；Chat 1 个 Goal |
+| **能力** | 具体动作 | 换任务**可复用** | `hybrid_search`、`verify_claim`、`render_report` |
+| **治理** | 预算/权限/沙盒的**数值**（执行在内核） | 按部署/任务配置 | `max_usd=2.0`、`permission=confirm` |
+
+**三个判断测试**（评审时直接用）：
+
+1. **换任务要不要改？** 要 → 壳；不改 → 内核。
+2. **删掉它还能跑吗？** 能跑、只是能力少 → 壳；跑不起来 → 内核。
+3. **它是声明还是机制？** 声明（JSON/Goal 列表）→ 壳；机制（循环/门禁执行/提交）→ 内核。
+
+#### 3.0.2 壳的六条硬规则（S1–S6）
+
+| # | 规则 | 违反后果 |
+|---|---|---|
+| **S1** | 壳里**没有业务实现**（不写抽取/排序/渲染算法） | 壳变厚，换任务要改代码 |
+| **S2** | 壳里**没有 IO/DB/LLM 调用**（纯声明 + 纯函数校验） | 不可测、不可生成、不可复现 |
+| **S3** | 壳**可序列化**且**哈希稳定**（同 spec 同 hash） | 无法冻结、无法 A/B、无法审计 |
+| **S4** | 壳**可整层删除**（内核仍能跑单 Goal） | "薄壳"是假的，删不掉 |
+| **S5** | 每 Goal 的 `postconditions ⊆ GATE_NAMES`，**≤ 2 条** | 门禁爆炸、误报率上升 |
+| **S6** | 只能引用**已注册**的 tools/gates；新能力走工具层 | 壳偷偷变成实现层 |
+
+#### 3.0.3 `ShellSpec`（可生成、可冻结）
+
+```json
+{
+  "name": "weekly-report",
+  "version": "1.0.0",
+  "hash": "sha256:...",
+  "kernel_min": "3.0.0",
+  "executor": "graph",
+  "budget": { "usd": 2.0, "llm_calls": 12, "wall_s": 900 },
+  "goals": [
+    {
+      "id": "retrieval",
+      "objective": "找到 >=N 篇与 scope 相关、可引用的证据",
+      "postconditions": ["evidence_sufficiency"],
+      "tools": ["hybrid_search", "rewrite_query"],
+      "autonomy": "L1",
+      "max_steps": 2,
+      "max_usd": 0.02,
+      "escalation": "on_gate_failure"
+    },
+    {
+      "id": "analysis",
+      "objective": "抽取可引用结论，且每条 claim 有引用、支持率达标",
+      "postconditions": ["citation_integrity", "support_ratio"],
+      "tools": ["extract_claims", "verify_claim", "rewrite_claim"],
+      "autonomy": "L1",
+      "max_steps": 3,
+      "max_usd": 0.05,
+      "escalation": "on_gate_failure"
+    }
+  ],
+  "notes": "周报预设：固定交付物、强引用约束"
+}
+```
+
+**加载接口**（壳只是数据，内核负责解释）：
+
+```python
+class Shell(Protocol):
+    spec: ShellSpec
+    def goals(self) -> list[NodeGoal]: ...      # 纯转换，不做 IO
+```
+
+**校验规则**：`goals[].id` 唯一；`postconditions` 非空且合法；`tools` 全部已注册；
+`autonomy ∈ {L0, L1, L2}`（L3 只允许出现在 Chat 预设）；`hash` 由规范化 JSON 计算。
+
+#### 3.0.4 壳的"厚度"指标（可测）
+
+| 指标 | 公式 | 目标 |
+|---|---|---|
+| `shell_overhead_ratio` | `(总墙钟 − ΣLLM − Σ工具) / 总墙钟` | **< 5%** |
+| `shell_goals` | `len(goals)` | ≤ 10（超过先合并） |
+| `shell_postconditions_max` | `max(len(g.postconditions))` | ≤ 2 |
+| `shell_llm_calls_per_goal` | `Σ llm_calls / len(goals)` | ≤ 1（L1）/ ≤ 3（L2） |
+| `shell_loc` | 壳代码行数（不含工具/内核） | ≤ 500 |
+| `gate_false_positive_rate` | 健康 run 中被门禁拦下的次数 / 健康 run 数 | **< 2%** |
+
+这些指标写入 `metrics` 与 `verify_phase3 --shell`，作为"厚/薄"的客观依据。
+
+#### 3.0.5 壳的测试矩阵（S27 创建，后续实现按此建文件）
+
+| ID | 测试 | 文件 | 断言 |
+|---|---|---|---|
+| SH1 | spec 契约 | `tests/shell/test_shell_spec.py` | 往返一致；hash 稳定；非法 goal/gate 拒绝 |
+| SH2 | 纯度 | `tests/shell/test_shell_purity.py` | 静态扫描 + 运行时断言：壳内无 IO/DB/LLM |
+| SH3 | 可删 | `tests/shell/test_shell_deletable.py` | 去掉壳，内核仍能跑单 Goal（Chat） |
+| SH4 | 等价 | `tests/shell/test_shell_parity.py` | Graph 与 GoalRunner 跑同一壳，结果一致 |
+| SH5 | 厚度 | `tests/shell/test_shell_thickness.py` | 六项厚度指标达标 |
+| SH6 | 消融 | `tests/shell/test_shell_ablation.py` | 开/关壳的质量、成本、时延对比可复现 |
+| SH7 | 生成准入 | `tests/shell/test_generated_shell.py` | 候选壳必须过 SH1–SH5 才能进影子运行 |
+
+#### 3.0.6 壳的优化与生成闭环
+
+```text
+基线（当前 ShellSpec）
+  → 提议（改 Goal 子集/顺序/autonomy/max_steps/预算；不得加新工具或新门禁）
+  → 验证（SH1–SH5 + gold 不降 + 成本 ≤ 上限 + 门禁误报 < 2%）
+  → 影子（固定语料 N 次，不写生产）
+  → 转正（升 version + 记录 ADR + 更新 hash）
+```
+
+**允许优化的参数**：Goal 子集与顺序、`autonomy`、`max_steps`、`max_usd`、预算数值、门禁组合（从允许集合里选）。
+**不允许**：新增工具/门禁/内核代码；放宽阈值；改 gold；把业务逻辑塞进壳。
+
+**红线**（写进验证器）：候选壳若 `gate_false_positive_rate ≥ 2%` 或 `shell_overhead_ratio ≥ 5%`，直接淘汰。
+
 ### 3.1 NodeGoal：节点从"实现"变成"配置"
 
 ```python
@@ -119,21 +242,40 @@ class NodeGoal:
 
 ```python
 # runtime/micro_agent.py
-class MicroAgent:
-    def run(self, goal: NodeGoal, ctx: RunContext, state: dict) -> NodeOutput:
-        plan = self.plan(goal, state)                 # 显式计划（≤ max_steps 项）
-        trace: list[Step] = []
+class MicroAgent:                  # 无状态；可变状态全在 LoopState
+    def run(self, goal, ctx, state) -> NodeOutput:
+        loop = LoopState.new(goal, ctx)            # step / trace / attempt 全在这
+        plan = self.plan(goal, state)              # 显式计划（≤ max_steps 项）
         for step in range(goal.max_steps):
-            self.check_budget(goal, ctx)              # 预算/调用数/墙钟
-            action = self.decide(plan, trace, goal)   # 选工具或收尾
-            result = self.act(action, ctx)            # 调工具（结构化结果）
-            trace.append(step_record(action, result))
-            verdict = self.evaluate(goal, trace, state)   # 跑 postconditions 门禁
+            self.check_budget(goal, ctx, loop)     # 预算 / 调用数 / 墙钟
+
+            request = self.before_request(goal, ctx, loop)       # ① pre-step 相位
+            reply = self.request(ctx, request)                   # ② 一次模型调用
+            actions = self.parse_actions(reply)                  # ③ 只解析，不执行
+            for action in actions:
+                result = self.act(action, ctx)                   # ④ 工具四段流水线
+                self.after_tool(goal, ctx, loop, action, result) # ⑤ post 策略
+                loop.trace.append(step_record(action, result))
+
+            verdict = self.after_action(goal, ctx, loop, state)  # ⑥ 门禁 = postcondition
             if verdict.ok:
                 break
-            plan = self.replan(plan, trace, verdict)  # 失败 → 改计划
-        return self.finalize(goal, trace, state)
+            plan = self.replan(plan, loop, verdict)  # ⑦ 失败 → 改计划
+        return self.finalize(goal, loop, state)
 ```
+
+**相位表（冻结）**
+
+| 相位 | 做什么 | 对应 DSH |
+|---|---|---|
+| `before_request` | 剪枝/压缩上下文、注入计划状态、接纳 steering；**只读+确定性** | `agent/pre-step` |
+| `request` | 一次模型调用（请求不可变、冻结） | step 的 request |
+| `act` / `after_tool` | 工具四段流水线 + post 策略 | `tools/*` |
+| `after_action` | 跑 `postconditions` 门禁，决定继续/重试/收尾 | gate / guard |
+| `replan` | 改计划（不重新 pre-step） | turn 内下一 step |
+
+> **pre-step ≠ ReAct**：pre-step 是"请求前对上下文/输入的确定性处理"，ReAct 是"模型决定下一步动作"的循环。
+> 两者在同一个 step 内共存：pre-step 管"带什么进去"，ReAct 管"出来做什么"。
 
 **终止条件（四选一，先到先停）**：
 1. postconditions 全部通过；
@@ -165,22 +307,93 @@ class MicroAgent:
 class ToolSpec:
     name: str
     version: str
-    description: str                    # 供"工具检索"使用
-    parameters: dict[str, Any]          # JSON Schema 子集
+    description: str                     # 供"工具检索"使用
+    parameters: dict[str, Any]           # JSON Schema 子集
+    output_schema: dict[str, Any]        # 必填：结果必须可校验
     side_effect: Literal["read", "network", "write"] = "read"
     idempotency: Literal["pure", "keyed", "none"] = "pure"
     timeout_s: float = 30.0
     permission: Literal["none", "confirm"] = "none"
+    concurrency: Literal["exclusive", "parallel"] = "exclusive"  # fail-closed
     max_output_chars: int = 4000
+```
+
+**四段流水线（冻结，借鉴 DSH）**
+
+```text
+tools/pre_execute   allow / deny / ask（权限、脱敏、审计）
+  → guard           单调否决：只能 deny，不能 force-allow
+  → tools/execute   超时/重试包装；signal 贯穿到工具实现
+  → tools/post_execute  accept / replace / block（结果校验与修正）
+  → tools/result    冻结快照（事件/回放只读这份）
 ```
 
 规则：
 - 结果必须结构化（`ToolResult`），失败不抛穿；
+- 参数进入流水线后**不可改写**（历史、审计、执行必须一致）；
+- 并发按 `concurrency` 分类：`exclusive` 形成屏障，`parallel` 进有界滚动池，结果按模型顺序提交；
+- 取消：未启动的调用跳过并标记 `ABORTED_BEFORE_DISPATCH`；已启动的 drain 后返回结构化结果；
 - 输出超限**截断并标注**（不静默丢）；
 - 工具输出是**数据**，进入 prompt 时必须包裹 provenance 并声明"不得当作指令"（防注入）；
 - 写/网络工具必须声明幂等性与权限；未声明不得进入 Chat 工具集。
 
-### 3.5 治理（Governance）
+### 3.5 记录层：日志唯一真源与双域事件
+
+三条原则（借鉴 DSH 的 session log）：
+
+1. **模型可见即已记录**：进入 prompt 的上下文、工具结果、计划状态，都必须能从 run log 重建；
+2. **日志只追加**：报告、指标、评测都从日志派生；禁止"内存里算完就丢"；
+3. **双域事件**：持久事件（`phase_change`/`tool_call`/`report_written`/`error`）用于回放与审计；实时事件（SSE 投影）只服务 UI，不落库。
+
+约束：
+
+- **不新增 EventType**（ADR-0006），只加 payload 字段：`node`/`step`/`action`/`attempt`/`phase`；
+- `LoopState`（step 计数、trace、plan）是**可重建的缓存**，不是真源；
+- 崩溃恢复后，最多重跑当前节点；已提交事实（报告/claims/metrics）不丢。
+
+**判据**：只给日志，不看代码，能回答"为什么这一步重试/降级/花了多少钱"；删除内存状态后 replay 得到同一 `content_sha`。
+
+### 3.6 取消、冻结与提交边界
+
+四个相位各自定义取消语义（借鉴 DSH 的"取消不提交"）：
+
+| 取消发生在 | 期望行为 | 不得发生 |
+|---|---|---|
+| `before_request` | 丢弃本次请求，不写任何消息 | 写入半截上下文 |
+| `request`（流式） | 不提交 assistant message；记录 `assistant/attempt` 等价事件 | 把半截输出当结论 |
+| `after_action`（工具） | 未启动→`ABORTED_BEFORE_DISPATCH`；已启动→drain 后结构化返回 | 留下无结果的 tool_call |
+| `commit` | 幂等提交已完成；取消不再回滚已提交事实 | 重复写/部分写 |
+
+规则：
+
+- 请求对象**不可变**（消息、参数、工具 schema 一次冻结）；
+- 工具实现必须持有并转发 `signal`；未声明 signal 的工具**不得**进入 L2；
+- 写操作仍走两阶段提交（2.1 已有），取消发生在 commit 前 = 零写入。
+
+**判据**：四相位取消矩阵测试全绿；每个相位取消后 DB 无部分写入，事件流能解释原因。
+
+### 3.7 上下文：before_request 的"先剪枝、后摘要"
+
+借鉴 DSH 的 compaction 位置与顺序（`agent/pre-step`，先 prune 再 summarize）：
+
+```text
+before_request:
+  1) prune 过期/超大工具输出（便宜、无损可回放）
+  2) 重新测量 token
+  3) 仍超预算 → 摘要（贵、有损，事件记录摘要与遮蔽范围）
+  4) 注入 plan 状态 / steering（最后做，保证最新）
+```
+
+规则：
+
+- **只在 `before_request` 做一次**，不允许 analysis/retrieval 各自写一套压缩；
+- 引用片段（`Citation.snippet`）**不得**被压缩截断（2.1 规则）；
+- 摘要/剪枝必须发事件（遮蔽了哪些 seq、省了多少 token），可回放；
+- 阈值来自 `pipeline.limits`，可配置。
+
+**判据**：长 run（≥50 篇）token 峰值降 ≥40%，引用完整率不降；压缩次数与耗时进指标。
+
+### 3.8 治理（Governance）
 
 | 维度 | 机制 |
 |---|---|
@@ -192,7 +405,7 @@ class ToolSpec:
 | 沙盒 | 代码执行类工具在子进程 + 白名单（3.4，P4） |
 | 注入 | 工具输出标注来源；计划 prompt 不解释工具输出中的"指令" |
 
-### 3.6 断点、恢复与事件
+### 3.9 断点、恢复与执行器可替换
 
 - **checkpoint 粒度 = 节点**：内层循环不单独 checkpoint；崩溃后整节点重跑。
   - 前提：工具幂等（`pure`/`keyed`），写入仍走两阶段提交；
@@ -212,7 +425,22 @@ class ToolSpec:
 
 ---
 
-## 4. 模块与验收判据（M1–M8）
+#### 执行器可替换（GraphExecutor vs GoalRunner）
+
+壳要能"删得掉"，前提是**执行器可替换**：
+
+```python
+class Executor(Protocol):
+    def run(self, goals: list[NodeGoal], ctx: RunContext) -> RunResult: ...
+```
+
+- `GraphExecutor`：沿用 Phase 2 的十节点图（3.0–3.2 用它跑）；
+- `GoalRunner`：按 Goal 列表顺序执行，不依赖图拓扑（3.5 引入）；
+- **等价测试**：同一份 Goal 列表，两种执行器必须产出**相同的阶段顺序、门禁结果、指标**（只允许时间戳/耗时不同）；连续 3 轮 × 10 场景通过后，才允许把 Graph 降级为 legacy adapter。
+
+## 4. 模块与验收判据（M1–M9）
+
+> **能力三件套**（借 DSH 的 seam 写法）：每个新能力先写清 **定义（接口）/ 实现（provider）/ 消费者（工具或节点）**，再写代码。新增能力放哪层见附录 G。
 
 ### M1 MicroAgent 运行时
 
@@ -220,19 +448,19 @@ class ToolSpec:
 |---|---|
 | **目标** | 一份通用循环，供所有 L2 节点复用；可测、可预算、可终止 |
 | **增量** | `runtime/micro_agent.py`（plan/decide/act/observe/evaluate/replan）、`contracts/goals.py`、`tests/runtime/test_micro_agent.py` |
-| **完成判据** | ① 用脚本化 LLM/工具可测出 6 条路径：直接成功、重试成功、replan 成功、预算中止、步数中止、无进展中止；② 每步发事件且字段完整；③ 关闭开关后行为与 2.2 一致（差异测试） |
+| **完成判据** | ① 6 条路径单测：直接成功、重试成功、replan 成功、预算中止、步数中止、无进展中止；② **相位分离可测**：`before_request` 只做上下文、`after_action` 只跑门禁（互不写对方状态）；③ 每步发事件且字段完整；④ 关闭开关后行为与 2.2 一致（差异测试） |
 | **重难点** | **确定性测试**：真实 LLM 不可测；必须提供 `ScriptedCompleter` + `FakeTool`，把"决策序列"写成脚本 |
 | **禁止** | 在 MicroAgent 里写业务逻辑（业务在工具里）；把 trace 全量塞进 state |
 | **OOS** | 并行工具调用（P4） |
 | **依赖** | 2.2 配置体系 |
 
-### M2 NodeGoal 与节点注册
+### M2 NodeGoal / ShellSpec 与节点注册
 
 | 项 | 内容 |
 |---|---|
 | **目标** | 十节点都有 `NodeGoal`（即使 L0/L1），L2 节点可在配置里开/关 |
-| **增量** | `contracts/goals.py` 定义 10 个 goal；`contracts/specs.py` 增加 `goal` 关联；契约测试扩展 |
-| **完成判据** | ① 10 个 goal 齐全；② `postconditions ⊆ GATE_NAMES` 且非空；③ `tools ⊆ 工具注册表`；④ 每节点有 `autonomy` 与开关；⑤ `pytest tests/contracts` 全绿 |
+| **增量** | `contracts/goals.py` 定义 10 个 goal；`contracts/shell.py` 定义 `ShellSpec`（可序列化/哈希）；契约测试扩展 |
+| **完成判据** | ① 10 个 goal 齐全；② `postconditions ⊆ GATE_NAMES` 且非空、每 Goal ≤2；③ `tools ⊆ 工具注册表`；④ 每节点有 `autonomy` 与开关；⑤ **`ShellSpec` 可序列化、hash 稳定、可整层删除**；⑥ `pytest tests/contracts tests/shell` 全绿 |
 | **重难点** | goal 必须可序列化（配置/审计）；不能塞 callable |
 | **禁止** | 在 goal 里写 prompt 全文（prompt 属于实现，版本化在代码里） |
 | **依赖** | M1 |
@@ -243,7 +471,7 @@ class ToolSpec:
 |---|---|
 | **目标** | 工具可声明、可校验、可检索；能力覆盖"改写/检索/抽取/校验/重写/压缩" |
 | **增量** | `tools/spec.py`、`ToolRegistry` 支持 spec；新工具：`rewrite_query`、`hybrid_search`（已有）、`extract_claims`、`verify_claim`、`rewrite_claim`、`compress_context`、`cluster_papers`；`tests/tools` 扩展 |
-| **完成判据** | ① 每个工具有 spec 且通过 schema 校验；② 超时/异常/超大输出都有结构化结果；③ 同一输入两次调用结果一致（`pure` 工具）；④ 工具目录可被"检索"（3.4 用） |
+| **完成判据** | ① 每个工具有 spec 且通过 schema 校验（含 `output_schema`/`concurrency`）；② 四段流水线可测：deny/ask/guard 否决/post 替换各有用例；③ 超时/异常/超大输出/取消都有结构化结果；④ 同一输入两次调用结果一致（`pure`）；⑤ 工具目录可被"检索"（3.4 用） |
 | **重难点** | `verify_claim` 要复用 `eval.grounding`（不能两套判定）；`rewrite_claim` 必须保留引用约束 |
 | **禁止** | 工具里写业务状态；工具直接写库（写操作必须由节点 commit 层执行） |
 | **依赖** | M1 |
@@ -306,6 +534,18 @@ class ToolSpec:
 
 ---
 
+
+### M9 记录层与执行器（Log & Executor）
+
+| 项 | 内容 |
+|---|---|
+| **目标** | 日志是唯一真源；执行器可替换（图 → GoalRunner）且行为等价 |
+| **增量** | `runtime/log.py`（append-only + 派生视图）、`runtime/executor.py`（`Executor` 协议 + `GoalRunner`）、replay/等价测试 |
+| **完成判据** | ① 仅凭日志能回答一次 run 的"重试/降级/成本"三问；② 删除内存状态后 replay 得到同一 `content_sha`；③ 同一 Goal 列表在两种执行器下：阶段顺序、门禁结果、指标一致（3 轮 × 10 场景）；④ 取消矩阵 4 相位零部分写入 |
+| **重难点** | 日志与 DB 的双写一致性：先写日志再提交，还是先提交再写日志？（选"先日志后提交 + 幂等"） |
+| **禁止** | 在内存里维护"日志之外的事实"；为等价测试放宽断言 |
+| **依赖** | M1–M3 |
+
 ## 5. 缺陷分级
 
 | 级别 | 定义 |
@@ -334,15 +574,15 @@ class ToolSpec:
 
 ---
 
-## 7. 子阶段与步骤（S1–S24）
+## 7. 子阶段与步骤（S1–S26）
 
 ### 7.1 3.0 Foundations（≈2 天）
 
 | 步 | 目标 | 产物 | 关键门禁 | 回滚 | 预估 |
 |---|---|---|---|---|---|
 | **S1** | NodeGoal 契约 + 10 goal 注册 | `contracts/goals.py`、specs 扩展、契约测试 | 10/10；postconditions 合法 | 开关关闭 | 3 h |
-| **S2** | MicroAgent 核心 | `runtime/micro_agent.py` + 6 路径单测 | 6 路径全绿；事件完整 | `micro.enabled=false` | 4 h |
-| **S3** | 工具协议 v2 | `tools/spec.py`、registry 升级、3 个新工具 | spec 校验；幂等/超时/截断 | 保留旧调用 | 4 h |
+| **S2** | MicroAgent 核心（相位化） | `runtime/micro_agent.py`（before_request/after_action 分离）、`LoopState` | 6 路径 + 相位分离测试全绿；事件完整 | `micro.enabled=false` | 5 h |
+| **S3** | 工具协议 v2 | `tools/spec.py`（四段流水线/guard/concurrency）、registry 升级、3 个新工具 | spec 校验；deny/guard/post 各 1 例；幂等/超时/截断 | 保留旧调用 | 5 h |
 | **S4** | runner 接线（默认关） | `graph_runner` 支持 per-node autonomy | 关闭时行为与 2.2 逐字节一致（事件差异=0） | 同上 | 3 h |
 | **S5** | 确定性测试台 | `tests/support/scripted.py`（ScriptedCompleter/FakeTool）、golden trace | 无网络、无睡眠、可重复 | 删除 | 2 h |
 | **S6** | 契约、验证器与不变量测试 | `tests/contracts/test_micro_contracts.py`、`scripts/verify_phase3.py`（骨架 + H1/H6/H7） | 全绿；`--foundations` PASS | —— | 3 h |
@@ -385,16 +625,20 @@ class ToolSpec:
 | **S19** | 沙盒（可选） | 子进程 + 白名单 + 无网默认 | 越权命令被拒 | 4 h |
 | **S20** | MCP 适配（可选） | `mcp_adapter` 最小闭环 | 外部工具可注册 | 4 h |
 
-### 7.6 3.5 评测与收尾（≈3 天）
+### 7.6 3.5 评测、壳规范、执行器等价与收尾（≈5 天）
 
 | 步 | 目标 | 产物 | 关键门禁 |
 |---|---|---|---|
 | **S21** | gold v2 + 冻结哈希 v2 | 50 claims / 30 queries / 10 脚本 | `--frozen-v2` PASS |
 | **S22** | 轨迹指标 | steps/tool_calls/repair_rate/escalation_rate | 指标可查 |
 | **S23** | 消融实验 | 三组对照 + 表格 | 有结论（均值/方差） |
-| **S24** | 文档与答辩材料 | `RESULTS-P3.md`、图表、demo 脚本 | H1–H16 |
+| **S24** | 文档与答辩材料 | `RESULTS-P3.md`、图表、demo 脚本 | H1–H22 |
+| **S25** | **执行器等价** | `GoalRunner` + 等价测试（同一 Goal 列表、两种执行器） | 阶段顺序/门禁/指标一致（3 轮 × 10 场景） |
+| **S26** | **日志真源审计** | replay 脚本：仅凭日志回答重试/降级/成本 | 三问可答；删除内存后 `content_sha` 一致 |
+| **S27** | **壳规范与厚度** | `ShellSpec` + `tests/shell` + `verify_phase3 --shell` | SH1–SH5 全绿；六项厚度达标 |
+| **S28** | **壳消融与生成准入** | 开/关壳对照 + 候选壳准入（SH7） | 质量/成本/时延表；候选壳不得越过红线 |
 
-**总计 ≈ 13–15 个工作日（3 周）**；若时间紧，**最小路径 = 3.0 + 3.1 + 3.3 + S21/S22**（≈8 天）。
+**总计 ≈ 16–18 个工作日（3.5 周）**；若时间紧，**最小路径 = 3.0 + 3.1 + 3.3 + S21/S22**（≈9 天）。
 
 ---
 
@@ -416,6 +660,15 @@ class ToolSpec:
 | I12 | LLM 调用计数与预算全局一致（DB 为准） |
 | I13 | 评测必须 pass@k + 轨迹指标，不只看单次 |
 | I14 | gold/bench 冻结哈希，改必升版本 + ADR |
+| I15 | **日志是唯一真源**：模型可见的上下文/工具结果/计划都必须可从日志重建 |
+| I16 | 取消发生在 commit 前 → 零写入；四相位取消语义各有测试 |
+| I17 | guard 单调：只能否决，不能把已拒绝的调用放行 |
+| I18 | 工具并发 fail-closed：只有显式 `parallel` 才并行，其余独占 |
+| I19 | `before_request` 只做上下文（不调工具、不写业务表），且必须发事件 |
+| I20 | 执行器等价：同一 Goal 列表，Graph 与 GoalRunner 的阶段/门禁/指标一致 |
+| I21 | 壳内无业务实现：抽取/排序/渲染/校验算法都在工具，不在壳 |
+| I22 | 壳内无 IO/DB/LLM；壳可序列化且哈希稳定 |
+| I23 | 壳可整层删除：移除壳后内核仍能跑单 Goal（Chat 预设） |
 
 ---
 
@@ -431,6 +684,9 @@ class ToolSpec:
 | 6 | Chat 范围膨胀 | 3.3 只做"问答 + 工具 + 引用 + 中止" |
 | 7 | 评测说不清 | 先定指标与对照，再实现 |
 | 8 | 与 2.2 冲突 | 2.2 只做配置/观测，不动节点 |
+| 9 | `before_request` 与门禁混淆 | 明确"入口/出口"分工：前者不调工具，后者不碰上下文；测试分开 |
+| 10 | 日志不是唯一真源 | I15 + replay 测试；禁止内存里维护第二份事实 |
+| 11 | 执行器迁移半途而废 | 双执行器并存 + 等价测试兜底，最后才删 Graph |
 
 ---
 
@@ -447,7 +703,7 @@ class ToolSpec:
 | **3.4** | 权限门生效；工具检索 ≥80%；沙盒可选 |
 | **3.5** | gold v2；三组消融结论；文档齐 |
 
-### 10.2 Phase 3 总出口 H1–H16
+### 10.2 Phase 3 总出口 H1–H22
 
 | # | 判据 | 命令 | 期望 |
 |---|---|---|---|
@@ -467,6 +723,12 @@ class ToolSpec:
 | H14 | 轨迹指标 | `verify_phase3 --trajectory` | 五项指标可查 |
 | H15 | 消融 | `verify_phase3 --ablation` | 三组表格 + 结论 |
 | H16 | 基线不回归 | `verify_phase2_1`、`verify_phase1`、`pytest` | 全绿 |
+| H17 | 日志真源 | `verify_phase3 --replay` | 仅凭日志可答三问；replay sha 一致 |
+| H18 | before_request 生效 | `pytest -q -k before_request` | 压缩/注入可观测，且不写业务表 |
+| H19 | 取消矩阵 | `pytest -q -k cancel` | 4 相位零部分写入 |
+| H20 | 执行器等价 | `verify_phase3 --executor-parity` | 3 轮 × 10 场景一致 |
+| H21 | 壳可删/可替换 | `pytest -q tests/shell -k deletable` | 去掉壳仍能跑单 Goal |
+| H22 | 壳厚度达标 | `verify_phase3 --shell` | 六项指标全部达标 |
 
 ---
 
@@ -494,6 +756,12 @@ class FakeTool:
 | `escalation_rate` | L1 失败升级 L2 的比例（越低越省钱） |
 | `cost_per_claim` | 总成本 / 有效 claim 数 |
 | `citation_coverage` | 有引用 claim 占比（已有） |
+| `before_request_interventions` | 剪枝/摘要/注入次数与省下的 token（衡量上下文治理） |
+| `cancelled_before_commit` | 在 commit 前取消、且零写入的次数（安全阀） |
+| `executor_parity` | 两种执行器在同一 Goal 列表下的差异项数（应为 0） |
+| `shell_overhead_ratio` | 壳固定开销占比（目标 <5%） |
+| `shell_goals` / `shell_postconditions_max` | 壳的规模（目标 ≤10 / ≤2） |
+| `gate_false_positive_rate` | 健康 run 门禁误报率（目标 <2%） |
 
 ### 11.3 消融实验（三组）
 
@@ -527,33 +795,36 @@ P5 只做"参数/配置层自优化"，**不自动生成节点**；生成节点�
 
 ## 13. AI 实施建议（按子阶段）
 
-### 3.0
-1. **先写测试台**（ScriptedCompleter/FakeTool），再写 MicroAgent；
-2. 先实现"直接成功"路径，再依次加 retry/replan/budget/max_steps/no-progress；
-3. runner 接线**先默认关**，跑一次全量对比事件差异（应为 0）；
-4. 坑：不要在内层用真实 LLM 做单测；不要把 trace 放进 state。
+### 子阶段 3.0
+1. **先冻结日志字段与相位**（`before_request`/`after_action`/`step`/`action`），再写代码——字段后补会牵动所有测试；
+2. **先落 `ShellSpec`（纯数据）与 SH1/SH2 测试**，再写运行时——壳先可测，才谈得上生成与优化；
+3. **先写测试台**（ScriptedCompleter/FakeTool），再写 MicroAgent；
+4. 先实现"直接成功"路径，再依次加 retry/replan/budget/max_steps/no-progress；
+5. runner 接线**先默认关**，跑一次全量对比事件差异（应为 0）；
+6. 坑：不要在内层用真实 LLM 做单测；不要把 trace 放进 state。
 
-### 3.1
+### 子阶段 3.1
 1. 先实现"L1 一次 + 失败升级"的薄路径，确认健康 run 事件不变；
 2. `rewrite_query` 先用规则（去停用词/加同义词），LLM 版本作为可选；
 3. 坑：改写后丢掉原 query 的约束 → 必须把原 query 作为不可变上下文。
 
-### 3.2
+### 子阶段 3.2
 1. 先做 `verify_claim`（复用 grounding），再做 `rewrite_claim`；
 2. 修复循环要"逐条"，不要整篇重写；
 3. 坑：重写引入新引用/重复 claim → 用 `text_sha` 去重 + 引用白名单校验。
 
-### 3.3
+### 子阶段 3.3
 1. 先做会话存储与 API（可空跑），再做 L3 循环，最后前端；
 2. Chat 的工具白名单**默认只读**；写工具需权限门（3.4）；
 3. 坑：上下文无限增长 → 每轮摘要 + 只保留最近引用。
 
-### 3.4
+### 子阶段 3.4
 1. 权限门先做（最容易出事）；
 2. 工具检索先用词面/向量混合，别上复杂 rerank；
 3. 沙盒/MCP 可选，时间不够就登记 backlog。
 
-### 3.5
+### 子阶段 3.5
+0. **先写执行器等价测试（S25）**，再写 GoalRunner——测试先行才敢换执行器；
 1. 先扩 gold，再跑消融（顺序反了会返工）；
 2. 每组跑 3 次，记均值/方差；
 3. 坑：只挑成功案例 → 必须报告失败率。
@@ -579,6 +850,8 @@ P5 只做"参数/配置层自优化"，**不自动生成节点**；生成节点�
 
 | 版本 | 日期 | 变更 |
 |---|---|---|
+| 1.2.0 | 2026-10-26 | **新增壳规范**：§3.0 定义壳/内核/能力/治理四层、S1–S6 硬规则、`ShellSpec`（可序列化/哈希/可删）、六项厚度指标、SH1–SH7 测试矩阵、壳优化与生成闭环；新增 I21–I23、H21–H22、S27/S28、附录 H |
+| 1.1.0 | 2026-10-26 | **借鉴 DSH 内核**：MicroAgent 相位化（before_request/after_action）、工具四段流水线 + 单调 guard + 并发分类、日志唯一真源与双域事件、取消/冻结/提交边界、pre-step 压缩（先剪枝后摘要）、执行器可替换与等价测试；新增 M9、I15–I20、H17–H20、S25/S26、附录 E–G |
 | **1.0.0** | 2026-10-23 | 首版：双层架构、NodeGoal/MicroAgent/ToolSpec、L0–L3 与升级策略、3.0–3.5 六子阶段（S1–S24）、I1–I14、H1–H16、评测与消融设计、AI 实施建议 |
 
 ---
@@ -591,6 +864,8 @@ uv run pytest -q
 uv run python scripts/verify_phase3.py --all
 uv run python scripts/verify_phase3.py --retrieval --analysis --events
 uv run python scripts/verify_phase3.py --ablation --trajectory
+uv run python scripts/verify_phase3.py --shell          # 六项厚度指标
+uv run python scripts/verify_phase3.py --shell-ablation # 开/关壳对照
 uv run python scripts/verify_phase2_1.py --all
 cd web; npm run typecheck; npm run build; npm run test:e2e
 ```
@@ -636,6 +911,8 @@ ANALYSIS_GOAL = NodeGoal(
 | `sectionize` | read | pure | 报告分节（3.2 选做） |
 | `search_tools` | read | pure | 工具检索（3.4） |
 
+
+
 ## 附录 D · 与相邻阶段边界
 
 | 阶段 | 本阶段做 | 不做 |
@@ -647,3 +924,69 @@ ANALYSIS_GOAL = NodeGoal(
 | 3.5 | 评测与消融 | 新功能 |
 | P4 | 并行、MCP 完整、PDF 下载 | 评测重写 |
 | P5 | 契约内自优化 | 自动生成节点 |
+
+## 附录 E · DSH 借鉴清单（只借机制，不搬框架）
+
+| DSH 机制 | 我们借鉴为 | 落点 | 判据 |
+|---|---|---|---|
+| `agent/pre-step`（waterfall） | `MicroAgent.before_request`：剪枝/摘要/注入/steering | §3.2 / §3.7 / M1 / M9 | H18 |
+| 会话日志唯一真源 | run log append-only + 派生视图 | §3.5 / M9 | H17 |
+| 工具四段流水线 | `pre → guard → execute → post` | §3.4 / M3 | M3 判据 |
+| 单调 guard（只能 deny） | 权限/安全策略不可被后续监听器放行 | §3.4 / M3 | I17 |
+| 工具并发分类 + 滚动池 | `exclusive/parallel`（fail-closed）+ 有序提交 | §3.4 / Phase 4 | I18 |
+| 取消不提交 / 不可变请求 | 四相位取消矩阵 + 冻结请求 | §3.6 | H19 |
+| compaction 在 pre-step、先剪枝后摘要 | `before_request` 压缩顺序 | §3.7 | H18 |
+| subagent seam（schema/depth/取消/清理） | Phase 4 扇出接口 | Phase 4 | —— |
+| plan 模式 = 提示词段落 + 工具 | `plan` 可退化为 Goal + 工具，而非硬编码阶段 | 3.2/3.3 | —— |
+| workflow-as-code（模型写脚本扇出） | Phase 4/5 的可选扇出方式 | Phase 4/5 | —— |
+| 能力 seam（定义/实现/消费者） | 每个新能力先写三件套再实现 | 本文档 §4 | 评审清单 |
+| "新行为归属位置"表 | 见附录 G | 附录 G | —— |
+
+**不借鉴**：Cordis 插件树/热更新、多代会话格式迁移、纯单循环做周报（无阶段契约）。
+
+## 附录 F · 执行器等价测试（删图的前提）
+
+```text
+准备：同一份 Goal 列表（10 个 NodeGoal）+ 同一份 fixture（DB/工具/脚本化 LLM）
+执行：GraphExecutor.run(...) 与 GoalRunner.run(...)
+比较：
+  1) 阶段顺序与 attempt/step 计数（忽略时间戳/耗时）
+  2) 每个门禁的 (name, ok, code) 序列
+  3) 报告 content_sha、claims 数、metrics 关键字段
+  4) 事件类型序列（payload 只比冻结字段）
+通过：3 轮 × 10 场景（健康/坏产物/证据不足/预算超限/取消）
+之后：Graph 降级为 legacy adapter，再过 1 个迭代删除
+```
+
+## 附录 G · 新行为应该加在哪一层
+
+| 想加什么 | 加在哪 | 例子 |
+|---|---|---|
+| 新的阶段/目标 | 壳（`ShellSpec` 的 Goal 列表） | 增加"检索扩充"目标 |
+| 新能力 | 工具（`ToolSpec`） | `verify_claim`、`sectionize` |
+| 新验收标准 | 门禁（postcondition） | 引用覆盖率 ≥ 0.8 |
+| 新安全/预算策略 | guard（单调） | 写操作需确认 |
+| 新横切拦截 | `before_request` 或工具 pre/post | 脱敏、审计、注入防护 |
+| 新执行模式 | `Executor` 实现 | 并行、扇出、批处理 |
+| 新事实记录 | run log 事件（只增字段） | `step`/`action`/`duration_ms` |
+
+## 附录 H · `ShellSpec` 生成模板
+
+给后续"生成壳"的最小输入与输出约定（Phase 5 用它做候选）：
+
+**输入**（人给或自动推导）：
+
+```json
+{
+  "task": "weekly-report",
+  "goal_ids": ["intake", "scope", "retrieval", "parse", "normalize", "mapping", "analysis", "critique", "report", "evaluate"],
+  "allowed_tools": ["hybrid_search", "rewrite_query", "extract_claims", "verify_claim", "rewrite_claim", "render_report"],
+  "allowed_gates": ["schema", "evidence_sufficiency", "citation_integrity", "support_ratio", "budget"],
+  "budget": {"usd": 2.0, "llm_calls": 12, "wall_s": 900}
+}
+```
+
+**输出**：一份通过 SH1–SH5 的 `ShellSpec`（见 §3.0.3）+ 一份变更说明（改了哪些 goal/顺序/限额及理由）。
+
+**准入**：候选壳必须先过 `tests/shell` 全部用例、gold 不降、成本不超、门禁误报 <2%、壳开销 <5%，
+才允许进入影子运行；转正必须升 version 并记录 hash。

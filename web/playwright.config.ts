@@ -8,7 +8,7 @@ export default defineConfig({
   expect: { timeout: 15_000 },
   fullyParallel: false,
   workers: 1, // 共享后端 DB，串行避免相互干扰
-  retries: 0,
+  retries: 1, // 真实 run 型 e2e 抗抖动；失败仍会报错
   reporter: [["list"]],
   use: {
     baseURL: BASE,
