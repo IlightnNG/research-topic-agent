@@ -7,9 +7,9 @@
 
 | 指标 | 当前值 |
 |---|---|
-| 阶段 | **3.0 Foundations 完成** |
-| 测试 | `pytest` 收集 **505 例**（较 2.2 的 467 增加 38） |
-| 3.0 验证器 | `verify_phase3 --foundations` **4/4 PASS** |
+| 阶段 | **3.0 Foundations + 3.1 retrieval L2 完成** |
+| 测试 | `pytest` 收集 **510 例**（2.2 为 467） |
+| 3.x 验证器 | `verify_phase3 --all` **5/5 PASS** |
 | 基线 | `verify_phase2_1 13/13`、`verify_phase2 12/12`、`verify_phase1 13/13` |
 | 行为变化 | **零**（`micro_enabled=false`，十阶段事件与 2.2 一致） |
 
@@ -71,3 +71,43 @@ ruff                         clean
 2. 用 `ToolRuntime` 注册 `hybrid_search`（包一层现有检索），保持输出 schema；
 3. 默认仍关，跑 A/B：L1 vs L2 的 recall/cost/延迟；
 4. 若 L2 无增益，保留 L1 并把结论写进论文（负结果也算证据）。
+
+
+---
+
+## 6. 3.1 · retrieval L2（2026-10-26）
+
+### 6.1 交付
+
+| 产物 | 说明 |
+|---|---|
+| `nodes._retrieval_l2` | L2 循环：`rewrite_query → hybrid_search → postcondition(cards>=1)`；失败回退词面 |
+| `pipeline.retrieval_l2` | 开关，默认 `False`（默认仍是 3.0 的 L1） |
+| `rewrite_query` 工具 | 规则版：去停用词 + 同义词（确定性，零成本） |
+| `hybrid_search` 工具封装 | 复用现有 hybrid，输出 `paper_ids` 可校验 |
+| `scripts/ab_retrieval.py` | 同数据、同 hint 跑 L1/L2，输出对比表 + JSON |
+| `tests/runtime/test_retrieval_l2.py` | 5 例：默认 L1、两条 tool_call、卡片一致、无 hint 跳过、回退 |
+| e2e 回归 | 13 passed（SSE 用例改为 API 建 run，避免重试撞锁） |
+
+### 6.2 A/B 实测（5 篇、focus="tool use"）
+
+| 模式 | 状态 | 策略 | 卡片 | L2 步数 | tool_call | 检索耗时 | 成本 |
+|---|---|---|---|---|---|---|---|
+| L1 | succeeded | hybrid | 5 | 0 | 0 | 14 ms | $0 |
+| L2 | succeeded | l2 | 5 | 2 | 2 | 15 ms | $0 |
+
+**结论**：L2 与 L1 选出的卡片**完全一致**；代价是 +1 次工具调度（约 +1ms），无 LLM 成本。
+在"检索已经确定性"的当前数据上，L2 没有质量增益——这是预期结果，也是论文里"L2 只在需要多步时才有价值"的对照基线。
+
+### 6.3 偏差
+
+| ID | 偏差 | 理由 |
+|---|---|---|
+| 3.1-a | L2 改写用**规则版**，未接 LLM | 保持成本 0、可复现；LLM 改写留配置位，3.2 视需要开 |
+| 3.1-b | L2 回退用 `select_cards`（词面）而不是 L1 hybrid | 回退要"最保底"；hybrid 空时词面仍可能命中，避免直接空结果 |
+
+### 6.4 下一步（3.2）
+
+1. analysis 开 L2：`extract_claims → verify_claim → rewrite_claim`（逐条校验-修复）；
+2. 用 `rewrite_claim` 降 unsupported 率，对比 grounding/成本；
+3. 把 `before_request` 的剪枝/摘要策略接上（长上下文用例）。

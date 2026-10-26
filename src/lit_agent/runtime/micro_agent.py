@@ -68,12 +68,14 @@ class MicroAgent:
         postcondition: Postcondition | None = None,
         context_policy: ContextPolicy | None = None,
         max_total_steps: int = 8,
+        log: Any | None = None,
     ) -> None:
         self.completer = completer
         self.tools = tools
         self.postcondition = postcondition
         self.context_policy = context_policy
         self.max_total_steps = max_total_steps
+        self.log = log
 
     # ------------------------------------------------------------------ #
     def run(self, goal: NodeGoal, state: dict[str, Any] | None = None) -> MicroResult:
@@ -152,7 +154,12 @@ class MicroAgent:
     def act(self, action: dict[str, Any], loop: LoopState) -> dict[str, Any]:
         """④ 工具四段流水线（这里委托给 ToolRuntime）。"""
         budget = max(0.0, loop.goal.max_usd - loop.cost_usd)
-        result = self.tools.call(action["tool"], args=action.get("args") or {}, budget_usd=budget)
+        result = self.tools.call(
+            action["tool"],
+            args=action.get("args") or {},
+            budget_usd=budget,
+            log=self.log,
+        )
         loop.cost_usd += float(result.meta.get("cost_usd") or 0.0)
         return {
             "ok": result.ok,

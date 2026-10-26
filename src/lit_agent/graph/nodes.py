@@ -91,7 +91,7 @@ class Phase2Nodes:
         }
 
     def retrieval(self, state: dict[str, Any]) -> dict[str, Any]:
-        """S5：由 retrieval agent 选证据；S10 替换为 hybrid。"""
+        """检索证据；3.1 起可走 L2（rewrite → hybrid），默认仍是 L1。"""
         from lit_agent.agents.retrieval import select_cards
         from lit_agent.eval import faultinject
 
@@ -104,12 +104,16 @@ class Phase2Nodes:
 
         cards = self._cards()
         query = str(state.get("focus_hint") or "")
+        pipeline = getattr(self.ctx, "pipeline", None) or self.settings.pipeline
+        l2_steps = 0
+
         if faultinject.is_active("empty_retrieval"):
             selected = []
             strategy = "fault"
+        elif query and bool(getattr(pipeline, "retrieval_l2", False)):
+            selected, strategy, l2_steps = self._retrieval_l2(cards, query, pipeline)
         elif query:
             # S7：有聚焦词时走 hybrid（关键词 + char-ngram），无聚焦词回到词面基线
-            pipeline = getattr(self.ctx, "pipeline", None) or self.settings.pipeline
             selected = hybrid_search(
                 cards,
                 query,
@@ -120,15 +124,82 @@ class Phase2Nodes:
         else:
             selected = select_cards(cards, focus_hint=None).cards
             strategy = "keyword"
-        return {
-            "stage": "retrieval",
-            "artifacts": {
-                "candidates": len(cards),
-                "paper_ids": [card.paper_id for card in selected],
-                "strategy": strategy,
-            },
-            "counters": {"candidates": len(cards), "selected": len(selected)},
+
+        artifacts: dict[str, Any] = {
+            "candidates": len(cards),
+            "paper_ids": [card.paper_id for card in selected],
+            "strategy": strategy,
         }
+        counters: dict[str, Any] = {"candidates": len(cards), "selected": len(selected)}
+        if l2_steps:
+            artifacts["l2_steps"] = l2_steps
+            counters["l2_steps"] = l2_steps
+        return {"stage": "retrieval", "artifacts": artifacts, "counters": counters}
+
+    def _retrieval_l2(
+        self, cards: list[Any], query: str, pipeline: Any
+    ) -> tuple[list[Any], str, int]:
+        """L2：rewrite_query → hybrid_search，失败回到词面基线（显式降级）。"""
+        from lit_agent.agents.hybrid import hybrid_search
+        from lit_agent.agents.retrieval import select_cards
+        from lit_agent.contracts.goals import GOALS
+        from lit_agent.runtime.micro_agent import MicroAgent
+        from lit_agent.tools.spec import DEFAULT_TOOL_SPECS, ToolRuntime, ToolSpec
+
+        rewritten = {"query": query}
+        chosen: list[Any] = []
+
+        def rewrite(*, query: str) -> dict[str, Any]:
+            from lit_agent.tools.spec import _rewrite_query
+
+            rewritten["query"] = _rewrite_query(query=query)["query"]
+            return {"query": rewritten["query"]}
+
+        def search(*, query: str = "") -> dict[str, Any]:
+            nonlocal chosen
+            effective = query or rewritten["query"]
+            result = hybrid_search(
+                cards,
+                effective,
+                alpha=float(pipeline.hybrid_alpha),
+                min_score=float(pipeline.hybrid_min_score),
+            )
+            chosen = list(result.cards)
+            return {"query": effective, "paper_ids": [card.paper_id for card in chosen]}
+
+        runtime = ToolRuntime()
+        runtime.register(DEFAULT_TOOL_SPECS["rewrite_query"], rewrite)
+        runtime.register(
+            ToolSpec(
+                name="hybrid_search",
+                description="按 query 混合检索证据（k/min_score 由配置）",
+                parameters={"query": "string"},
+                output_schema={"type": "object", "required": ["paper_ids"]},
+                concurrency="parallel",
+            ),
+            search,
+        )
+
+        actions = [
+            {"action": "tool", "tool": "rewrite_query", "args": {"query": query}},
+            {"action": "tool", "tool": "hybrid_search", "args": {}},
+        ]
+
+        def completer(messages: list[dict[str, str]], goal: Any) -> dict[str, Any]:
+            if actions:
+                return actions.pop(0)
+            return {"action": "final", "outputs": {}}
+
+        agent = MicroAgent(
+            completer=completer,
+            tools=runtime,
+            postcondition=lambda loop: (len(chosen) >= 1, []),
+            log=getattr(self.ctx, "log", None),
+        )
+        result = agent.run(GOALS["retrieval"])
+        if chosen:
+            return chosen, "l2", result.steps_used
+        return list(select_cards(cards, focus_hint=query).cards), "l2_fallback", result.steps_used
 
     def _papers(self, *, focus_hint: str | None = None) -> list[tuple[Any, ...]]:
         engine = self._engine()

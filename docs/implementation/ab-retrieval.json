@@ -1,0 +1,30 @@
+{
+  "papers": 5,
+  "focus": "tool use",
+  "rows": [
+    {
+      "mode": "L1",
+      "state": "succeeded",
+      "strategy": "hybrid",
+      "cards": 5,
+      "l2_steps": 0,
+      "tool_calls": 0,
+      "retrieval_ms": 14,
+      "wall_ms": 1202,
+      "claims": 5,
+      "cost_usd": 0.0
+    },
+    {
+      "mode": "L2",
+      "state": "succeeded",
+      "strategy": "l2",
+      "cards": 5,
+      "l2_steps": 2,
+      "tool_calls": 2,
+      "retrieval_ms": 15,
+      "wall_ms": 234,
+      "claims": 5,
+      "cost_usd": 0.0
+    }
+  ]
+}

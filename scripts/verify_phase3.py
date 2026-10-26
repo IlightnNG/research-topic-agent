@@ -19,6 +19,7 @@ CHECKS: list[tuple[str, str, list[str]]] = [
     ("H1 MicroAgent 六路径 + 相位", "micro", ["tests/runtime/test_micro_agent.py"]),
     ("H2 NodeGoal / ShellSpec", "goals", ["tests/contracts/test_goals_and_shell.py"]),
     ("H3 工具协议 v2", "tools", ["tests/tools/test_protocol_v2.py"]),
+    ("H4 retrieval L2", "retrieval", ["tests/runtime/test_retrieval_l2.py"]),
     ("H6 默认关闭等价", "defaults", ["tests/runtime/test_phase3_defaults.py"]),
 ]
 

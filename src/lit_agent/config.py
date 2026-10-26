@@ -247,6 +247,7 @@ class PipelineSettings(_Section):
     llm: Literal["auto", "on", "off"] = "auto"
     pdf_enabled: bool = False
     micro_enabled: bool = False  # Phase 3：节点内 MicroAgent（默认关，3.0 只接线）
+    retrieval_l2: bool = False  # 3.1：retrieval 走 L2（rewrite → hybrid），默认 L1
 
 
 class Settings(_Section):

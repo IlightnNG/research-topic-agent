@@ -134,20 +134,30 @@ test("S7: 409 在对话框内联提示（E_LOCK_HELD）", async ({ page }) => {
   await expect(page.getByText(/E_LOCK_HELD|已有任务在运行/).first()).toBeVisible({ timeout: 15_000 });
 });
 
-test("S7: SSE 断开时轮询兜底仍能完成", async ({ page }) => {
+test("S7: SSE 断开时轮询兜底仍能完成", async ({ page, request }) => {
+  // 先等 topic 空闲（避免 API 触发撞锁）
+  for (let i = 0; i < 60; i += 1) {
+    const pageRes = await request.get(`/api/topics/${TOPIC}/runs?limit=1`);
+    const body = (await pageRes.json()) as { items: Array<{ state: string }> };
+    if (!body.items[0] || body.items[0].state !== "running") break;
+    await page.waitForTimeout(1000);
+  }
+
+  // SSE 在任何页面加载前就被断开
   await page.route("**/api/runs/*/stream*", (route) => route.abort());
 
-  await page.goto(`/topics/${TOPIC}`);
-  await waitTopicIdle(page);
-  await page.getByRole("button", { name: "生成新周报" }).first().click();
-  await page.getByRole("button", { name: "开始生成" }).click();
+  const created = await request.post(`/api/topics/${TOPIC}/run`, {
+    data: { focus_hint: null, wait: false },
+  });
+  expect(created.ok()).toBeTruthy();
+  const { run_id: runId } = (await created.json()) as { run_id: string };
 
-  // SSE 被断开后，轮询仍应把 run 推进到终态（看 run 头部状态，不看左侧列表）
+  await page.goto(`/topics/${TOPIC}/runs/${runId}`);
   await expect(page.locator(".run-workspace").getByText("succeeded").first()).toBeVisible({
-    timeout: 60_000,
+    timeout: 90_000,
   });
   await page.getByRole("tab", { name: "报告" }).click();
-  await expect(page.getByText(/Claims|sha /i).first()).toBeVisible({ timeout: 60_000 });
+  await expect(page.getByText(/Claims|sha /i).first()).toBeVisible({ timeout: 90_000 });
 });
 
 test("S7: 失败运行显示四要素卡片", async ({ page }) => {
