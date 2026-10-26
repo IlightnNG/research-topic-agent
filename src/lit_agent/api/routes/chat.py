@@ -54,11 +54,12 @@ def get_chat(
     with connect(engine) as conn:
         _ensure_topic(conn, topic_id)
         sessions = chat_repo.list_sessions(conn, topic_id)
-        current = (
-            chat_repo.latest_session(conn, topic_id)
-            if session_id is None
-            else next((item for item in sessions if item["id"] == session_id), None)
-        )
+        if session_id is None:
+            current = chat_repo.latest_session(conn, topic_id)
+        else:
+            current = next((item for item in sessions if item["id"] == session_id), None)
+            if current is None:
+                raise LitError(E_NOT_FOUND, f"会话不存在：{session_id}")
         messages = chat_repo.list_messages(conn, current["id"]) if current else []
     return {"topic_id": topic_id, "sessions": sessions, "session": current, "messages": messages}
 
@@ -92,10 +93,12 @@ def post_chat(
             content=reply.text,
             citations=reply.citations,
             trace=reply.trace,
+            reason_code=reply.reason or None,
         )
     return {
         "topic_id": topic_id,
         "session_id": session["id"],
         "message": assistant,
         "answered": reply.answered,
+        "reason": reply.reason,
     }

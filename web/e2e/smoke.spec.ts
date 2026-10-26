@@ -52,34 +52,34 @@ test("生成周报 → 轨迹 → 报告（稳定路径：打开已有 run）", 
 
 test("3.3: Chat 首轮回答带引用 + 工具轨迹", async ({ page }) => {
   await page.goto(`/topics/${TOPIC}/chat`);
-  await page.getByPlaceholder("输入问题，回车发送").fill("tool use");
-  await page.getByRole("button", { name: "发送" }).click();
+  await page.getByPlaceholder("Ask about this topic, Enter to send").fill("tool use");
+  await page.getByRole("button", { name: "Send" }).click();
 
   await expect(
     page.locator(".chat-msg").filter({ hasText: "根据 [E2E-P" }).last(),
   ).toBeVisible({ timeout: 30_000 });
-  await expect(page.getByText("工具轨迹").last()).toBeVisible();
+  await expect(page.getByText("Tool trace").last()).toBeVisible();
   await expect(page.locator(".chat-msg").last().locator(".el-tag")).toHaveCount(3);
 });
 
 test("3.3: Chat 追问保持会话 + 无证据拒答", async ({ page }) => {
   await page.goto(`/topics/${TOPIC}/chat`);
-  const input = page.getByPlaceholder("输入问题，回车发送");
+  const input = page.getByPlaceholder("Ask about this topic, Enter to send");
   await input.fill("tool use");
-  await page.getByRole("button", { name: "发送" }).click();
+  await page.getByRole("button", { name: "Send" }).click();
   await expect(
     page.locator(".chat-msg").filter({ hasText: "根据 [E2E-P" }).last(),
   ).toBeVisible({ timeout: 30_000 });
 
   await input.fill("再具体一点");
-  await page.getByRole("button", { name: "发送" }).click();
+  await page.getByRole("button", { name: "Send" }).click();
   await expect(
     page.locator(".chat-msg").filter({ hasText: "根据 [E2E-P" }).last(),
   ).toBeVisible({ timeout: 30_000 });
 
   await input.fill("zzz-nonexistent");
-  await page.getByRole("button", { name: "发送" }).click();
-  await expect(page.getByText(/无法从本 topic 的证据回答/).last()).toBeVisible({ timeout: 30_000 });
+  await page.getByRole("button", { name: "Send" }).click();
+  await expect(page.getByText(/can't answer from this topic|no citable snippets/).last()).toBeVisible({ timeout: 30_000 });
 });
 
 test("F12: 基线健康检查可用", async ({ request }) => {
@@ -261,4 +261,29 @@ test("S7: API 失败时显示错误条并可重试", async ({ page }) => {
 
   await expect(page.getByText(/E_UNEXPECTED: boom/)).toBeVisible({ timeout: 15_000 });
   await expect(page.getByRole("button", { name: "详情" })).toBeVisible();
+});
+
+
+test("3.1: 语言切换（默认英文，可切中文）", async ({ page }) => {
+  await page.goto(`/topics/${TOPIC}/chat`);
+  const input = page.getByPlaceholder("Ask about this topic, Enter to send");
+
+  await input.fill("zzz-nonexistent");
+  await page.getByRole("button", { name: "Send" }).click();
+  await expect(page.getByText(/can't answer from this topic/).last()).toBeVisible({ timeout: 30_000 });
+
+  await page.getByRole("button", { name: "Switch to Chinese" }).click();
+  await expect(page.getByText(/无法从本 topic 的证据回答/).last()).toBeVisible();
+
+  await page.getByRole("button", { name: "Switch to English" }).click();
+  await expect(page.getByText(/can't answer from this topic/).last()).toBeVisible();
+});
+
+test("3.1: 会话列表可切换", async ({ page }) => {
+  await page.goto(`/topics/${TOPIC}/chat`);
+  await page.getByRole("button", { name: /New chat/ }).click();
+  await expect(page.locator(".chat-msg")).toHaveCount(0);
+
+  await page.locator(".chat-sessions li").nth(1).click();
+  await expect(page.locator(".chat-msg").first()).toBeVisible({ timeout: 15_000 });
 });

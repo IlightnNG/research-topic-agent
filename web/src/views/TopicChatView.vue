@@ -6,6 +6,7 @@ import EmptyState from "@/components/EmptyState.vue";
 import ErrorBanner from "@/components/ErrorBanner.vue";
 import SectionCard from "@/components/SectionCard.vue";
 import TopicShell from "@/components/TopicShell.vue";
+import { t } from "@/i18n";
 import { useChatStore } from "@/stores/chat";
 import { useTopicsStore } from "@/stores/topics";
 
@@ -38,9 +39,9 @@ function send(): void {
   >
     <template #side>
       <div class="between side-head">
-        <strong>Conversations</strong>
+        <strong>{{ t("chat.conversations") }}</strong>
         <el-button size="small" type="primary" text @click="chat.startNew(topicId)">
-          + 新建对话
+          + {{ t("chat.new") }}
         </el-button>
       </div>
       <ul v-if="chat.sessions.length" class="chat-sessions">
@@ -48,26 +49,27 @@ function send(): void {
           v-for="item in chat.sessions"
           :key="item.id"
           :class="{ current: item.id === chat.session?.id }"
+          @click="chat.selectSession(topicId, item.id)"
         >
           {{ new Date(item.created_at || Date.now()).toLocaleString() }}
         </li>
       </ul>
-      <EmptyState v-else compact title="暂无对话" hint="在右侧提第一个问题，会自动创建会话。" />
+      <EmptyState v-else compact :title="t('chat.emptyTitle')" :hint="t('chat.emptyHint')" />
     </template>
 
-    <SectionCard title="Chat" subtitle="回答必须带引用；没有命中证据会明确拒答。">
+    <SectionCard title="Chat" :subtitle="t('chat.subtitle')">
       <ErrorBanner v-if="chat.error" :message="chat.error" @retry="chat.load(topicId)" />
 
       <div class="chat-log">
         <div v-for="message in chat.messages" :key="message.id" class="chat-msg" :class="message.role">
-          <p>{{ message.content }}</p>
+          <p>{{ message.reason_code ? t(`chat.${message.reason_code}`) : message.content }}</p>
           <div v-if="message.citations.length" class="cluster">
             <el-tag v-for="citation in message.citations" :key="citation.paper_id" size="small" type="info">
               {{ citation.paper_id }}
             </el-tag>
           </div>
           <details v-if="message.trace.length">
-            <summary class="muted">工具轨迹</summary>
+            <summary class="muted">{{ t("chat.toolTrace") }}</summary>
             <ul class="trace">
               <li v-for="(step, index) in message.trace" :key="index">
                 {{ step.tool }} · {{ step.ok ? "ok" : "fail" }}
@@ -75,15 +77,13 @@ function send(): void {
             </ul>
           </details>
         </div>
-        <p v-if="!chat.messages.length" class="muted">
-          问一个关于本 topic 的问题，例如「工具使用对 agent 有什么影响？」
-        </p>
+        <p v-if="!chat.messages.length" class="muted">{{ t("chat.noMessages") }}</p>
       </div>
 
       <div class="cluster chat-input">
-        <el-input v-model="input" placeholder="输入问题，回车发送" @keyup.enter="send" />
-        <el-button type="primary" :loading="chat.loading" @click="send">发送</el-button>
-        <el-button v-if="chat.loading" @click="chat.abort">中止</el-button>
+        <el-input v-model="input" :placeholder="t('chat.placeholder')" @keyup.enter="send" />
+        <el-button type="primary" :loading="chat.loading" @click="send">{{ t("chat.send") }}</el-button>
+        <el-button v-if="chat.loading" @click="chat.abort">{{ t("chat.stop") }}</el-button>
       </div>
     </SectionCard>
   </TopicShell>

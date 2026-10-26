@@ -187,7 +187,15 @@ def run_graph(
 
             patch = getattr(impl, name)(state)  # 只计算，不写库
             gates = run_gates(name, patch, state, ctx) if ctx.gates_enabled else []
-            guard_verdict = rail.run(ctx.observation({**state, **patch}, name))
+            merged = {
+                **state,
+                **patch,
+                "counters": {
+                    **(state.get("counters") or {}),
+                    **(patch.get("counters") or {}),
+                },
+            }
+            guard_verdict = rail.run(ctx.observation(merged, name))
             decision = decide(
                 stage=name, gates=gates, guard=guard_verdict, ctx=ctx, attempt=attempt
             )

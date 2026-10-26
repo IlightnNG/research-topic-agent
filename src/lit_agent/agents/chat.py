@@ -33,6 +33,7 @@ class ChatReply:
     citations: list[dict[str, Any]] = field(default_factory=list)
     trace: list[dict[str, Any]] = field(default_factory=list)
     answered: bool = False
+    reason: str = ""
 
 
 def _cards(settings: Settings, topic_id: str) -> list[Any]:
@@ -41,6 +42,30 @@ def _cards(settings: Settings, topic_id: str) -> list[Any]:
     node = Phase2Nodes(settings)
     node._topic_id = topic_id
     return node._cards()
+
+
+_BILINGUAL = {
+    "工具": "tool",
+    "使用": "use",
+    "智能体": "agent",
+    "代理": "agent",
+    "检索": "retrieval",
+    "引用": "citation",
+    "评估": "evaluation",
+    "记忆": "memory",
+    "规划": "planning",
+    "上下文": "context",
+    "压缩": "compression",
+}
+
+
+def _expand(query: str) -> str:
+    """无 LLM 时的最小中英桥接：把常见中文术语替换为英文检索词。"""
+    expanded = query
+    for zh, en in _BILINGUAL.items():
+        if zh in expanded:
+            expanded = expanded.replace(zh, f" {en} ")
+    return " ".join(expanded.split())
 
 
 def _supported(text: str, snippet: str) -> bool:
@@ -64,7 +89,7 @@ def answer(
     cards = _cards(settings, topic_id)
     history = history or []
 
-    query = message.strip()
+    query = _expand(message.strip())
     last_user = next(
         (str(item.get("content") or "") for item in reversed(history) if item.get("role") == "user"),
         "",
@@ -124,19 +149,21 @@ def answer(
 
     if not selected:
         return ChatReply(
-            text="无法从本 topic 的证据回答这个问题（没有命中可引用的片段）。",
+            text="I can't answer from this topic's evidence: no citable snippets matched.",
             citations=[],
             trace=trace,
             answered=False,
+            reason="no_evidence",
         )
 
     top = selected[0]
     if not _supported(top.snippet, top.snippet):
         return ChatReply(
-            text="命中的片段不足以验证回答，已拒答。",
+            text="The matched snippets are insufficient to verify an answer.",
             citations=[],
             trace=trace,
             answered=False,
+            reason="unsupported",
         )
 
     citations = [

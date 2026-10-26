@@ -30,6 +30,8 @@ from lit_agent.errors import (
 )
 from lit_agent.models._base import format_validation
 
+ROOT = Path(__file__).resolve().parents[2]
+
 __all__ = [
     "ArxivSettings",
     "CloudProviderSettings",
@@ -417,13 +419,33 @@ def _resolve_config_path(config_path: str | Path | None, environ: Mapping[str, s
     return None
 
 
+def _read_dotenv(path: Path) -> dict[str, str]:
+    values: dict[str, str] = {}
+    if not path.exists():
+        return values
+    for line in path.read_text(encoding="utf-8").splitlines():
+        text = line.strip()
+        if not text or text.startswith("#") or "=" not in text:
+            continue
+        key, value = text.split("=", 1)
+        key = key.strip()
+        if key.startswith("export "):
+            key = key[len("export ") :].strip()
+        values[key] = value.strip().strip('"').strip("'")
+    return values
+
+
 def load_settings(
     config_path: str | Path | None = None,
     *,
     environ: Mapping[str, str] | None = None,
+    dotenv_path: str | Path | None = None,
 ) -> Settings:
     """加载配置：默认值 ← YAML ← 环境变量（后者覆盖前者）。"""
-    env = os.environ if environ is None else environ
+    real_env = dict(os.environ if environ is None else environ)
+    # `.env` 只作为“低优先级默认值”，真实环境变量永远覆盖它
+    dotenv = _read_dotenv(Path(dotenv_path) if dotenv_path is not None else ROOT / ".env")
+    env = {**dotenv, **real_env}
     path = _resolve_config_path(config_path, env)
     raw: dict[str, Any] = _read_yaml(path) if path is not None else {}
 

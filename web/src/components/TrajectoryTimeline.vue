@@ -3,6 +3,8 @@ import { computed, ref, watch } from "vue";
 
 import type { RunEvent } from "@/api/types";
 
+import { t } from "@/i18n";
+
 const props = defineProps<{ events: RunEvent[]; highlightSeq?: number | null }>();
 
 const follow = ref(true);
@@ -38,19 +40,6 @@ const STAGES = [
   "report",
   "evaluate",
 ];
-const STAGE_LABELS: Record<string, string> = {
-  intake: "接入",
-  scope: "界定",
-  retrieval: "检索",
-  parse: "解析",
-  normalize: "归一",
-  mapping: "映射",
-  analysis: "分析",
-  critique: "自查",
-  report: "成文",
-  evaluate: "评测",
-};
-
 const stages = computed(() => {
   const done = new Set<string>();
   const started = new Set<string>();
@@ -65,7 +54,7 @@ const stages = computed(() => {
   for (const name of done) if (!names.includes(name)) names.push(name);
   return names.map((name) => ({
     name,
-    label: STAGE_LABELS[name] ?? name,
+    label: t(`stage.${name}`),
     done: done.has(name),
     started: started.has(name),
   }));

@@ -85,3 +85,35 @@ def test_new_session_is_empty(tmp_path: Path) -> None:
         assert history.status_code == 200
         assert history.json()["session"]["id"] == session_id
         assert history.json()["messages"] == []
+
+
+def test_chinese_query_hits_english_evidence(tmp_path: Path) -> None:
+    settings = prepare(tmp_path, papers=2)
+    reply = answer(settings, topic_id="ai-agents", message="工具使用")
+    assert reply.answered is True
+    assert reply.citations
+
+
+def test_unknown_session_is_404(tmp_path: Path) -> None:
+    settings = prepare(tmp_path)
+    with TestClient(create_app(settings)) as client:
+        response = client.get("/api/topics/ai-agents/chat", params={"session_id": "chat-nope"})
+    assert response.status_code == 404
+
+
+def test_sessions_are_isolated(tmp_path: Path) -> None:
+    settings = prepare(tmp_path, papers=2)
+    with TestClient(create_app(settings)) as client:
+        first = client.post("/api/topics/ai-agents/chat", json={"message": "tool use"}).json()
+        second_id = client.post("/api/topics/ai-agents/chat/sessions").json()["session_id"]
+        second = client.post(
+            "/api/topics/ai-agents/chat",
+            json={"message": "zzz-nonexistent", "session_id": second_id},
+        ).json()
+        assert first["session_id"] != second["session_id"]
+
+        one = client.get("/api/topics/ai-agents/chat", params={"session_id": first["session_id"]}).json()
+        two = client.get("/api/topics/ai-agents/chat", params={"session_id": second["session_id"]}).json()
+        assert len(one["messages"]) == 2
+        assert len(two["messages"]) == 2
+        assert one["messages"][0]["content"] != two["messages"][0]["content"]

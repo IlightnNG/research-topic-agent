@@ -64,10 +64,13 @@ def test_env_value_parsed_as_json(tmp_path: Path) -> None:
 def test_api_key_only_from_environment(tmp_path: Path) -> None:
     """YAML 里写密钥必须被忽略：密钥只有一个来源（环境变量）。"""
     cfg = write_yaml(tmp_path / "c.yaml", {"providers": {"cloud": {"api_key": "sk-from-yaml"}}})
-    without_env = load_settings(cfg, environ={})
+    no_dotenv = tmp_path / "none.env"
+    without_env = load_settings(cfg, environ={}, dotenv_path=no_dotenv)
     assert without_env.providers.cloud.api_key is None
 
-    with_env = load_settings(cfg, environ={"DEEPSEEK_API_KEY": "sk-from-env"})
+    with_env = load_settings(
+        cfg, environ={"DEEPSEEK_API_KEY": "sk-from-env"}, dotenv_path=no_dotenv
+    )
     assert with_env.providers.cloud.api_key is not None
     assert with_env.providers.cloud.api_key.get_secret_value() == "sk-from-env"
 

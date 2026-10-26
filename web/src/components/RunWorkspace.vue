@@ -3,6 +3,8 @@ import { computed, ref } from "vue";
 
 import type { Report, RunDetail, RunEvent, RunMetrics } from "@/api/types";
 
+import { t } from "@/i18n";
+
 import FailureCard from "./FailureCard.vue";
 import ReportViewer from "./ReportViewer.vue";
 import TrajectoryTimeline from "./TrajectoryTimeline.vue";
@@ -38,7 +40,7 @@ const slowestText = computed(() => {
   const stage = props.metrics?.slowest_stage;
   if (!stage) return "";
   const ms = Number(props.metrics?.duration_by_stage?.[stage] ?? 0);
-  return `最慢 ${stage} ${Math.round(ms)}ms`;
+  return `${t("run.slowest")} ${stage} ${Math.round(ms)}ms`;
 });
 
 const injectOpen = ref(false);

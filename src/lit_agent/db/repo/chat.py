@@ -62,6 +62,7 @@ def append_message(
     content: str,
     citations: list[dict[str, Any]] | None = None,
     trace: list[dict[str, Any]] | None = None,
+    reason_code: str | None = None,
     ts: str | None = None,
 ) -> dict[str, Any]:
     exists = conn.execute(
@@ -74,8 +75,8 @@ def append_message(
     conn.execute(
         text(
             "INSERT INTO chat_messages"
-            " (id, session_id, role, content, citations_json, trace_json, ts)"
-            " VALUES (:id, :sid, :role, :content, :citations, :trace, :ts)"
+            " (id, session_id, role, content, citations_json, trace_json, reason_code, ts)"
+            " VALUES (:id, :sid, :role, :content, :citations, :trace, :reason, :ts)"
         ),
         {
             "id": message_id,
@@ -84,6 +85,7 @@ def append_message(
             "content": content,
             "citations": json.dumps(citations or [], ensure_ascii=False),
             "trace": json.dumps(trace or [], ensure_ascii=False),
+            "reason": reason_code,
             "ts": stamp,
         },
     )
@@ -94,6 +96,7 @@ def append_message(
         "content": content,
         "citations": citations or [],
         "trace": trace or [],
+        "reason_code": reason_code,
         "ts": stamp,
     }
 
@@ -101,7 +104,7 @@ def append_message(
 def list_messages(conn: Connection, session_id: str, limit: int = 100) -> list[dict[str, Any]]:
     rows = conn.execute(
         text(
-            "SELECT id, role, content, citations_json, trace_json, ts FROM chat_messages"
+            "SELECT id, role, content, citations_json, trace_json, reason_code, ts FROM chat_messages"
             " WHERE session_id = :sid ORDER BY ts ASC LIMIT :limit"
         ),
         {"sid": session_id, "limit": limit},
@@ -115,7 +118,8 @@ def list_messages(conn: Connection, session_id: str, limit: int = 100) -> list[d
                 "content": row[2],
                 "citations": json.loads(row[3] or "[]"),
                 "trace": json.loads(row[4] or "[]"),
-                "ts": row[5],
+                "reason_code": row[5],
+                "ts": row[6],
             }
         )
     return out

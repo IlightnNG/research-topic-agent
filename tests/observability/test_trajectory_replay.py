@@ -10,7 +10,7 @@ from lit_agent.config import Settings
 from lit_agent.eval.metrics import compute_run_metrics
 from lit_agent.eval.trajectory import trajectory_metrics
 from lit_agent.runtime.graph_runner import run_graph
-from tests.wiring import prepare
+from tests.wiring import fetch_events, prepare
 
 
 def enable(settings: Settings, **updates: bool) -> Settings:
@@ -47,3 +47,16 @@ def test_replay_answers_three_questions(tmp_path: Path) -> None:
     assert payload["cost_usd"] == 0.0
     assert payload["duration_ms_total"] > 0
     assert payload["trajectory"]["steps_total"] == 10
+
+
+def test_healthy_run_has_no_stagnation_false_positive(tmp_path: Path) -> None:
+    settings = prepare(tmp_path, papers=3)
+    run_graph(settings, "ai-agents", run_id="t-clean2", focus_hint="tool use")
+
+    events = fetch_events(settings, "t-clean2")
+    codes = [
+        event["payload"].get("code")
+        for event in events
+        if event["type"] == "guard_trigger"
+    ]
+    assert "E_GUARD_STAGNATION" not in codes

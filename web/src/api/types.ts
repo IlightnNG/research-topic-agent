@@ -97,6 +97,7 @@ export interface ChatMessage {
   content: string;
   citations: ChatCitation[];
   trace: ChatTraceStep[];
+  reason_code?: string | null;
   ts: string;
 }
 

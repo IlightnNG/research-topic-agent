@@ -28,6 +28,12 @@ def health(settings: Settings = Depends(get_settings)) -> dict[str, Any]:
             "runs": status["runs"],
             "events": status["events"],
         },
+        "llm": {
+            "provider": settings.providers.cloud.name,
+            "model": settings.providers.cloud.model,
+            "base_url": settings.providers.cloud.base_url,
+            "key_present": settings.providers.cloud.api_key is not None,
+        },
         "kuzu_exists": settings.storage.kuzu_file.exists(),
         "qdrant_exists": settings.storage.qdrant_dir.exists(),
     }
