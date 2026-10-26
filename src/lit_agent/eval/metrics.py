@@ -224,8 +224,13 @@ def compute_run_metrics(settings: Settings, run_id: str) -> dict[str, Any]:
     duration_total = round(sum(duration_by_stage.values()), 3)
     slowest_stage = max(duration_by_stage, key=duration_by_stage.get) if duration_by_stage else None
 
+    from lit_agent.eval.trajectory import trajectory_metrics
+
+    trajectory = trajectory_metrics(settings, run_id)
+
     cost, estimated, _calls = (float(cost_row[0]), int(cost_row[1]), int(cost_row[2]))
     return {
+        **trajectory,
         "scope": "run",
         "scope_id": run_id,
         "topic_id": str(topic) if topic else None,

@@ -67,6 +67,22 @@ export const useChatStore = defineStore("chat", () => {
     }
   }
 
+  async function startNew(topicId: string): Promise<void> {
+    try {
+      const result = await api.createChatSession(topicId);
+      session.value = {
+        id: result.session_id,
+        topic_id: topicId,
+        created_at: new Date().toISOString(),
+      };
+      sessions.value = [session.value, ...sessions.value];
+      messages.value = [];
+      error.value = "";
+    } catch (err) {
+      error.value = describeError(err);
+    }
+  }
+
   function abort(): void {
     controller?.abort();
   }
@@ -79,5 +95,5 @@ export const useChatStore = defineStore("chat", () => {
     loading.value = false;
   }
 
-  return { sessions, session, messages, loading, error, load, send, abort, reset };
+  return { sessions, session, messages, loading, error, load, send, startNew, abort, reset };
 });

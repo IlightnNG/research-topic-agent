@@ -1,6 +1,6 @@
 {
-  "greens": 7,
-  "total": 7,
+  "greens": 13,
+  "total": 13,
   "results": [
     {
       "name": "H1 MicroAgent 六路径 + 相位",
@@ -36,6 +36,36 @@
       "name": "H7 Chat L3",
       "ok": true,
       "detail": "ok"
+    },
+    {
+      "name": "H8 治理（权限/检索/沙盒）",
+      "ok": true,
+      "detail": "ok"
+    },
+    {
+      "name": "H9 轨迹与回放",
+      "ok": true,
+      "detail": "ok"
+    },
+    {
+      "name": "H10 壳规范",
+      "ok": true,
+      "detail": "ok"
+    },
+    {
+      "name": "H12 执行器等价",
+      "ok": true,
+      "detail": "ok"
+    },
+    {
+      "name": "H13 壳准入",
+      "ok": true,
+      "detail": "ok"
+    },
+    {
+      "name": "H11 bench v2 冻结",
+      "ok": true,
+      "detail": "8ec94db92e3b15ae"
     }
   ]
 }

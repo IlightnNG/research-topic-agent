@@ -21,6 +21,7 @@ from typing import Any, Literal
 
 from lit_agent.errors import (
     E_BUDGET_COST,
+    E_PERMISSION_REQUIRED,
     E_SCHEMA_STAGE_OUTPUT,
     E_SRC_TIMEOUT,
     E_UNEXPECTED,
@@ -32,6 +33,7 @@ __all__ = [
     "DEFAULT_TOOL_SPECS",
     "TOOL_IMPLEMENTATIONS",
     "TOOL_NAMES",
+    "tool_relevance",
     "ToolRuntime",
     "ToolSpec",
     "default_runtime",
@@ -56,6 +58,7 @@ class ToolSpec:
     permission: Permission = "none"
     concurrency: Concurrency = "exclusive"  # fail-closed
     max_output_chars: int = 4000
+    defer_loading: bool = False  # 3.4：大目录按需加载（search_tools 暴露）
 
 
 TOOL_NAMES: frozenset[str] = frozenset(
@@ -124,6 +127,28 @@ DEFAULT_TOOL_SPECS: dict[str, ToolSpec] = {
 }
 
 
+_STOP = {"the", "a", "an", "of", "for", "and", "to", "in", "on", "with", "using", "tool"}
+
+
+def _terms(text: str) -> set[str]:
+    import re as _re
+
+    words = {word for word in _re.split(r"\W+", text.lower()) if word and word not in _STOP}
+    cjk = "".join(ch for ch in text if "\u4e00" <= ch <= "\u9fff")
+    grams = {cjk[i : i + 2] for i in range(len(cjk) - 1)}
+    return words | grams
+
+
+def tool_relevance(spec: ToolSpec, query: str) -> float:
+    """词面 + 字符 bigram 的 overlap；足够做 20 例以内的小目录检索。"""
+    q = _terms(query)
+    if not q:
+        return 0.0
+    name = _terms(spec.name)
+    body = _terms(f"{spec.description} {spec.name}")
+    return len(q & body) / len(q) + 0.2 * len(q & name)
+
+
 def _validate(schema: dict[str, Any], value: Any) -> str | None:
     """轻量 JSON Schema 校验：type / required / properties（够用即可）。"""
     if not schema:
@@ -177,6 +202,16 @@ class ToolRuntime:
     def names(self) -> list[str]:
         return sorted(self._specs)
 
+    def search(self, query: str, *, k: int = 3) -> list[ToolSpec]:
+        """3.4 / S18：按描述做词面/字符 bigram 检索，返回 top-k。"""
+        ranked: list[tuple[float, ToolSpec]] = []
+        for spec in self._specs.values():
+            score = tool_relevance(spec, query)
+            if score > 0:
+                ranked.append((score, spec))
+        ranked.sort(key=lambda item: (-item[0], item[1].name))
+        return [spec for _score, spec in ranked[:k]]
+
     def spec(self, name: str) -> ToolSpec:
         if name not in self._specs:
             raise LitError(E_UNEXPECTED, f"未知工具：{name}", context={"known": self.names()})
@@ -190,9 +225,35 @@ class ToolRuntime:
         args: dict[str, Any] | None = None,
         log: Any | None = None,
         budget_usd: float | None = None,
+        approved: bool = False,
     ) -> ToolResult:
         spec = self.spec(name)
         frozen_args = dict(args or {})
+
+        # 3.4 / S17：写操作需确认；未确认不执行（先于 pre/guard）
+        if spec.permission == "confirm" and not approved:
+            result = ToolResult(
+                ok=False,
+                error_code=E_PERMISSION_REQUIRED,
+                meta={"tool": name, "stage": "permission", "reason": "需要人工确认"},
+            )
+            if log is not None:
+                from lit_agent.models._base import Severity
+                from lit_agent.models.event import EventType
+
+                log.emit(
+                    EventType.GUARD_TRIGGER,
+                    stage="tools",
+                    agent="permission",
+                    severity=Severity.WARNING,
+                    payload={
+                        "tool": name,
+                        "code": E_PERMISSION_REQUIRED,
+                        "permission": spec.permission,
+                    },
+                    dedupe_key=None,
+                )
+            return result
 
         if budget_usd is not None and budget_usd <= 0:
             return ToolResult(ok=False, error_code=E_BUDGET_COST, meta={"tool": name})

@@ -39,6 +39,9 @@ function send(): void {
     <template #side>
       <div class="between side-head">
         <strong>Conversations</strong>
+        <el-button size="small" type="primary" text @click="chat.startNew(topicId)">
+          + 新建对话
+        </el-button>
       </div>
       <ul v-if="chat.sessions.length" class="chat-sessions">
         <li

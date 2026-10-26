@@ -34,6 +34,10 @@ export const api = {
     request<EventsPage>(`/api/runs/${runId}/events?after_seq=${afterSeq}&limit=500`),
   getReport: (runId: string) => request<Report>(`/api/runs/${runId}/report`),
   getRunMetrics: (runId: string) => request<RunMetrics>(`/api/runs/${runId}/metrics`),
+  createChatSession: (topicId: string) =>
+    request<{ topic_id: string; session_id: string }>(`/api/topics/${topicId}/chat/sessions`, {
+      method: "POST",
+    }),
   getChat: (topicId: string, sessionId?: string) =>
     request<ChatState>(
       `/api/topics/${topicId}/chat${sessionId ? `?session_id=${encodeURIComponent(sessionId)}` : ""}`,

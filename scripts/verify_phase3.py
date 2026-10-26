@@ -23,6 +23,11 @@ CHECKS: list[tuple[str, str, list[str]]] = [
     ("H5 analysis L2", "analysis", ["tests/runtime/test_analysis_l2.py"]),
     ("H6 默认关闭等价", "defaults", ["tests/runtime/test_phase3_defaults.py"]),
     ("H7 Chat L3", "chat", ["tests/chat"]),
+    ("H8 治理（权限/检索/沙盒）", "governance", ["tests/governance", "tests/tools/test_tool_search.py", "tests/security"]),
+    ("H9 轨迹与回放", "trajectory", ["tests/observability/test_trajectory_replay.py"]),
+    ("H10 壳规范", "shell", ["tests/shell"]),
+    ("H12 执行器等价", "parity", ["tests/runtime/test_executor_parity.py"]),
+    ("H13 壳准入", "shell-admission", ["tests/shell/test_shell_admission.py"]),
 ]
 
 
@@ -47,13 +52,14 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--foundations", action="store_true")
     for _name, key, _paths in CHECKS:
         parser.add_argument(f"--{key}", action="store_true")
+    parser.add_argument("--frozen-v2", action="store_true")
     parser.add_argument("--json", default="docs/implementation/phase3-report.json")
     args = parser.parse_args(argv)
 
     selected = [
         key
         for _name, key, _paths in CHECKS
-        if args.all or args.foundations or getattr(args, key)
+        if args.all or args.foundations or getattr(args, key.replace("-", "_"))
     ]
     if not selected:
         print("没有选中断言（--all 或 --micro/--goals/--tools/--defaults）")
@@ -65,6 +71,18 @@ def main(argv: list[str] | None = None) -> int:
             continue
         ok, detail = _pytest(paths)
         results.append({"name": name, "ok": ok, "detail": detail})
+
+    if args.frozen_v2 or args.all:
+        from lit_agent.eval.bench_v2 import BENCH_V2_SHA256, bench_sha
+
+        digest = bench_sha()
+        results.append(
+            {
+                "name": "H11 bench v2 冻结",
+                "ok": digest == BENCH_V2_SHA256,
+                "detail": digest[:16],
+            }
+        )
 
     width = max(len(str(item["name"])) for item in results)
     print("\nPhase 3 verifier (3.0 Foundations)")

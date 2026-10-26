@@ -72,3 +72,16 @@ def test_refusal_is_persisted(tmp_path: Path) -> None:
     assert response.status_code == 200
     assert response.json()["answered"] is False
     assert response.json()["message"]["citations"] == []
+
+
+def test_new_session_is_empty(tmp_path: Path) -> None:
+    settings = prepare(tmp_path, papers=1)
+    with TestClient(create_app(settings)) as client:
+        created = client.post("/api/topics/ai-agents/chat/sessions")
+        assert created.status_code == 200
+        session_id = created.json()["session_id"]
+
+        history = client.get("/api/topics/ai-agents/chat", params={"session_id": session_id})
+        assert history.status_code == 200
+        assert history.json()["session"]["id"] == session_id
+        assert history.json()["messages"] == []

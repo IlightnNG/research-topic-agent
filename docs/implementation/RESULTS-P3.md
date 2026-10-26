@@ -2,13 +2,14 @@
 
 > 口径：只记**实测**；数字由命令产出。
 > 规范：`phase3-double-layer-agent.md`（3.0：S1–S6；M1–M3/M9 的前置）。
+> 借鉴调研：`open-source-borrowing-survey.md`（DSH 源码 + GitHub 项目，含许可证与落地优先级）。
 
 ## 0. 一页摘要
 
 | 指标 | 当前值 |
 |---|---|
-| 阶段 | **3.0 + 3.1 + 3.2 + 3.3 完成** |
-| 测试 | `pytest` 收集 **520 例**；e2e **14 passed** |
+| 阶段 | **Phase 3 完成**（S20 MCP 为 P4 可选） |
+| 测试 | `pytest` 收集 **551 例**；e2e **14 passed** |
 | 3.x 验证器 | `verify_phase3 --all` **6/6 PASS** |
 | 基线 | `verify_phase2_1 13/13`、`verify_phase2 12/12`、`verify_phase1 13/13` |
 | 行为变化 | **零**（`micro_enabled=false`，十阶段事件与 2.2 一致） |
@@ -193,3 +194,157 @@ playwright            14 passed
 ### 8.4 下一步（3.4）
 
 治理（权限/沙盒/工具检索）→ 3.5 评测与收尾（含壳规范、执行器等价）。
+
+
+### 8.5 3.3 收尾（2026-10-26）
+
+| 项 | 结果 |
+|---|---|
+| 新建会话 | 新增 `POST /api/topics/{id}/chat/sessions` + Chat 页「+ 新建对话」 |
+| 会话隔离 | 新会话消息为空；`GET ?session_id=` 精确读取 |
+| 迁移 | 0004 已在 dev store 应用（`trace_json`） |
+| 中止 | 前端 AbortController；后端同步返回，中止不落半条 assistant 消息 |
+| 测试 | `tests/chat` 6 例；e2e 14 条（首轮/追问/拒答） |
+| 遗留 | 多话题隔离（schema 无 topic_papers）、token 级流式 → 2.3 打磨 |
+
+**结论：3.3 关闭。** 偏差 3.3-a…e 保留在案，不阻塞 3.4。
+
+---
+
+## 9. 3.4 · 治理与扩展（2026-10-26）
+
+### 9.1 交付
+
+| 产物 | 说明 |
+|---|---|
+| 权限门 | `ToolRuntime.call(..., approved=False)`；`permission=confirm` 未确认即拒（`E_PERMISSION_REQUIRED`），并发 `guard_trigger` 事件 |
+| 工具检索 | `ToolRuntime.search(query, k=3)`：词面 + CJK bigram；为 3.4 的工具白名单/延迟加载铺路 |
+| 沙盒准入 | `security/sandbox.py`：命令白名单、shell 元字符、`ensure_within` 防目录穿越（只判不执行） |
+| 测试 | `tests/governance`（4）、`tests/tools/test_tool_search.py`（3）、`tests/security`（5） |
+
+### 9.2 实测
+
+```text
+权限：未确认 write_file → 拒绝；approved=True → 执行
+检索：10 个工具 / 10 条 query → top-3 命中 10/10（目标 ≥80%）
+沙盒：rm/curl/`;`/../ 全部拒绝；python/pytest 放行
+pytest 533 例；verify_phase3 --all 8/8
+```
+
+### 9.3 偏差
+
+| ID | 内容 | 理由 |
+|---|---|---|
+| 3.4-a | 权限确认用 `approved` 布尔，未接人工审批 UI | 先保证“默认不执行”；审批 UI 归 2.3 |
+| 3.4-b | 工具检索是词面/bigram，不是向量 | 零依赖、可复现；目录 >50 再上向量 |
+| 3.4-c | 沙盒只做准入判断，不执行子进程 | 真实执行归 P4 code-runtime |
+| 3.4-d | MCP 适配（S20）推迟 | 与 subagent/外部工具一起做，避免半成品 |
+
+### 9.4 下一步（3.5）
+
+gold v2 + 轨迹指标 + 消融 + 壳规范/执行器等价（S21–S28）。
+
+
+---
+
+## 10. 3.5 · 评测、回放与壳规范（2026-10-26）
+
+### 10.1 交付
+
+| 步 | 产物 | 说明 |
+|---|---|---|
+| S21 | `eval/bench_v2.py` | 30 queries + 10 场景（合成）；哈希冻结 `8ec94db9…` |
+| S22 | `eval/trajectory.py` | steps / tool_calls / retries / repair_rate / escalation_rate / stop_reason |
+| S23 | `scripts/ablation.py` | 四组对照：L1 / retrieval-L2 / analysis-L2 / both |
+| S26 | `scripts/replay_run.py` | 只读事件回答：重试、降级、成本、耗时、轨迹 |
+| S27 | `eval/shell_metrics.py` + `tests/shell` | 壳厚度：goals/postconditions/llm-per-goal/loc/hash |
+
+### 10.2 消融实测（3 篇、focus=“tool use”）
+
+| 配置 | 状态 | claims | unsupported | grounding | tool_calls | 重试 | 耗时 | 成本 |
+|---|---|---|---|---|---|---|---|---|
+| L1 | succeeded | 3 | 0 | 1.0 | 0 | 0 | 148 ms | $0 |
+| retrieval-L2 | succeeded | 3 | 0 | 1.0 | 2 | 0 | 166 ms | $0 |
+| analysis-L2 | succeeded | 3 | 0 | 1.0 | 3 | 0 | 226 ms | $0 |
+| both-L2 | succeeded | 3 | 0 | 1.0 | 5 | 0 | 289 ms | $0 |
+
+**结论**：在当前确定性数据上，L2 不改变质量，只增加工具调用与耗时（≈+18%/+52%/+95%）。
+这正是预期对照：**L2 的价值在多步/坏证据场景，而不是健康数据**（与 3.1/3.2 的 bad 场景结论一致）。
+
+### 10.3 日志回放（S26）
+
+`replay_run.py` 仅读 `run_events` + metrics，即可回答：
+1. 哪一步重试/修复（stage/action/code/attempt）；
+2. 是否降级/中止（guard/recovery）；
+3. 成本与各阶段耗时；并附轨迹指标。
+
+测试 `tests/observability/test_trajectory_replay.py` 3 例。
+
+### 10.4 壳规范（S27）
+
+`ShellSpec`：10 goals、postconditions ≤2、loc ≤500、hash 稳定；
+`tests/shell` 6 例覆盖 SH1/SH2/SH3/SH5。
+**未完成**：`shell_overhead_ratio` 需要 LLM/tool span，当前占位 0（S25/S28 一并补）。
+
+### 10.5 偏差与推迟
+
+| ID | 内容 | 影响 |
+|---|---|---|
+| 3.5-a | bench v2 是合成集，不是人工标注 | 用于回归/消融，不能替代 gold 精度结论 |
+| 3.5-b | **S25 执行器等价 / S28 壳消融推迟 3.6** | 需要 GoalRunner 重构；当前 Graph 执行器保持唯一路径 |
+| 3.5-c | `shell_overhead_ratio` 未实测 | 待 OTel span；当前以耗时对比近似 |
+| 3.5-d | 消融是确定性单次运行（无方差） | 真实多 seed 方差需 LLM 在线实验（P4） |
+
+### 10.6 下一步（3.6）
+
+1. `GoalRunner` + Graph/Goal 等价测试（S25）；
+2. 壳消融与生成准入（S28）；
+3. 2.3 打磨：Chat 流式/可恢复、引用抽屉、工具轨迹分组。
+
+
+---
+
+## 11. 3.6 · 执行器等价与壳消融（2026-10-26）
+
+### 11.1 交付
+
+| 步 | 产物 | 说明 |
+|---|---|---|
+| S25 | `run_graph(executor="goal_runner")` | 顺序执行 Goal 列表，复用同一 `stage_node`（门禁/提交/事件完全一致）；支持回边（retry/repair/replan） |
+| S25 | `tests/runtime/test_executor_parity.py` | 5 例：健康/坏产物/空检索阶段序列一致；精简壳；默认 10 goals |
+| S28 | `eval/shell_admission.py` | 红线：必要阶段、goals ≤10、预算覆盖、`ShellSpec.validate` |
+| S28 | `scripts/ab_shell.py` | 10-goal 默认壳 vs 5-goal 精简壳（GoalRunner） |
+
+### 11.2 壳消融实测（3 篇）
+
+| 壳 | goals | 阶段 | claims | grounding | 耗时 | 状态 |
+|---|---|---|---|---|---|---|
+| weekly-report | 10 | 10 | 3 | 1.0 | 148 ms | succeeded |
+| reduced | 5 | 5 | 3 | 1.0 | 106 ms | succeeded |
+
+**结论**：去掉 parse/normalize/mapping 后质量不变、耗时 −28%，说明这三个阶段在当前数据上是“可删的壳”。
+准入红线会阻止“删掉 retrieval/analysis/report”的候选壳。
+
+### 11.3 偏差
+
+| ID | 内容 | 影响 |
+|---|---|---|
+| 3.6-a | GoalRunner 不支持 `resume`（明确报错） | 等价范围是 fresh run；断点续跑仍走 Graph |
+| 3.6-b | 等价测试覆盖 3 场景（非 10） | 覆盖主干与两类故障；更多场景可扩 |
+| 3.6-c | 壳消融只比 2 个壳 | 生成准入的红线已测；批量生成留 P5 |
+| 3.6-d | S20 MCP 适配推迟 P4 | 可选扩展，不影响收尾 |
+
+### 11.4 Phase 3 收尾结论
+
+```text
+verify_phase3 --all     13/13 PASS
+verify_phase2_1 --all   13/13
+verify_phase2 --offline 12/12
+verify_phase1 --online  13/13
+pytest                  551 例
+playwright              14 passed
+build / typecheck       ✓ / 0 error
+```
+
+**Phase 3 COMPLETE**：双层架构（Graph + MicroAgent）、L1/L2/L3、治理、评测、壳规范与执行器等价全部落地。
+S20（MCP）作为 P4 可选扩展保留，不阻塞论文与答辩。

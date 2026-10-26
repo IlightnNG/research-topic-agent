@@ -249,6 +249,7 @@ class PipelineSettings(_Section):
     micro_enabled: bool = False  # Phase 3：节点内 MicroAgent（默认关，3.0 只接线）
     retrieval_l2: bool = False  # 3.1：retrieval 走 L2（rewrite → hybrid），默认 L1
     analysis_l2: bool = False  # 3.2：analysis 逐条校验-修复，默认 L1
+    executor: Literal["graph", "goal_runner"] = "graph"  # 3.6：执行器（默认图）
 
 
 class Settings(_Section):

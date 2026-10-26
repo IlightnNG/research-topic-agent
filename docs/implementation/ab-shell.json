@@ -1,0 +1,27 @@
+{
+  "papers": 3,
+  "rows": [
+    {
+      "shell": "weekly-report",
+      "goals": 10,
+      "hash": "a8ce1ff9c83bcd3b",
+      "stages": 11,
+      "claims": 3,
+      "grounding": 1.0,
+      "tool_calls": 0,
+      "duration_ms": 148.0,
+      "state": "succeeded"
+    },
+    {
+      "shell": "reduced",
+      "goals": 5,
+      "hash": "9559238c0590f022",
+      "stages": 6,
+      "claims": 3,
+      "grounding": 1.0,
+      "tool_calls": 0,
+      "duration_ms": 106.0,
+      "state": "succeeded"
+    }
+  ]
+}

@@ -1,0 +1,58 @@
+{
+  "papers": 3,
+  "focus": "tool use",
+  "rows": [
+    {
+      "config": "L1",
+      "state": "succeeded",
+      "claims": 3,
+      "unsupported": 0,
+      "grounding": 1.0,
+      "tool_calls": 0,
+      "retries": 0,
+      "stop_reason": "degraded",
+      "duration_ms": 148.0,
+      "wall_ms": 1235,
+      "cost_usd": 0.0
+    },
+    {
+      "config": "retrieval-L2",
+      "state": "succeeded",
+      "claims": 3,
+      "unsupported": 0,
+      "grounding": 1.0,
+      "tool_calls": 2,
+      "retries": 0,
+      "stop_reason": "degraded",
+      "duration_ms": 166.0,
+      "wall_ms": 250,
+      "cost_usd": 0.0
+    },
+    {
+      "config": "analysis-L2",
+      "state": "succeeded",
+      "claims": 3,
+      "unsupported": 0,
+      "grounding": 1.0,
+      "tool_calls": 3,
+      "retries": 0,
+      "stop_reason": "degraded",
+      "duration_ms": 226.0,
+      "wall_ms": 360,
+      "cost_usd": 0.0
+    },
+    {
+      "config": "both-L2",
+      "state": "succeeded",
+      "claims": 3,
+      "unsupported": 0,
+      "grounding": 1.0,
+      "tool_calls": 5,
+      "retries": 0,
+      "stop_reason": "degraded",
+      "duration_ms": 289.0,
+      "wall_ms": 375,
+      "cost_usd": 0.0
+    }
+  ]
+}

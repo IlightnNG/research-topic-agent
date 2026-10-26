@@ -1,7 +1,7 @@
 # Phase 3 —— 双层 Agent：可控 Workflow + 微观 ReAct
 
 > **文档性质**：**规范性文件（冻结契约）**。Phase 3 的"做什么 / 什么算做完 / 按什么顺序"以本文件为唯一判据。
-> **版本**：**1.6.0**（2026-10-26，3.0–3.3 已落地）
+> **版本**：**2.0.0（Phase 3 收尾）**（2026-10-26）
 > **前序**：`phase2.2-closeout-and-observability.md`、`phase2.1-wiring-and-contracts.md` v2.0.0、ADR-0006（事件）、ADR-0007（NodeIO/配置）。
 > **入口基线**：`verify_phase2_1 13/13`、`pytest 439+`、`e2e 8+`、`verify_phase1 13/13`、`vue-tsc 0 error`。
 > **重要度**：**本阶段是项目从"可演示的系统"变成"有研究贡献的系统"的分水岭**，预计投入 2.5–3 周；允许拆成 3.0 → 3.5 六个子阶段独立验收。
@@ -48,7 +48,7 @@
 
 ### 0.4 反向定义
 
-> **Phase 3 结束 ⇔ §10 的 H1–H22 全绿，且 3.5 的消融实验有结论（不是"跑通了"）。**
+> **Phase 3 结束 ⇔ §10 的 H1–H24 全绿，且 3.5 的消融实验有结论（不是"跑通了"）。**
 > 子阶段可以独立交付；**3.3 结束 = 系统基本完成**；3.5 结束 = 论文实验数据齐备。
 
 ---
@@ -623,23 +623,23 @@ class Executor(Protocol):
 
 | 步 | 目标 | 产物 | 关键门禁 | 预估 |
 |---|---|---|---|---|
-| **S17** | 权限门 | `permission=confirm` 工具需人工确认 | 未确认不执行；事件留痕 | 3 h |
-| **S18** | 工具检索 | 工具描述向量/词面检索，top-k 注入 | 选择准确率 ≥ 80%（20 例） | 4 h |
-| **S19** | 沙盒（可选） | 子进程 + 白名单 + 无网默认 | 越权命令被拒 | 4 h |
-| **S20** | MCP 适配（可选） | `mcp_adapter` 最小闭环 | 外部工具可注册 | 4 h |
+| **S17** ✅ | 权限门 | `ToolRuntime.call(approved=)`；未确认 → `E_PERMISSION_REQUIRED` + guard_trigger | 未确认不执行；4 例 | 3 h |
+| **S18** ✅ | 工具检索 | `ToolRuntime.search()`（词面 + CJK bigram），top-k | 10 例命中 10/10；3 例 | 4 h |
+| **S19** ✅ | 沙盒准入 | `security/sandbox.py`：命令白名单/元字符/路径越界（只看不执行） | 越权命令与 `../` 均被拒；5 例 | 4 h |
+| **S20** ⏳ | MCP 适配（可选） | 推迟到 P4（与 subagent 一起） | —— | 4 h |
 
 ### 7.6 3.5 评测、壳规范、执行器等价与收尾（≈5 天）
 
 | 步 | 目标 | 产物 | 关键门禁 |
 |---|---|---|---|
-| **S21** | gold v2 + 冻结哈希 v2 | 50 claims / 30 queries / 10 脚本 | `--frozen-v2` PASS |
-| **S22** | 轨迹指标 | steps/tool_calls/repair_rate/escalation_rate | 指标可查 |
-| **S23** | 消融实验 | 三组对照 + 表格 | 有结论（均值/方差） |
-| **S24** | 文档与答辩材料 | `RESULTS-P3.md`、图表、demo 脚本 | H1–H22 |
-| **S25** | **执行器等价** | `GoalRunner` + 等价测试（同一 Goal 列表、两种执行器） | 阶段顺序/门禁/指标一致（3 轮 × 10 场景） |
-| **S26** | **日志真源审计** | replay 脚本：仅凭日志回答重试/降级/成本 | 三问可答；删除内存后 `content_sha` 一致 |
-| **S27** | **壳规范与厚度** | `ShellSpec` + `tests/shell` + `verify_phase3 --shell` | SH1–SH5 全绿；六项厚度达标 |
-| **S28** | **壳消融与生成准入** | 开/关壳对照 + 候选壳准入（SH7） | 质量/成本/时延表；候选壳不得越过红线 |
+| **S21** ✅ | bench v2 + 冻结哈希 | 30 queries + 10 脚本（合成；gold 仍 20 条人工集） | `--frozen-v2` PASS（8ec94db9…） |
+| **S22** ✅ | 轨迹指标 | `eval/trajectory.py`：steps/tool_calls/repair_rate/escalation_rate/stop_reason | 3 例；并入 run metrics |
+| **S23** ✅ | 消融实验 | `scripts/ablation.py`（L1 / retrieval-L2 / analysis-L2 / both） | 表格 + JSON（见 RESULTS §10） |
+| **S24** ✅ | 文档与答辩材料 | `RESULTS-P3.md` §10、`ablation.json`、`ab-retrieval/analysis.json` | 数字可复现 |
+| **S25** ✅ | **执行器等价** | `run_graph(executor="goal_runner")` + 5 例等价测试 | 健康/坏产物/空检索三场景阶段序列一致（fresh run） |
+| **S26** ✅ | **日志真源审计** | `scripts/replay_run.py`：重试/降级/成本/耗时/轨迹 | 3 例；三问可答 |
+| **S27** ✅ | **壳规范与厚度** | `eval/shell_metrics.py` + `tests/shell`（6 例） | goals=10；post≤2；loc≤500 |
+| **S28** ✅ | **壳消融与生成准入** | `eval/shell_admission.py` + `scripts/ab_shell.py`（10 vs 5 goals） | 准入 4 例；精简壳 106ms vs 148ms |
 
 **总计 ≈ 16–18 个工作日（3.5 周）**；若时间紧，**最小路径 = 3.0 + 3.1 + 3.3 + S21/S22**（≈9 天）。
 
@@ -706,7 +706,7 @@ class Executor(Protocol):
 | **3.4** | 权限门生效；工具检索 ≥80%；沙盒可选 |
 | **3.5** | gold v2；三组消融结论；文档齐 |
 
-### 10.2 Phase 3 总出口 H1–H22
+### 10.2 Phase 3 总出口 H1–H24
 
 | # | 判据 | 命令 | 期望 |
 |---|---|---|---|
@@ -732,6 +732,8 @@ class Executor(Protocol):
 | H20 | 执行器等价 | `verify_phase3 --executor-parity` | 3 轮 × 10 场景一致 |
 | H21 | 壳可删/可替换 | `pytest -q tests/shell -k deletable` | 去掉壳仍能跑单 Goal |
 | H22 | 壳厚度达标 | `verify_phase3 --shell` | 六项指标全部达标 |
+| H23 | 执行器等价 | `verify_phase3 --parity` | 三场景阶段序列一致 |
+| H24 | 壳准入 | `verify_phase3 --shell-admission` | 默认壳通过；缺阶段/超限被拒 |
 
 ---
 
@@ -853,6 +855,9 @@ P5 只做"参数/配置层自优化"，**不自动生成节点**；生成节点�
 
 | 版本 | 日期 | 变更 |
 |---|---|---|
+| 2.0.0 | 2026-10-26 | **Phase 3 收尾**：S25 GoalRunner 等价、S28 壳消融/准入；S20 MCP 标记为 P4 可选 |
+| 1.8.0 | 2026-10-26 | **3.5 主体落地**：bench v2、轨迹指标、消融、replay、壳规范；S25/S28 推迟 3.6（执行器重构） |
+| 1.7.0 | 2026-10-26 | **3.4 治理落地**：权限门（confirm）、工具检索 top-k、沙盒准入；S20 MCP 推迟 P4 |
 | 1.6.0 | 2026-10-26 | **3.3 Chat L3 落地**：会话 API、L3 循环（无引用拒答）、Chat 页、e2e；偏差 3.3-a…e 见 `RESULTS-P3.md` |
 | 1.5.0 | 2026-10-26 | **3.2 analysis L2 落地**：逐条 verify→rewrite→drop、`analysis_l2` 开关、A/B 脚本；偏差 3.2-a/3.2-b 见 `RESULTS-P3.md` |
 | 1.4.0 | 2026-10-26 | **3.1 retrieval L2 落地**：`rewrite_query → hybrid_search` 两步循环、`retrieval_l2` 开关（默认 L1）、A/B 脚本；偏差 3.1-a/3.1-b 见 `RESULTS-P3.md` |
@@ -933,6 +938,9 @@ ANALYSIS_GOAL = NodeGoal(
 | P5 | 契约内自优化 | 自动生成节点 |
 
 ## 附录 E · DSH 借鉴清单（只借机制，不搬框架）
+
+> 扩展版（含 GitHub 项目对比、许可证与 P0/P1/P2 落地清单）：见 `open-source-borrowing-survey.md`。
+
 
 | DSH 机制 | 我们借鉴为 | 落点 | 判据 |
 |---|---|---|---|

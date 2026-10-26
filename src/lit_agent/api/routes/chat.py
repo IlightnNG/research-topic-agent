@@ -32,6 +32,18 @@ def _ensure_topic(conn: Any, topic_id: str) -> None:
         raise LitError(E_NOT_FOUND, f"topic 不存在：{topic_id}", context={"topic_id": topic_id})
 
 
+@router.post("/{topic_id}/chat/sessions")
+def create_chat_session(
+    topic_id: str,
+    settings: Settings = Depends(get_settings),
+    engine: Any = Depends(get_engine),
+) -> dict[str, Any]:
+    with connect(engine, immediate=True) as conn:
+        _ensure_topic(conn, topic_id)
+        session_id = chat_repo.create_session(conn, topic_id)
+    return {"topic_id": topic_id, "session_id": session_id}
+
+
 @router.get("/{topic_id}/chat")
 def get_chat(
     topic_id: str,

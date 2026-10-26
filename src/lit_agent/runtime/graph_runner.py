@@ -15,7 +15,7 @@ from lit_agent.config import Settings
 from lit_agent.contracts.nodeio import Decision, GateResult
 from lit_agent.db.repo import runs as run_repo
 from lit_agent.db.session import connect, make_engine
-from lit_agent.errors import E_LOCK_HELD, E_UNEXPECTED, LitError
+from lit_agent.errors import E_CONFIG_INVALID, E_LOCK_HELD, E_UNEXPECTED, LitError
 from lit_agent.graph.checkpoint import open_checkpointer, thread_config
 from lit_agent.graph.gates import run_gates
 from lit_agent.graph.guards import guard_rail
@@ -82,6 +82,19 @@ def _gate_payload(gates: list[GateResult]) -> list[dict[str, Any]]:
     ]
 
 
+def _merge_state(state: dict[str, Any], patch: dict[str, Any]) -> dict[str, Any]:
+    """顺序执行器的最小 reducer：与图 state 的合并语义保持一致。"""
+    merged = dict(state)
+    for key, value in patch.items():
+        if key in {"artifacts", "counters", "attempts"} and isinstance(value, dict):
+            merged[key] = {**(merged.get(key) or {}), **value}
+        elif key in {"decisions", "edges"} and isinstance(value, list):
+            merged[key] = [*(merged.get(key) or []), *value]
+        else:
+            merged[key] = value
+    return merged
+
+
 def run_graph(
     settings: Settings,
     topic_id: str,
@@ -96,6 +109,8 @@ def run_graph(
     gateway: Any | None = None,
     tools: Any | None = None,
     pdf_enabled: bool | None = None,
+    executor: str | None = None,
+    shell: Any | None = None,
 ) -> dict[str, Any]:
     """执行十节点图。`resume=True` 时从 checkpoint 续跑（同一 run_id）。"""
     rid = run_id or new_run_id()
@@ -126,7 +141,7 @@ def run_graph(
 
     from lit_agent.contracts.shell import default_shell
 
-    shell = default_shell()
+    shell = shell or default_shell()
 
     ctx = RunContext(
         settings=settings,
@@ -331,11 +346,8 @@ def run_graph(
 
     from lit_agent.graph.nodes import PHASE2_STAGES
 
-    graph = build_phase2_graph(
-        settings,
-        nodes={name: stage_node(name) for name in PHASE2_STAGES},
-        checkpointer=saver,
-    )
+    nodes = {name: stage_node(name) for name in PHASE2_STAGES}
+    graph = build_phase2_graph(settings, nodes=nodes, checkpointer=saver)
     config = thread_config(rid)
     config["recursion_limit"] = settings.pipeline.limits.recursion_limit
 
@@ -365,7 +377,33 @@ def run_graph(
             dedupe_key=f"run:start:{'resume' if resume else 'fresh'}",
         )
 
-        final = graph.invoke(payload, config)
+        mode = executor or settings.pipeline.executor
+        if mode == "goal_runner":
+            if resume:
+                raise LitError(E_CONFIG_INVALID, "goal_runner 暂不支持 resume")
+            seq = dict(payload if payload is not None else state)
+            order = [goal.name for goal in shell.goals]
+            index = 0
+            while index < len(order):
+                name = order[index]
+                if name not in nodes:
+                    raise LitError(E_CONFIG_INVALID, f"未知 goal：{name}")
+                patch = nodes[name](seq)
+                seq = _merge_state(seq, patch)
+                decision = (patch.get("decisions") or [None])[-1] or {}
+                action = decision.get("action")
+                target = decision.get("target")
+                if (
+                    action in {"retry", "repair", "replan"}
+                    and target in order
+                    and ctx.transitions_enabled
+                ):
+                    index = order.index(target)
+                    continue
+                index += 1
+            final = seq
+        else:
+            final = graph.invoke(payload, config)
 
         # S5：evaluate 的耗时在它自己提交时还不可知；图跑完后补一次幂等汇总，
         # 让 duration_by_stage 覆盖全部十个阶段（含 evaluate 自身）。
