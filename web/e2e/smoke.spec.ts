@@ -175,6 +175,20 @@ test("S8: citation opens a paper tab and keeps Report", async ({ page, request }
   await expect(page.getByRole("tab", { name: "Report" })).toBeVisible();
 });
 
+test("S9: closing a paper tab returns to Report", async ({ page, request }) => {
+  const runId = (await findReportRun(request)) ?? (await generateRun(request));
+  await page.goto(`/topics/${TOPIC}/runs/${runId}`);
+  await page.getByRole("tab", { name: "Report" }).click();
+  const cite = page.locator(".cite-chip").first();
+  await expect(cite).toBeVisible({ timeout: 20_000 });
+  await cite.click();
+  await expect(page.getByRole("tab", { name: /E2E-P\d/ })).toBeVisible();
+
+  await page.locator(".el-tabs__item.is-closable .is-icon-close").first().click();
+  await expect(page.getByRole("tab", { name: /E2E-P\d/ })).toHaveCount(0);
+  await expect(page.getByRole("tab", { name: "Report" })).toBeVisible();
+});
+
 test("S9: intervention endpoints are implemented", async ({ request }) => {
   const runs = await request.get(`/api/topics/${TOPIC}/runs?limit=1`);
   const payload = (await runs.json()) as { items: RunItem[] };

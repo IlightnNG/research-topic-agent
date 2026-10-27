@@ -1,17 +1,17 @@
 # RESULTS — Phase 3.2（Report 核心能力）
 
 > 规范：`phase3.2-report-quality.md`（S1–S14 / H1–H15）。
-> 当前进度：**S1–S2 完成**；S3+ 待做。
+> 当前进度：**S1–S9 核心完成**；S10–S14 为体验扩展。
 
 ## 0. 一页摘要
 
 | 指标 | 结果 |
 |---|---|
-| 阶段 | **S1–S8 完成（v2 默认开）** |
-| 测试 | `pytest` **596 例**；Playwright **17 passed** |
+| 阶段 | **S1–S9 核心完成（v2 默认开）** |
+| 测试 | `pytest` **596 例**；Playwright **18 passed（21.8s）** |
 | 验证器 | `verify_phase3 13/13`、`verify_phase2_1 13/13` |
 | 迁移 | `0006_report_v2`（26 张表）已应用到 dev store |
-| 兼容 | 旧报告可读；未接入 report 节点（S4 做） |
+| 兼容 | 旧报告可读；v2 已接入 report 节点（默认开） |
 
 ## 1. S1 · 数据模型与配置
 
@@ -146,3 +146,20 @@ tests/report                 9 passed
 - 报告页暂无右侧面板（S9/S10 计划）；无 PDF 渲染（只显示状态/外链）。
 - Tab 并列/拖拽未做；当前单 pane。
 - 旧报告（v1）仍显示 Findings/Claims 回退。
+
+
+---
+
+## 12. S9 · e2e 与收尾
+
+| 项 | 结果 |
+|---|---|
+| E2E | **18 passed / 21.8s**（retries=0，全局 45s，expect 10s） |
+| 用例 | 固定 Tab、引用开 Tab、关闭回 Report、报告 sections、健康/F12、Chat/会话、失败卡 |
+| 全量 | 596 pytest；verify 13/13、13/13、8/8 |
+| 前端 | typecheck ✓、build ✓ |
+
+### 核心边界
+
+已完成 Report 生成链路 + 阅读工作台（Tab/引用/论文面板）。
+S10–S14（右侧面板、PDF 阅读、作者面板、语言选择、虚拟列表、并列 Tab）作为后续体验增强，不阻塞 3.2 核心。

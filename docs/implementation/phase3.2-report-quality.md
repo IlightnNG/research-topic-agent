@@ -1,6 +1,6 @@
 # Phase 3.2 · Report 核心能力重构（生成 · 工作台 · 作者关联）
 
-> **版本**：**2.4.0**（2026-10-26，S1–S8 已落地）
+> **版本**：**3.0.0**（2026-10-26，**核心 S1–S9 收尾**；S10–S14 为体验扩展）
 > **类型**：核心功能重构（不改双层架构；Chat 推迟到 3.3）
 > **前置**：Phase 3.1 已收尾（`pytest 569`、`verify_phase3 13/13`、e2e 16）
 > **定位**：Report 是系统核心产物 —— 面向科研的“周度研究地图 + 可跳转证据工作台”
@@ -462,13 +462,13 @@ Outline | Citations | Author | Claims
 | S6 ✅ | 组装 + 校验 + 两阶段提交 | `report/assemble.py`；v2 走 `pending_writes.draft`；校验失败模板回落 |
 | S7 ✅ | 报告指标 + 门禁 | `eval/report_metrics.py`；`gate_report_contract` 校验 draft |
 | S8 ✅ | 报告页 sections/TOC/引用 chip + Paper Tab | `.cite-chip` → 论文 Tab；PaperPane + `/api/papers/{id}` |
-| S9 | e2e + 回归 | 固定 Tab/引用/关闭/切 run |
+| S9 ✅ | e2e + 回归 | 18 例：固定 Tab、引用开 Tab、关闭回 Report、切 run、报告结构、健康/F12 |
 
 ### 3.2b · 体验（≈6 天）
 
 | 步 | 内容 | 验收 |
 |---|---|---|
-| S10 | Paper Tab + PDF/下载 | 有 PDF 可读；无则 abstract |
+| S10 ◐ | Paper Tab + PDF/下载 | Tab/论文详情已做；PDF 内嵌/下载待做 |
 | S11 | 作者面板（paper–author） | 点击作者显示其他论文 |
 | S12 | 语言选择（生成页） | en/zh 均出报告 |
 | S13 | 长列表分页/虚拟 | 100 篇不卡 |
@@ -570,9 +570,54 @@ npx playwright test e2e/smoke.spec.ts -g "report|Report|paper" --reporter=line
 
 | 版本 | 日期 | 内容 |
 |---|---|---|
+| 3.0.0 | 2026-10-26 | **核心收尾**：S9 e2e/回归全绿；596 pytest、18 e2e、verify 13/13 + 8/8；S10–S14 明确为扩展 |
 | 2.4.0 | 2026-10-26 | S7–S8 落地：报告指标/门禁、paper API、引用 chip、动态 Paper Tab；v2 默认开；修复报告阶段嵌套写锁与 claim id 不一致 |
 | 2.3.0 | 2026-10-26 | S5–S6 落地：方向综合（claim 白名单/回落）、报告组装与硬校验、v2 两阶段提交（`report.v2_enabled` 默认 false） |
 | 2.2.0 | 2026-10-26 | S3–S4 落地：claim 规范化/去重、轻量 Jaccard 聚类、方向命名、ReportContext 装配；`cluster_threshold` 可调 |
 | 2.1.0 | 2026-10-26 | S1–S2 落地：0006 迁移（26 表）、ReportSettings、PaperCard 缓存/quote 校验/LLM 回落 |
 | 2.0.0 | 2026-10-26 | 重构：生成子流水线、Tab 工作台、作者关联、参数/日志/错误、库选型、S1–S14、H1–H15 |
 | 1.0.0 | 2026-10-26 | 首版：报告结构/合成/语言/指标 |
+
+---
+
+## 18. 核心收尾（S1–S9）
+
+**结论：Report 核心链路完成，可作为 3.2 的交付基线。**
+
+```text
+pytest                    596 例，exit 0
+playwright                18 passed（21.8s，retries=0）
+verify_phase3 --all       13/13
+verify_phase2_1 --all     13/13
+verify_phase2_2 --all     8/8
+typecheck / build         ✓ / ✓
+ruff                      clean
+```
+
+### 已具备
+
+| 能力 | 状态 |
+|---|---|
+| PaperCard 预处理 + 缓存 + quote 校验 | ✅ |
+| claim 规范化/去重/稳定 ID | ✅ |
+| 方向聚类 + 命名（阈值可调） | ✅ |
+| 方向综合（共性/差异/开放问题） | ✅ |
+| 报告组装/硬校验/模板回落 | ✅ |
+| 两阶段提交 + 报告元信息 | ✅ |
+| 报告指标 + report_contract 门禁 | ✅ |
+| v2 报告默认开启 | ✅ |
+| 报告页 sections/TOC/引用 chip | ✅ |
+| 固定 Report/Trajectory + 动态 Paper Tab + 关闭 | ✅ |
+| paper API / PaperPane | ✅ |
+| e2e 稳定、英文命名、无重试 | ✅ |
+
+### 不在核心范围（S10–S14）
+
+- 右侧 Outline/Citations/Author 面板；
+- PDF 内嵌阅读/下载；
+- 作者面板（paper–author 简化版）；
+- 生成页语言选择；
+- 100+ 论文虚拟列表；
+- Tab 并列/拖拽。
+
+这些是体验增强，不阻塞当前 Report 核心链路。
