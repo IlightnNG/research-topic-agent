@@ -72,5 +72,5 @@ def test_schema_version_is_single_source() -> None:
     assert structure.SCHEMA_VERSION == tables.SCHEMA_VERSION
 
 
-def test_expected_table_count_is_24() -> None:
-    assert len(tables.EXPECTED_TABLES) == 24, sorted(tables.EXPECTED_TABLES)
+def test_expected_table_count_is_26() -> None:
+    assert len(tables.EXPECTED_TABLES) == 26, sorted(tables.EXPECTED_TABLES)

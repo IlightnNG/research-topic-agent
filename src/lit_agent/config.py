@@ -41,6 +41,7 @@ __all__ = [
     "LoggingSettings",
     "OpenAlexSettings",
     "ProvidersSettings",
+    "ReportSettings",
     "RoutingSettings",
     "SchedulerSettings",
     "Settings",
@@ -238,6 +239,29 @@ class LimitSettings(_Section):
     max_run_usd: float = Field(default=2.0, gt=0.0)
 
 
+class ReportSettings(_Section):
+    """Phase 3.2 报告生成参数（全部可调，便于 A/B 与回归）。"""
+
+    enabled: bool = True
+    language: Literal["en", "zh"] = "en"
+    synthesis: bool = True
+    token_budget: int = Field(default=120_000, ge=1_000)
+    batch_size: int = Field(default=5, ge=1, le=20)
+    concurrency: int = Field(default=3, ge=1, le=8)
+    deep_read_ratio: float = Field(default=0.2, ge=0.0, le=1.0)
+    max_chunks_per_paper: int = Field(default=3, ge=1, le=10)
+    max_claims_per_paper: int = Field(default=3, ge=1, le=10)
+    min_cluster_size: int = Field(default=2, ge=2, le=10)
+    cluster_threshold: float = Field(default=0.12, ge=0.0, le=1.0)
+    max_sections: int = Field(default=6, ge=1, le=20)
+    min_words: int = Field(default=400, ge=0)
+    max_words: int = Field(default=1500, ge=100)
+    repair_attempts: int = Field(default=1, ge=0, le=2)
+    cache: bool = True
+    pdf_enabled: bool = True
+    max_text_chars: int = Field(default=12_000, ge=1_000, le=100_000)
+
+
 class PipelineSettings(_Section):
     """Phase 2.2 冻结的 pipeline 配置（ADR-0007）。"""
 
@@ -271,6 +295,7 @@ class Settings(_Section):
     logging: LoggingSettings = LoggingSettings()
     vector: VectorSettings = VectorSettings()
     pipeline: PipelineSettings = PipelineSettings()
+    report: ReportSettings = ReportSettings()
 
     @model_validator(mode="after")
     def _check_vector_dim(self) -> Settings:

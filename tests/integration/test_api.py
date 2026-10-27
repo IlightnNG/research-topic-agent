@@ -37,7 +37,7 @@ def test_health_reports_schema(client: TestClient) -> None:
     payload = client.get("/api/health").json()
     assert payload["ok"] is True
     assert payload["sqlite"]["schema_version"] == "1.0"
-    assert payload["sqlite"]["tables"] == 24
+    assert payload["sqlite"]["tables"] == 26
 
 
 def test_topics_crud(client: TestClient) -> None:

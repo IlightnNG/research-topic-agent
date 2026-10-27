@@ -44,6 +44,8 @@ __all__ = [
     "t_llm_calls",
     "t_metrics",
     "t_paper_authors",
+    "t_paper_cards",
+    "t_report_steps",
     "t_paper_chunks",
     "t_paper_merges",
     "t_papers",
@@ -472,6 +474,34 @@ Index(
     t_eval_judgments.c.target_id,
     t_eval_judgments.c.metric,
 )
+
+
+t_paper_cards = Table(
+    "paper_cards",
+    metadata,
+    Column("paper_id", String, primary_key=True),
+    Column("content_sha", String, nullable=False),
+    Column("version", Integer, nullable=False, server_default=text("1")),
+    Column("card_json", Text, nullable=False),
+    Column("created_at", String, nullable=False),
+)
+
+t_report_steps = Table(
+    "report_steps",
+    metadata,
+    Column("id", String, primary_key=True),
+    Column("run_id", String),
+    Column("report_id", String),
+    Column("step", String, nullable=False),
+    Column("status", String, nullable=False),
+    Column("duration_ms", Integer),
+    Column("tokens", Integer),
+    Column("cost_usd", REAL),
+    Column("error_code", String),
+    Column("meta_json", Text),
+    Column("created_at", String, nullable=False),
+)
+Index("ix_report_steps_run", t_report_steps.c.run_id)
 
 #: `metadata.sorted_tables`（按外键依赖排序），用于建表/删表
 ALL_TABLES = metadata.sorted_tables

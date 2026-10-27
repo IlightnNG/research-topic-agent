@@ -32,7 +32,7 @@ def test_upgrade_creates_all_tables(settings: Settings) -> None:
 
     assert db_path.exists()
     assert table_names(db_path) == set(EXPECTED_TABLES)
-    assert len(table_names(db_path)) == 24
+    assert len(table_names(db_path)) == 26
 
 
 def test_schema_matches_metadata(settings: Settings) -> None:

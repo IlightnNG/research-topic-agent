@@ -41,6 +41,9 @@ EXPECTED = {
     "claim_citations",
     "llm_cache",
     "embeddings",
+    # Phase 3.2（ADR-0009）
+    "paper_cards",
+    "report_steps",
 }
 
 
@@ -49,7 +52,10 @@ def test_table_set_matches_adr() -> None:
 
 
 def test_every_table_is_documented_in_adr() -> None:
+    adr_0009 = ADR.parent / "0009-report-v2-tables.md"
     text = ADR.read_text(encoding="utf-8")
+    if adr_0009.exists():
+        text += "\n" + adr_0009.read_text(encoding="utf-8")
     missing = sorted(
         name for name in EXPECTED if f"`{name}`" not in text and f"TABLE {name}" not in text
     )
