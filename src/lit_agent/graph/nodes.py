@@ -465,6 +465,29 @@ class Phase2Nodes:
         from lit_agent.agents.analyst import claims_from_json
 
         claims = claims_from_json(self._claims_json(state))
+        if self.settings.report.v2_enabled:
+            from lit_agent.report.assemble import build_report_v2
+
+            draft = build_report_v2(
+                self.settings,
+                run_id=str(state.get("run_id") or ""),
+                topic_id=str(state.get("topic_id") or ""),
+                paper_ids=self._paper_ids(state),
+                title=f"Weekly report: {state.get('topic_id')}",
+                gateway=getattr(self.ctx, "gateway", None),
+            )
+            return {
+                "stage": "report",
+                "artifacts": {
+                    "claims": len(claims),
+                    "report_sections": len(draft.sections),
+                    "report_generated_by": draft.generated_by,
+                    "report_word_count": draft.word_count,
+                    "report_draft_json": draft.model_dump(mode="json"),
+                },
+                "counters": {"report_written": 0},
+                "pending_writes": [{"kind": "report"}],
+            }
         return {
             "stage": "report",
             "artifacts": {"claims": len(claims)},

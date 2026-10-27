@@ -1,6 +1,6 @@
 # Phase 3.2 · Report 核心能力重构（生成 · 工作台 · 作者关联）
 
-> **版本**：**2.2.0**（2026-10-26，S1–S4 已落地）
+> **版本**：**2.4.0**（2026-10-26，S1–S8 已落地）
 > **类型**：核心功能重构（不改双层架构；Chat 推迟到 3.3）
 > **前置**：Phase 3.1 已收尾（`pytest 569`、`verify_phase3 13/13`、e2e 16）
 > **定位**：Report 是系统核心产物 —— 面向科研的“周度研究地图 + 可跳转证据工作台”
@@ -260,6 +260,7 @@ Section 固定结构：
 ```yaml
 report:
   enabled: true
+  v2_enabled: true             # S8 起默认开；可回退 false
   language: en                 # en | zh
   synthesis: true              # false = template only
   token_budget: 120000
@@ -269,6 +270,7 @@ report:
   max_chunks_per_paper: 3
   max_claims_per_paper: 3
   min_cluster_size: 2
+  cluster_threshold: 0.12
   max_sections: 6
   min_words: 400
   max_words: 1500
@@ -456,10 +458,10 @@ Outline | Citations | Author | Claims
 | S2 ✅ | PaperCard 预处理 + 缓存 + quote 校验 | `report/cards.py`；9 例；坏 quote 丢弃、LLM 失败回落 |
 | S3 ✅ | claims 去重 + claim_id + 每篇 ≤3 | `report/claims.py`；重复/超限测试 |
 | S4 ✅ | 聚类 + 方向命名 | `report/clusters.py` + `context.py`；阈值可调；离群进 Other |
-| S5 | 方向综合 + 对比 + 缺口 | 每段有 claim；对比句 ≥2 引用 |
-| S6 | 组装 + 校验 + 修复/模板回落 | 坏报告不落库 |
-| S7 | 指标/日志/错误码 | steps 可查；失败可定位 |
-| S8 | 报告页 sections/TOC/引用 chip | 点击开 Paper Tab |
+| S5 ✅ | 方向综合 + 对比 + 缺口 | `report/synthesis.py`：common/differences/open_questions；claim_id 白名单；失败逐方向回落 |
+| S6 ✅ | 组装 + 校验 + 两阶段提交 | `report/assemble.py`；v2 走 `pending_writes.draft`；校验失败模板回落 |
+| S7 ✅ | 报告指标 + 门禁 | `eval/report_metrics.py`；`gate_report_contract` 校验 draft |
+| S8 ✅ | 报告页 sections/TOC/引用 chip + Paper Tab | `.cite-chip` → 论文 Tab；PaperPane + `/api/papers/{id}` |
 | S9 | e2e + 回归 | 固定 Tab/引用/关闭/切 run |
 
 ### 3.2b · 体验（≈6 天）
@@ -568,6 +570,8 @@ npx playwright test e2e/smoke.spec.ts -g "report|Report|paper" --reporter=line
 
 | 版本 | 日期 | 内容 |
 |---|---|---|
+| 2.4.0 | 2026-10-26 | S7–S8 落地：报告指标/门禁、paper API、引用 chip、动态 Paper Tab；v2 默认开；修复报告阶段嵌套写锁与 claim id 不一致 |
+| 2.3.0 | 2026-10-26 | S5–S6 落地：方向综合（claim 白名单/回落）、报告组装与硬校验、v2 两阶段提交（`report.v2_enabled` 默认 false） |
 | 2.2.0 | 2026-10-26 | S3–S4 落地：claim 规范化/去重、轻量 Jaccard 聚类、方向命名、ReportContext 装配；`cluster_threshold` 可调 |
 | 2.1.0 | 2026-10-26 | S1–S2 落地：0006 迁移（26 表）、ReportSettings、PaperCard 缓存/quote 校验/LLM 回落 |
 | 2.0.0 | 2026-10-26 | 重构：生成子流水线、Tab 工作台、作者关联、参数/日志/错误、库选型、S1–S14、H1–H15 |

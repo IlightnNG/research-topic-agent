@@ -20,6 +20,7 @@ class ReportSection(ContractModel):
     title: str
     body: str
     claim_indexes: list[int] = Field(default_factory=list)
+    kind: str = "findings"
 
 
 class Report(ContractModel):
@@ -35,4 +36,8 @@ class Report(ContractModel):
     metrics_snapshot: dict[str, Any] = Field(default_factory=dict)
     n_claims: int = Field(default=0, ge=0)
     degraded: bool = False
+    language: str = "en"
+    generated_by: str = "template"
+    word_count: int = 0
+    fallback_reason: str | None = None
     created_at: datetime | None = None

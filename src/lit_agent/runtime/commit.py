@@ -33,6 +33,22 @@ def commit_pending(
     for write in writes:
         kind = str(write.get("kind") or "")
         if kind == "report":
+            draft_payload = (patch.get("artifacts") or {}).get("report_draft_json")
+            if draft_payload:
+                from lit_agent.models.report import Report
+                from lit_agent.runtime.runner import persist_report_draft
+
+                draft = Report.model_validate(draft_payload)
+                report_id = persist_report_draft(ctx.settings, ctx.run_id, draft)
+                summary["report_id"] = report_id
+                summary["claims_written"] = len(draft.claims)
+                summary["dropped_claims"] = 0
+                summary["report_generated_by"] = draft.generated_by
+                summary["report_sections"] = len(draft.sections)
+                summary["llm_used"] = draft.generated_by == "llm"
+                summary["extraction"] = "llm" if draft.generated_by == "llm" else "deterministic"
+                continue
+
             from lit_agent.runtime.runner import persist_report_from_claims
 
             claims = _claims_from_state(state)

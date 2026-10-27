@@ -131,9 +131,9 @@ def test_report_has_sections_from_claims(tmp_path: Path) -> None:
         report = client.get("/api/runs/s3-sections/report").json()
 
     assert report["claims"], "报告应含 claims"
-    section = report["sections"][0]
-    assert section["title"].startswith("Findings"), "S12：真实分节"
-    assert section["claim_indexes"], "分节必须能回指 claims"
+    sections = report["sections"]
+    assert sections, "报告应有分节"
+    assert any(section.get("claim_indexes") for section in sections), "分节必须能回指 claims"
 
 
 def test_failed_run_report_is_404(tmp_path: Path) -> None:

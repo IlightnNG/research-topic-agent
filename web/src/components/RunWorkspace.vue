@@ -1,11 +1,12 @@
 <script setup lang="ts">
-import { computed, ref } from "vue";
+import { computed, ref, watch } from "vue";
 
 import type { Report, RunDetail, RunEvent, RunMetrics } from "@/api/types";
 
 import { t } from "@/i18n";
 
 import FailureCard from "./FailureCard.vue";
+import PaperPane from "./PaperPane.vue";
 import ReportViewer from "./ReportViewer.vue";
 import TrajectoryTimeline from "./TrajectoryTimeline.vue";
 
@@ -54,25 +55,61 @@ function submitInject() {
   injectOpen.value = false;
 }
 
-const tabs = ref(props.view);
+const activeTab = ref<string>(props.view);
+const paperTabs = ref<string[]>([]);
+
+watch(
+  () => props.view,
+  (value) => {
+    if (!activeTab.value.startsWith("paper:")) activeTab.value = value;
+  },
+);
+
+watch(
+  () => props.run?.id,
+  () => {
+    paperTabs.value = [];
+    activeTab.value = props.view;
+  },
+);
+
+function onTab(value: string | number): void {
+  activeTab.value = String(value);
+  if (value === "trajectory" || value === "report") emit("update:view", value);
+}
+
+function openPaper(paperId: string): void {
+  if (!paperTabs.value.includes(paperId)) paperTabs.value.push(paperId);
+  activeTab.value = `paper:${paperId}`;
+}
+
+function removePaper(name: string | number): void {
+  const value = String(name);
+  if (!value.startsWith("paper:")) return;
+  const paperId = value.slice("paper:".length);
+  paperTabs.value = paperTabs.value.filter((item) => item !== paperId);
+  if (activeTab.value === value) activeTab.value = props.view;
+}
 </script>
 
 <template>
   <div class="stack run-workspace">
     <div class="between">
       <el-tabs
-        :model-value="view"
+        :model-value="activeTab"
         class="grow"
-        @update:model-value="
-          (value) => {
-            tabs = value as 'trajectory' | 'report';
-            emit('update:view', tabs);
-            emit('tabClick');
-          }
-        "
+        @update:model-value="onTab"
+        @tab-remove="removePaper"
       >
-        <el-tab-pane label="Trajectory" name="trajectory" />
-        <el-tab-pane label="Report" name="report" />
+        <el-tab-pane label="Trajectory" name="trajectory" :closable="false" />
+        <el-tab-pane label="Report" name="report" :closable="false" />
+        <el-tab-pane
+          v-for="paperId in paperTabs"
+          :key="paperId"
+          :label="paperId"
+          :name="`paper:${paperId}`"
+          closable
+        />
       </el-tabs>
       <div class="cluster">
         <el-tag v-if="run" size="small">{{ run.state }}</el-tag>
@@ -104,7 +141,7 @@ const tabs = ref(props.view);
       </template>
     </el-dialog>
 
-    <template v-if="view === 'trajectory'">
+    <template v-if="activeTab === 'trajectory'">
       <FailureCard
         v-if="isFailed"
         :run="run"
@@ -115,7 +152,12 @@ const tabs = ref(props.view);
     </template>
 
     <template v-else>
-      <ReportViewer v-if="report" :report="report" @why="(index) => emit('why', index)" />
+      <ReportViewer
+        v-if="report"
+        :report="report"
+        @why="(index) => emit('why', index)"
+        @open-paper="openPaper"
+      />
       <FailureCard
         v-else-if="isFailed"
         :run="run"
@@ -124,6 +166,12 @@ const tabs = ref(props.view);
       />
       <p v-else class="muted">{{ reportError || "Report not generated yet." }}</p>
     </template>
+
+    <PaperPane
+      v-if="activeTab.startsWith('paper:')"
+      :paper-id="activeTab.slice('paper:'.length)"
+      :report="report"
+    />
   </div>
 </template>
 

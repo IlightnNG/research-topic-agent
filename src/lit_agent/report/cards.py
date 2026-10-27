@@ -221,13 +221,17 @@ def get_or_build_card(
     *,
     gateway: Any | None = None,
     force: bool = False,
+    write_cache: bool = True,
 ) -> PaperCard:
-    """读论文 → 查缓存 → 构建 → 写缓存；缓存失败不影响返回。"""
+    """读论文 → 查缓存 → 构建 → 写缓存；缓存失败不影响返回。
+
+    `write_cache=False` 用于 run 事务内部：避免报告阶段嵌套 BEGIN IMMEDIATE。
+    """
     from lit_agent.db.repo import paper_cards as card_repo
 
     engine = make_engine(settings)
     try:
-        with connect(engine, immediate=True) as conn:
+        with connect(engine) as conn:
             paper = _load_paper(conn, paper_id)
             sha = source_sha(paper["title"], paper["abstract"])
             if settings.report.cache and not force:
@@ -238,7 +242,7 @@ def get_or_build_card(
 
             started = time.monotonic()
             card = build_card(settings, paper, gateway=gateway)
-            if settings.report.cache:
+            if settings.report.cache and write_cache:
                 try:
                     card_repo.upsert_card(
                         conn,

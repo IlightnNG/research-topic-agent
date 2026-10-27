@@ -40,7 +40,9 @@ export interface ReportSection {
   id: string;
   title: string;
   body: string;
-  claim_ids: string[];
+  claim_ids?: string[];
+  claim_indexes?: number[];
+  kind?: string;
 }
 
 export interface Report {
@@ -53,6 +55,23 @@ export interface Report {
   n_claims: number;
   claims: Claim[];
   sections: ReportSection[];
+  language?: string;
+  generated_by?: string;
+  word_count?: number;
+  fallback_reason?: string | null;
+}
+
+export interface PaperDetail {
+  paper_id: string;
+  title: string;
+  abstract: string;
+  source: string;
+  year: number | null;
+  pdf_path: string | null;
+  pdf_url: string | null;
+  pdf_available: boolean;
+  authors: string[];
+  claims: { claim_id: string; text: string; snippet: string }[];
 }
 
 export interface RunDetail {

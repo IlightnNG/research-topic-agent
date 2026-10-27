@@ -50,7 +50,7 @@ def test_llm_gateway_is_used_by_analysis(tmp_path: Path) -> None:
 
     result = run_graph(settings, "ai-agents", run_id="llm-1", gateway=gateway)
     assert result["state"] == "succeeded", result
-    assert gateway.calls == 1, "分析节点应调用一次 gateway"
+    assert gateway.calls >= 1, "分析/报告应至少调用一次 gateway"
 
     events = fetch_events(settings, "llm-1")
     payload = end_payload(events, "report")

@@ -14,7 +14,17 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 
 from lit_agent._version import __version__
-from lit_agent.api.routes import chat, graph, health, metrics, reports, runs, sources, topics
+from lit_agent.api.routes import (
+    chat,
+    graph,
+    health,
+    metrics,
+    papers,
+    reports,
+    runs,
+    sources,
+    topics,
+)
 from lit_agent.config import Settings, load_settings
 from lit_agent.errors import (
     E_CONFIG_INVALID,
@@ -67,6 +77,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     app.include_router(sources.router, prefix="/api/sources", tags=["sources"])
     app.include_router(chat.router, prefix="/api/topics", tags=["chat"])
     app.include_router(graph.router, prefix="/api/graph", tags=["graph"])
+    app.include_router(papers.router, prefix="/api/papers", tags=["papers"])
     return app
 
 

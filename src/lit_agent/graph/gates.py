@@ -24,6 +24,7 @@ GATE_NAMES = (
     "budget",
     "llm_calls",
     "drift",
+    "report_contract",
 )
 
 MAX_OUTPUT_BYTES = 8 * 1024
@@ -61,7 +62,7 @@ def gate_schema(
     artifacts = {
         key: value
         for key, value in (patch.get("artifacts") or {}).items()
-        if key != "claims_json"
+        if key not in {"claims_json", "report_draft_json"}
     }
     size = len(
         json.dumps(
@@ -209,6 +210,33 @@ def gate_drift(
     return None
 
 
+def gate_report_contract(
+    stage: str, patch: dict[str, Any], state: dict[str, Any], ctx: RunContext
+) -> GateResult | None:
+    """v2 draft 的结构/引用校验；旧报告（无 draft）跳过。"""
+    if stage != "report":
+        return None
+    draft = (patch.get("artifacts") or {}).get("report_draft_json")
+    if not draft:
+        return None
+    from lit_agent.models.report import Report
+    from lit_agent.report.assemble import validate_report
+
+    try:
+        report = Report.model_validate(draft)
+        verdict = validate_report(report, language=report.language)
+    except Exception as exc:  # noqa: BLE001
+        return _fail("report_contract", "E_REPORT_SCHEMA", "retry", f"报告 draft 非法：{exc}")
+    if not verdict.ok:
+        return _fail(
+            "report_contract",
+            "E_REPORT_SCHEMA",
+            "retry",
+            f"报告校验失败：{verdict.errors[:2]}",
+        )
+    return None
+
+
 def run_gates(
     stage: str, patch: dict[str, Any], state: dict[str, Any], ctx: RunContext
 ) -> list[GateResult]:
@@ -222,6 +250,7 @@ def run_gates(
         gate_budget,
         gate_llm_calls,
         gate_drift,
+        gate_report_contract,
     ):
         try:
             verdict = gate(stage, patch, state, ctx)

@@ -373,10 +373,13 @@ def _persist_claims(conn: Any, run_id: str, claims: list[Any]) -> int:
 
     if not claims:
         return 0
-    claim_repo.insert_ignore_many(conn, run_id, claims)
+    # DB 使用 run 级 claim_id；报告内的 P0-C1 只是展示用，不能作为全局主键
+    claim_repo.insert_ignore_many(
+        conn, run_id, [claim.model_copy(update={"claim_id": None}) for claim in claims]
+    )
     written = 0
     for claim in claims:
-        digest = claim_repo.text_sha(claim.text)
+        digest = claim.text_sha or claim_repo.text_sha(claim.text)
         claim_id = f"{run_id}:{digest[:12]}"
         citations = [
             (citation.paper_id, None, citation.snippet, 1.0) for citation in (claim.citations or [])

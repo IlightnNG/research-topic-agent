@@ -1,5 +1,5 @@
 import { request } from "./client";
-import type { ChatPost, ChatState, Report, RunDetail, RunEvent, RunItem, RunMetrics, Topic } from "./types";
+import type { ChatPost, ChatState, PaperDetail, Report, RunDetail, RunEvent, RunItem, RunMetrics, Topic } from "./types";
 
 export interface EventsPage {
   run_id: string;
@@ -33,6 +33,7 @@ export const api = {
   listEvents: (runId: string, afterSeq = 0) =>
     request<EventsPage>(`/api/runs/${runId}/events?after_seq=${afterSeq}&limit=500`),
   getReport: (runId: string) => request<Report>(`/api/runs/${runId}/report`),
+  getPaper: (paperId: string) => request<PaperDetail>(`/api/papers/${paperId}`),
   getRunMetrics: (runId: string) => request<RunMetrics>(`/api/runs/${runId}/metrics`),
   createChatSession: (topicId: string) =>
     request<{ topic_id: string; session_id: string }>(`/api/topics/${topicId}/chat/sessions`, {
@@ -65,4 +66,4 @@ export const api = {
     ),
 };
 
-export type { Report, RunDetail, RunEvent, RunItem, Topic };
+export type { PaperDetail, Report, RunDetail, RunEvent, RunItem, Topic };

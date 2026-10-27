@@ -8,7 +8,7 @@ import ClaimTable from "./ClaimTable.vue";
 import TocNav from "./TocNav.vue";
 
 const props = defineProps<{ report: Report }>();
-const emit = defineEmits<{ why: [number] }>();
+const emit = defineEmits<{ why: [number]; "open-paper": [string] }>();
 
 const activeSection = ref<string | null>(null);
 const sha = computed(() => props.report.content_sha?.slice(0, 8) ?? "");
@@ -24,6 +24,28 @@ const showSections = computed(() => {
     sections.every((section, index) => section.title.startsWith("Evidence ") && section.body === claims[index]?.text);
   return !isEcho;
 });
+
+type Part = { text: string; claim: number | null };
+
+function parts(body: string): Part[] {
+  const result: Part[] = [];
+  const pattern = /\[C(\d+)\]/g;
+  let last = 0;
+  for (const match of body.matchAll(pattern)) {
+    const index = match.index ?? 0;
+    if (index > last) result.push({ text: body.slice(last, index), claim: null });
+    result.push({ text: match[0], claim: Number(match[1]) });
+    last = index + match[0].length;
+  }
+  if (last < body.length) result.push({ text: body.slice(last), claim: null });
+  return result;
+}
+
+function openClaim(index: number): void {
+  const claim = props.report.claims?.[index - 1];
+  const paperId = claim?.citations?.[0]?.paper_id;
+  if (paperId) emit("open-paper", paperId);
+}
 
 async function jump(sectionId: string): Promise<void> {
   activeSection.value = sectionId;
@@ -65,11 +87,26 @@ async function copyMarkdown(): Promise<void> {
           class="stack report-section"
         >
           <h4 class="title-md">{{ section.title }}</h4>
-          <p>{{ section.body }}</p>
+          <p class="section-text">
+            <template v-for="(part, index) in parts(section.body)" :key="index">
+              <button
+                v-if="part.claim"
+                type="button"
+                class="cite-chip"
+                :aria-label="`Open paper for claim ${part.claim}`"
+                @click="openClaim(part.claim)"
+              >
+                {{ part.text }}
+              </button>
+              <template v-else>{{ part.text }}</template>
+            </template>
+          </p>
         </section>
 
-        <h4 class="title-md">Claims</h4>
-        <ClaimTable :claims="report.claims" @why="(index) => emit('why', index)" />
+        <template v-if="!showSections">
+          <h4 class="title-md">Claims</h4>
+          <ClaimTable :claims="report.claims" @why="(index) => emit('why', index)" />
+        </template>
 
         <details style="margin-top: var(--space-4)">
           <summary class="muted">Raw Markdown</summary>
@@ -90,6 +127,22 @@ async function copyMarkdown(): Promise<void> {
 .report-section {
   padding-bottom: var(--space-3);
   border-bottom: 1px dashed var(--color-border);
+}
+.section-text {
+  white-space: pre-wrap;
+  line-height: 1.75;
+}
+.cite-chip {
+  border: 1px solid var(--color-border);
+  background: var(--color-surface-soft);
+  color: var(--color-accent, #2563eb);
+  border-radius: 4px;
+  padding: 0 0.25rem;
+  font: inherit;
+  cursor: pointer;
+}
+.cite-chip:hover {
+  background: var(--color-accent-soft, #dbeafe);
 }
 .raw {
   white-space: pre-wrap;

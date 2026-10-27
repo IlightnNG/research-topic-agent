@@ -43,6 +43,10 @@ def insert_ignore(conn: Connection, report: Report, *, now: str | None = None) -
             ),
             n_claims=report.n_claims or len(report.claims),
             degraded=int(report.degraded),
+            language=report.language,
+            generated_by=report.generated_by,
+            word_count=report.word_count,
+            fallback_reason=report.fallback_reason,
             created_at=now or utcnow_iso(),
         )
         .on_conflict_do_nothing(index_elements=[t_reports.c.run_id, t_reports.c.content_sha])

@@ -243,6 +243,7 @@ class ReportSettings(_Section):
     """Phase 3.2 报告生成参数（全部可调，便于 A/B 与回归）。"""
 
     enabled: bool = True
+    v2_enabled: bool = True
     language: Literal["en", "zh"] = "en"
     synthesis: bool = True
     token_budget: int = Field(default=120_000, ge=1_000)

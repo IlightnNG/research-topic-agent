@@ -34,7 +34,7 @@ def build_context(
     failed: list[str] = []
     for paper_id in sorted(set(paper_ids)):
         try:
-            cards.append(get_or_build_card(settings, paper_id, gateway=gateway))
+            cards.append(get_or_build_card(settings, paper_id, gateway=gateway, write_cache=False))
         except Exception as exc:  # noqa: BLE001 - 单篇失败不阻断报告
             failed.append(paper_id)
             logger.warning(

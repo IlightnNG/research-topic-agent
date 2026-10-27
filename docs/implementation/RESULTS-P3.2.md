@@ -7,8 +7,8 @@
 
 | 指标 | 结果 |
 |---|---|
-| 阶段 | **S1–S4 完成** |
-| 测试 | `pytest` **587 例**（S3/S4 新增 9 例） |
+| 阶段 | **S1–S8 完成（v2 默认开）** |
+| 测试 | `pytest` **596 例**；Playwright **17 passed** |
 | 验证器 | `verify_phase3 13/13`、`verify_phase2_1 13/13` |
 | 迁移 | `0006_report_v2`（26 张表）已应用到 dev store |
 | 兼容 | 旧报告可读；未接入 report 节点（S4 做） |
@@ -79,3 +79,70 @@ tests/report                 9 passed
 ### 未做（S5）
 
 - 未接入 `report` 节点；`ReportContext` 已就绪，S5 用它做方向综合与对比。
+
+
+---
+
+## 7. S5 · 方向综合
+
+| 产物 | 说明 |
+|---|---|
+| `report/synthesis.py` | 每个方向输出 `definition / common_ground / differences / open_questions` |
+| 约束 | claim_id 白名单；differences 至少 2 个引用；无有效项回落确定性 |
+| 失败 | 单方向失败只回落该方向，不阻断整份报告 |
+| 日志 | `report.synthesis.done/fallback` |
+
+## 8. S6 · 组装、校验、两阶段提交
+
+| 产物 | 说明 |
+|---|---|
+| `report/assemble.py` | Overview / Deep Dive / Gaps / Paper Index；`[C#]` 映射与 claim_indexes |
+| `validate_report` | section 必须有 claim；引用索引必须存在；语言一致 |
+| 回落 | 校验失败 → 无 insights 的模板报告 + `fallback_reason` |
+| 接线 | `report.v2_enabled=true` 时走 `build_report_v2`，`pending_writes.draft` 在门禁后提交 |
+| 持久化 | `reports.language/generated_by/word_count/fallback_reason` 落库 |
+| 修复 | LLM 输出非法 → 丢弃非法项；全空 → 模板 |
+
+### 测试
+
+`tests/report/test_synthesis_and_assemble.py`（7 例）：claim 白名单、失败回落、空 synthesis、组装/校验、缺失 claim 拒绝、v2 端到端、空论文安全。
+
+### 注意
+
+- **v2 默认关闭**；打开方式：`LIT_AGENT_REPORT__V2_ENABLED=true`（或配置）；
+- 打开后报告走新结构，旧报告仍可读；
+- Claim DB ID 统一为 `run_id:sha`，报告里的 `P0-C1` 仅用于展示。
+
+
+---
+
+## 9. S7 · 报告指标与门禁
+
+| 产物 | 说明 |
+|---|---|
+| `eval/report_metrics.py` | `report_words/sections/claims/cited_claims/cited_ratio/fallback/generated_llm` |
+| `metrics` 落库 | 仅数值；可复算，不增长行数 |
+| `gate_report_contract` | 校验 `report_draft_json`：section claim、`[C#]`、语言；失败 retry |
+| 测试 | `test_report_metrics_are_numeric`、v2 全链路 |
+
+## 10. S8 · 报告页与 Tab 工作台
+
+| 产物 | 说明 |
+|---|---|
+| `ReportViewer.vue` | v2 sections + TOC + `[C#]` chip；有 sections 时隐藏重复 Claims 表 |
+| `RunWorkspace.vue` | 固定 Trajectory/Report + 动态 Paper Tab（closable）；引用打开/激活 |
+| `PaperPane.vue` | 论文标题/作者/摘要/报告内 claims；PDF 状态 |
+| `/api/papers/{id}` | 论文详情；404 统一错误 |
+| 测试 | `.cite-chip` 打开 Tab、F12 表数、17 e2e |
+
+### 修复
+
+- **嵌套写锁**：报告阶段构建 PaperCard 时不再 `BEGIN IMMEDIATE` 写缓存（`write_cache=False`），避免 run 事务内锁等待。
+- **claim id 不一致**：`_persist_claims` 使用 `claim.text_sha` 计算 citation 的 claim_id，避免 FK 失败。
+- **draft 契约**：`report_draft_json` 放 artifacts，`PendingWrite` 保持 `kind` only；schema 门禁排除大字段。
+
+## 11. 当前限制
+
+- 报告页暂无右侧面板（S9/S10 计划）；无 PDF 渲染（只显示状态/外链）。
+- Tab 并列/拖拽未做；当前单 pane。
+- 旧报告（v1）仍显示 Findings/Claims 回退。

@@ -229,7 +229,11 @@ def compute_run_metrics(settings: Settings, run_id: str) -> dict[str, Any]:
     trajectory = trajectory_metrics(settings, run_id)
 
     cost, estimated, _calls = (float(cost_row[0]), int(cost_row[1]), int(cost_row[2]))
+    from lit_agent.eval.report_metrics import run_report_metrics
+
+    report_metrics = run_report_metrics(settings, run_id)
     return {
+        **report_metrics,
         **trajectory,
         "scope": "run",
         "scope_id": run_id,
