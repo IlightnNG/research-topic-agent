@@ -7,9 +7,10 @@ import DialogForm from "@/components/DialogForm.vue";
 import EmptyState from "@/components/EmptyState.vue";
 import ErrorBanner from "@/components/ErrorBanner.vue";
 import PageHeader from "@/components/PageHeader.vue";
+import SourceSuggest from "@/components/SourceSuggest.vue";
 import StatusBadge from "@/components/StatusBadge.vue";
 import { useTopicsStore } from "@/stores/topics";
-import type { Topic } from "@/api/types";
+import type { SourceConfig, Topic } from "@/api/types";
 
 const router = useRouter();
 const store = useTopicsStore();
@@ -18,9 +19,11 @@ const dialogOpen = ref(false);
 const busy = ref(false);
 const dialogError = ref("");
 const form = ref({ id: "", name: "", scope: "", keywords: "" });
+const sourceConfig = ref<SourceConfig | null>(null);
 
 function openDialog(): void {
   form.value = { id: "", name: "", scope: "", keywords: "" };
+  sourceConfig.value = null;
   dialogError.value = "";
   dialogOpen.value = true;
 }
@@ -45,6 +48,7 @@ async function submit(): Promise<void> {
         .split(",")
         .map((item) => item.trim())
         .filter(Boolean),
+      sources: sourceConfig.value ? [sourceConfig.value] : [],
     });
     dialogOpen.value = false;
   } catch (err) {
@@ -152,6 +156,7 @@ onMounted(store.load);
         placeholder="scope: what is in / out"
       />
       <el-input v-model="form.keywords" placeholder="keywords (comma separated, optional)" />
+      <SourceSuggest :scope="form.scope" @update:sources="sourceConfig = $event" />
       <el-alert
         type="info"
         :closable="false"

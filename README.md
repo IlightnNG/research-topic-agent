@@ -61,7 +61,7 @@ Single machine, no external services required — all stores are embedded or loc
 uv sync
 .\scripts\lit-agent.ps1 doctor --strict
 
-# 3) database (24 tables) + structure check
+# 3) database (26 tables) + structure check
 .\scripts\lit-agent.ps1 db upgrade
 .\scripts\lit-agent.ps1 db status
 python scripts/check_structure.py
@@ -69,6 +69,75 @@ python scripts/check_structure.py
 # 4) quality gates
 uv run ruff check . ; uv run ruff format --check .
 uv run pytest -q
+```
+
+
+## Manual demo (Phase 3.2)
+
+### Backend
+
+```powershell
+cd "E:\大学\NUS\EE5003\agent"
+. .\scripts\env.ps1
+uv run uvicorn lit_agent.api.app:app --port 8000
+```
+
+### Frontend
+
+In a second terminal:
+
+```powershell
+cd "E:\大学\NUS\EE5003\agent"
+. .\scripts\env.ps1
+cd web
+npm run dev -- --port 5173
+```
+
+Open `http://127.0.0.1:5173/topics/e2e-topic` (or `/topics`).
+The backend reads `.env` for the LLM key; set `$env:LIT_AGENT_PIPELINE__LLM='off'`
+before starting the backend if you only want deterministic templates.
+
+### Generate and inspect one report
+
+```powershell
+uv run python scripts/check_report.py --topic ai-agents --language en --no-llm
+```
+
+It prints `papers_in_db`, `claims`, `sections`, `word_count`, `thin`, `problems`.
+`thin=true` is expected when the database only contains the 3 `E2E-P*` fixture papers.
+
+> **Data note**: report generation reads papers already in the local store; it does
+> not call OpenAlex. Sync a topic first if you need real papers:
+>
+> ```powershell
+> uv run python -m lit_agent.cli sources sync --topic ai-agents --limit 50
+> ```
+>
+> OpenAlex works without a key, but the free pool shares a daily quota and can return
+> 401; a free API key + `mailto` in `.env` is recommended for real ingestion.
+> A topic with an empty `venue_ids` selector may return no new papers.
+
+
+### Source suggestions
+
+In **New topic**, use **Research sources → Suggest with AI**:
+
+1. AI proposes venue names and queries;
+2. OpenAlex resolves names to real source ids;
+3. Review/remove candidates, optionally add a source id manually;
+4. **Preview 5 papers** before creating the topic.
+
+Nothing is applied automatically; manual editing always wins.
+
+### Tests
+
+```powershell
+uv run pytest -q
+cd web
+npm run typecheck
+npm run build
+$env:PLAYWRIGHT_BROWSERS_PATH='D:\lit-agent-store\playwright'
+npx playwright test e2e/smoke.spec.ts --reporter=line
 ```
 
 Where things live:

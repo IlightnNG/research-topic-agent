@@ -38,6 +38,12 @@ def _venue_filter(venue_ids: list[str]) -> str:
     return "primary_location.source.id:" + "|".join(clean)
 
 
+def build_search(selector: dict[str, Any]) -> str:
+    """Combine optional free-text queries into one OpenAlex `search` value."""
+    queries = [str(item).strip() for item in (selector.get("queries") or []) if str(item).strip()]
+    return " OR ".join(queries)
+
+
 def build_filter(selector: dict[str, Any], *, since: str | None) -> str:
     """拼 OpenAlex `filter` 参数（白名单 + 起始日期 + 类型）。"""
     parts = [_venue_filter(list(selector.get("venue_ids") or []))]
@@ -77,6 +83,7 @@ def fetch_works_page(
     since: str | None,
     cursor: str = "*",
     per_page: int = 200,
+    search: str = "",
     mailto: str = "",
     api_key: str = "",
     backoff: Backoff | None = None,
@@ -87,6 +94,8 @@ def fetch_works_page(
         "per-page": per_page,
         "cursor": cursor,
     }
+    if search:
+        params["search"] = search
     if mailto:
         params["mailto"] = mailto  # polite pool
     if api_key:
@@ -149,6 +158,7 @@ class OpenAlexAdapter:
         client, owned = self._client_or_new()
         emitted = 0
         cursor: str | None = "*"
+        search = build_search(selector)
         try:
             while cursor:
                 works, cursor = fetch_works_page(
@@ -157,6 +167,7 @@ class OpenAlexAdapter:
                     since=since,
                     cursor=cursor,
                     per_page=self.per_page,
+                    search=search,
                     mailto=self.mailto,
                     api_key=self.api_key,
                     backoff=self.backoff,

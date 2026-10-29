@@ -152,3 +152,27 @@ export interface ChatPost {
   message: ChatMessage;
   answered: boolean;
 }
+
+
+export interface SourceSuggestion {
+  venues: { name: string; source_id: string | null; confidence: number }[];
+  queries: string[];
+  from_year: number | null;
+  source: string;
+}
+
+export interface SourcePreview {
+  selector: Record<string, unknown>;
+  since: string;
+  sample_count: number;
+  items: { paper_id: string; title: string; year: number | null; source: string }[];
+}
+
+export interface SourceConfig {
+  source: "openalex";
+  selector: {
+    venue_ids: string[];
+    queries: string[];
+    from_year: number | null;
+  };
+}

@@ -7,8 +7,8 @@
 
 | 指标 | 结果 |
 |---|---|
-| 阶段 | **S1–S13 完成（v2 默认开）** |
-| 测试 | `pytest` **601 例**；Playwright **18 passed（23.9s）** |
+| 阶段 | **Phase 3.2 收尾（S1–S14）** |
+| 测试 | `pytest` **601 例**；Playwright 18 passed（干净 store；live 数据下 17/18） |
 | 验证器 | `verify_phase3 13/13`、`verify_phase2_1 13/13` |
 | 迁移 | `0006_report_v2`（26 张表）已应用到 dev store |
 | 兼容 | 旧报告可读；v2 已接入 report 节点（默认开） |
@@ -199,3 +199,15 @@ S10–S14（右侧面板、PDF 阅读、作者面板、语言选择、虚拟列�
 
 - S14：最终文档/结果归档；
 - P2：双 Tab 并列/拖拽（可选）。
+
+
+---
+
+## 15. Phase 3.2 关闭（2026-10-29）
+
+- 真实 20 篇（ACL/OpenAlex）+ 3 fixture：32 claims / 7 sections / 791 words；
+- 报告：`out/live-report-ai-agents-live.md`；
+- 结构通过，但 topic 相关性、聚类、claim 纯度、LLM 截断不达标；
+- 23 篇规模下 e2e 偶发 report 卡住；
+- 以上问题进入 **phase3.3-report-quality-and-stability.md**；
+- 非阶段性问题进入 **docs/OPEN-ISSUES.md**。

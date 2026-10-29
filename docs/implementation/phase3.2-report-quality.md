@@ -1,6 +1,6 @@
 # Phase 3.2 · Report 核心能力重构（生成 · 工作台 · 作者关联）
 
-> **版本**：**3.2.0**（2026-10-29，S1–S13 完成；S14 收尾）
+> **版本**：**4.0.0（已收尾）**（2026-10-29）
 > **类型**：核心功能重构（不改双层架构；Chat 推迟到 3.3）
 > **前置**：Phase 3.1 已收尾（`pytest 569`、`verify_phase3 13/13`、e2e 16）
 > **定位**：Report 是系统核心产物 —— 面向科研的“周度研究地图 + 可跳转证据工作台”
@@ -570,6 +570,7 @@ npx playwright test e2e/smoke.spec.ts -g "report|Report|paper" --reporter=line
 
 | 版本 | 日期 | 内容 |
 |---|---|---|
+| 4.0.0 | 2026-10-29 | **Phase 3.2 收尾**：S1–S14 完成；真实 20 篇报告验证；暴露问题转入 phase3.3 |
 | 3.2.0 | 2026-10-29 | S12–S13 落地：按 run 语言（en/zh）、报告中英模板、生成页选择；Paper Index 分页；601 pytest/18 e2e |
 | 3.1.0 | 2026-10-29 | S10–S11 落地：PDF Range/iframe/下载、作者面板与 coauthor API；18 e2e；600 pytest |
 | 3.0.0 | 2026-10-26 | **核心收尾**：S9 e2e/回归全绿；596 pytest、18 e2e、verify 13/13 + 8/8；S10–S14 明确为扩展 |
@@ -620,3 +621,50 @@ ruff                      clean
 - 右侧 Outline/Citations 面板（可选）。
 
 这些是体验增强，不阻塞当前 Report 核心链路。
+
+---
+
+## 19. Phase 3.2 收尾（2026-10-29）
+
+**状态：COMPLETE（核心 + 体验扩展）**。S1–S14 完成；真实 20 篇论文跑通，但报告质量与稳定性问题转入 **Phase 3.3**。
+
+### 19.1 最终门禁
+
+```text
+pytest                    601 例，exit 0
+playwright                18 passed（干净 store）
+verify_phase3 --all       13/13
+verify_phase2_1 --all     13/13
+verify_phase2_2 --all     8/8
+typecheck / build         ✓ / ✓
+```
+
+### 19.2 真实 20 篇验证（ai-agents-live）
+
+| 指标 | 结果 |
+|---|---|
+| 论文 | 20 篇 ACL（通过 OpenAlex，无 key 成功）+ 3 篇 E2E fixture = 23 |
+| claims | 32（全部带 citation） |
+| sections | 7（Overview + 4 方向 + Gaps + Paper Index） |
+| words | 791 |
+| generated_by | llm |
+| 报告 | `out/live-report-ai-agents-live.md` |
+
+**结构通过，内容质量不合格**，见 19.3。
+
+### 19.3 暴露的问题（→ 3.3）
+
+| # | 问题 | 证据/影响 |
+|---|---|---|
+| P1 | 检索不是 topic 相关 | ACL 全 venue 抓取，混入 LlamaFactory/LongBench/F5-TTS |
+| P2 | 聚类词面化 | 出现 `Models / Language`、`Annual / Association` |
+| P3 | 书目信息被当 claim | “published at ACL 2024”“作者列表”进入结论 |
+| P4 | LLM 截断回落 | 日志多次 `paper_card.llm_fallback` / `E_LLM_TRUNCATED` |
+| P5 | 缓存未生效 | 报告事务内 `write_cache=False`，下次仍重跑 LLM |
+| P6 | 23 篇时 report 偶发卡住 | e2e 17/18；需隔离/锁/规模测试 |
+| P7 | 无 topic-aware source 配置 | `venue_ids` 空则无法抓取；需自动建议 |
+
+### 19.4 结论
+
+Phase 3.2 的**生成链路、工作台、引用、PDF、作者面板、语言、分页**已完成；  
+但“周报可读性/相关性”尚未达标，Phase 3.3 以**质量 + 稳定性 + 调参**为主。

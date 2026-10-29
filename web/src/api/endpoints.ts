@@ -1,5 +1,5 @@
 import { request } from "./client";
-import type { AuthorDetail, ChatPost, ChatState, PaperDetail, Report, RunDetail, RunEvent, RunItem, RunMetrics, Topic } from "./types";
+import type { AuthorDetail, ChatPost, ChatState, PaperDetail, Report, RunDetail, RunEvent, RunItem, RunMetrics, SourcePreview, SourceSuggestion, Topic } from "./types";
 
 export interface EventsPage {
   run_id: string;
@@ -17,6 +17,16 @@ export const api = {
     request<{ id: string }>("/api/topics", { method: "POST", body: JSON.stringify(body) }),
   patchTopic: (topicId: string, body: Record<string, unknown>) =>
     request<Topic>(`/api/topics/${topicId}`, { method: "PATCH", body: JSON.stringify(body) }),
+  suggestSources: (scope_statement: string) =>
+    request<SourceSuggestion>("/api/sources/suggest", {
+      method: "POST",
+      body: JSON.stringify({ scope_statement }),
+    }),
+  previewSources: (selector: Record<string, unknown>, limit = 5) =>
+    request<SourcePreview>("/api/sources/preview", {
+      method: "POST",
+      body: JSON.stringify({ selector, limit }),
+    }),
   topicCounts: (topicId: string) =>
     request<{ runs: number; reports: number }>(`/api/topics/${topicId}/counts`),
 

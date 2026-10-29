@@ -46,6 +46,19 @@ class RunRequest(BaseModel):
     )
 
 
+class SourcePreviewRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    selector: dict[str, Any]
+    limit: int = Field(default=10, ge=1, le=50)
+
+
+class SourceSuggestRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    scope_statement: str = Field(min_length=5, max_length=2000)
+
+
 class ErrorOut(BaseModel):
     code: str
     message: str
