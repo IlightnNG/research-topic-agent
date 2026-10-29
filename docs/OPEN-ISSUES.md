@@ -219,7 +219,7 @@
 
 ---
 
-### OI-009 · PaperCard 缓存提交后写入（P1，open）
+### OI-009 · PaperCard 缓存提交后写入（P1，**done**）
 
 **现状**
 
@@ -232,11 +232,11 @@
 - 不阻塞 run；
 - 命中率可观测。
 
-**方案**
+**已实现（S4）**
 
-- post-commit hook / 队列；
+- `report_cards_json` → commit 后写；
 - 失败只告警；
-- 增加 `cache_hit_rate` 指标。
+- 仍缺：`cache_hit_rate` 指标（见 Phase 3.3 M8）。
 
 ---
 

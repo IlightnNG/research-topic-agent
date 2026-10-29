@@ -45,8 +45,11 @@ def commit_pending(
                 summary["dropped_claims"] = 0
                 summary["report_generated_by"] = draft.generated_by
                 summary["report_sections"] = len(draft.sections)
-                summary["llm_used"] = draft.generated_by == "llm"
-                summary["extraction"] = "llm" if draft.generated_by == "llm" else "deterministic"
+                summary["llm_used"] = draft.generated_by in {"llm", "hybrid"}
+                summary["extraction"] = (
+                    "llm" if draft.generated_by in {"llm", "hybrid"} else "deterministic"
+                )
+                _write_card_cache(ctx, patch)
                 continue
 
             from lit_agent.runtime.runner import persist_report_from_claims
@@ -77,3 +80,34 @@ def commit_pending(
             summary["metrics_persisted"] = True
             summary["claims_total"] = metrics.get("claims_total")
     return summary
+
+
+def _write_card_cache(ctx: RunContext, patch: dict[str, Any]) -> None:
+    """Post-commit best-effort cache; never fails the run."""
+    import logging
+
+    from lit_agent.db.repo import paper_cards as card_repo
+    from lit_agent.db.session import connect, make_engine
+    from lit_agent.report.cards import CARD_VERSION
+
+    items = (patch.get("artifacts") or {}).get("report_cards_json") or []
+    if not items:
+        return
+    engine = make_engine(ctx.settings)
+    try:
+        with connect(engine, immediate=True) as conn:
+            for item in items:
+                card_repo.upsert_card(
+                    conn,
+                    paper_id=str(item["paper_id"]),
+                    content_sha=str(item["content_sha"]),
+                    version=CARD_VERSION,
+                    card=item["card"],
+                )
+        logging.getLogger(__name__).info("paper_card.cache_committed", extra={"count": len(items)})
+    except Exception as exc:  # noqa: BLE001 - cache is not a business fact
+        logging.getLogger(__name__).warning(
+            "paper_card.cache_commit_failed", extra={"error": type(exc).__name__}
+        )
+    finally:
+        engine.dispose()

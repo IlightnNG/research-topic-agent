@@ -71,6 +71,7 @@ def synthesize_direction(
     *,
     gateway: Any | None = None,
     language: str = "en",
+    max_tokens: int = 1000,
 ) -> DirectionInsight:
     if gateway is None:
         return _fallback(direction, claims, language)
@@ -92,7 +93,7 @@ def synthesize_direction(
                 {"role": "system", "content": prompt},
                 {"role": "user", "content": f"Direction: {direction.name}\n{material}"},
             ],
-            max_tokens=700,
+            max_tokens=max_tokens,
             agent="report_synthesis",
         )
         if not isinstance(payload, dict):
@@ -125,9 +126,12 @@ def synthesize_all(
     *,
     gateway: Any | None = None,
     language: str = "en",
+    max_tokens: int = 1000,
 ) -> list[DirectionInsight]:
     insights = [
-        synthesize_direction(direction, claims, gateway=gateway, language=language)
+        synthesize_direction(
+            direction, claims, gateway=gateway, language=language, max_tokens=max_tokens
+        )
         for direction in directions
     ]
     logger.info(

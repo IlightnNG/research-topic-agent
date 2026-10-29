@@ -38,6 +38,8 @@ class Report(ContractModel):
     degraded: bool = False
     language: str = "en"
     generated_by: str = "template"
+    fallback_count: int = 0
+    coverage: float = 0.0
     word_count: int = 0
     fallback_reason: str | None = None
     created_at: datetime | None = None

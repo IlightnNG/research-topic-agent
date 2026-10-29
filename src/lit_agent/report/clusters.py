@@ -18,7 +18,14 @@ __all__ = ["Direction", "build_directions", "label_directions"]
 
 logger = logging.getLogger(__name__)
 
-_STOP = {"the", "a", "an", "of", "for", "and", "to", "in", "on", "with", "using", "we", "this"}
+_STOP = {
+    "the", "a", "an", "of", "for", "and", "to", "in", "on", "with", "using", "we", "this",
+    # venue / publication boilerplate
+    "acl", "emnlp", "naacl", "eacl", "coling", "neurips", "icml", "iclr", "aaai", "ijcai",
+    "annual", "meeting", "association", "computational", "linguistics", "proceedings",
+    "conference", "journal", "volume", "pages", "published", "paper", "papers", "authors",
+    "et", "al", "https", "doi", "arxiv", "university", "institute",
+}
 
 
 def _terms(text: str) -> set[str]:
@@ -158,6 +165,7 @@ def label_directions(
     cards: list[PaperCard],
     *,
     gateway: Any | None = None,
+    max_tokens: int = 240,
 ) -> list[Direction]:
     """可选 LLM 命名；失败/非法直接保留算法名。"""
     if gateway is None or not directions:
@@ -173,12 +181,13 @@ def label_directions(
                         "content": (
                             "Name this research direction and define it in one sentence. "
                             'Return JSON: {"name": str, "definition": str}. '
-                            "Use only the given paper titles; do not invent papers."
+                            "Use only the given paper titles; do not invent papers; "
+                            "do not name venues or publication metadata."
                         ),
                     },
                     {"role": "user", "content": "\n".join(titles)},
                 ],
-                max_tokens=120,
+                max_tokens=max_tokens,
                 agent="report_clusters",
             )
             name = str(payload.get("name") or "").strip() if isinstance(payload, dict) else ""

@@ -57,6 +57,8 @@ export interface Report {
   sections: ReportSection[];
   language?: string;
   generated_by?: string;
+  fallback_count?: number;
+  coverage?: number;
   word_count?: number;
   fallback_reason?: string | null;
 }

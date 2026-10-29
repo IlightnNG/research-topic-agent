@@ -62,7 +62,7 @@ def gate_schema(
     artifacts = {
         key: value
         for key, value in (patch.get("artifacts") or {}).items()
-        if key not in {"claims_json", "report_draft_json"}
+        if key not in {"claims_json", "report_draft_json", "report_cards_json"}
     }
     size = len(
         json.dumps(

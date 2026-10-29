@@ -19,6 +19,23 @@ class FakeGateway:
 
     def chat_json(self, messages, **kwargs):  # noqa: ANN001
         self.calls += 1
+        if kwargs.get("agent") == "report_cards":
+            return (
+                {
+                    "cards": [
+                        {
+                            "paper_id": "P0",
+                            "claims": [
+                                {
+                                    "text": "fake finding from llm",
+                                    "quote": "tool use improves task success",
+                                }
+                            ],
+                        }
+                    ]
+                },
+                None,
+            )
         return (
             {
                 "claims": [

@@ -1,6 +1,6 @@
 # Phase 3.3 · Report 质量、稳定性与可调参收尾
 
-> **版本**：**1.1.0**（2026-10-29，S1–S2 已落地）
+> **版本**：**1.3.0**（2026-10-29，S1–S7 已落地）
 > **前置**：Phase 3.2 已收尾（生成链路、Tab 工作台、引用、PDF、作者、语言、分页）
 > **目标**：把“能生成报告”推进到“报告相关、可读、稳定、可调参”
 > **范围**：Source/Retrieval → PaperCard → Claim → Cluster → Synthesis → Validate → Report
@@ -423,11 +423,11 @@ retrieval:
 |---|---|---|
 | S1 ✅ | Source selector 支持 queries + preview | `build_search`、`/api/sources/preview`、`preview_selector` |
 | S2 ✅ | AI venue 建议 + 人工确认 | `/api/sources/suggest`、`SourceSuggest.vue`、Topic 创建页 |
-| S3 | 批量 PaperCard + token 配置 + JSON repair | 3d |
-| S4 | 提交后缓存 + 缓存指标 | 2d |
-| S5 | claim 纯度过滤 + prompt 修正 | 2d |
-| S6 | 聚类停用词/embedding/命名 token | 3d |
-| S7 | synthesis 健壮性 + hybrid 元信息 | 3d |
+| S3 ✅ | 批量 PaperCard + token 配置 + JSON repair | `build_cards` 批量/二分回落；`max_tokens_*` 可调 |
+| S4 ✅ | 提交后缓存 | `report_cards_json` → `commit` 后写 `paper_cards`；缓存命中不再调用 LLM |
+| S5 ✅ | claim 纯度过滤 + prompt 修正 | 书目/作者 claim 正则过滤；prompt 只允许 research claims |
+| S6 ✅ | 聚类停用词 + 命名 token | venue/出版停用词；threshold 0.18；命名不含 venue |
+| S7 ✅ | synthesis 健壮性 + hybrid 元信息 | `fallback_count/coverage` 落库；hybrid 状态；UI 展示 |
 | S8 | thin/coverage/validate + 旧报告兼容 | 2d |
 | S9 | 并发/超时/缓存/e2e 隔离 | 3d |
 | S10 | 指标 + tune 脚本 + 20/50/100 实验 | 4d |
@@ -463,5 +463,7 @@ retrieval:
 
 | 版本 | 日期 | 内容 |
 |---|---|---|
+| 1.3.0 | 2026-10-29 | S5–S7 落地：claim 纯度、聚类去 boilerplate、hybrid/fallback/coverage；迁移 0007；612 pytest / 18 e2e |
+| 1.2.0 | 2026-10-29 | S3–S4 落地：批量 PaperCard、token 配置、批量失败二分回落、post-commit 缓存；609 pytest / 18 e2e |
 | 1.1.0 | 2026-10-29 | S1–S2 落地：selector queries、preview API、AI venue 建议 + 确认 UI；606 pytest / 18 e2e |
 | 1.0.0 | 2026-10-29 | 首版：基于 20 篇实跑问题，M1–M9、调参实验、H1–H15、S1–S12 |

@@ -148,6 +148,11 @@ def test_v2_builder_and_run_wiring(tmp_path: Path) -> None:
     assert row[1] == "en"
     assert row[2] == "template"
 
+    conn = sqlite3.connect(settings.storage.sqlite_file)
+    cached = conn.execute("SELECT COUNT(*) FROM paper_cards").fetchone()[0]
+    conn.close()
+    assert cached >= 1, "post-commit card cache should be written"
+
 
 def test_v2_builder_empty_papers_is_safe(tmp_path: Path) -> None:
     from tests.wiring import prepare
@@ -163,3 +168,39 @@ def test_v2_builder_empty_papers_is_safe(tmp_path: Path) -> None:
     assert report.degraded is True
     assert report.language == "en"
     assert report.sections
+
+
+def test_hybrid_metadata_is_persisted() -> None:
+    from lit_agent.report.cards import PaperCard
+    from lit_agent.report.claims import ClaimSet
+    from lit_agent.report.context import ReportContext
+    from lit_agent.report.synthesis import DirectionInsight
+
+    context = ReportContext(
+        cards=[PaperCard(paper_id="P1", title="A")],
+        claim_set=ClaimSet(claims=[claim("P1-C1")]),
+        directions=[direction()],
+    )
+    report = assemble_report(
+        run_id="r1",
+        topic_id="t",
+        title="Weekly",
+        period=None,
+        context=context,
+        insights=[
+            DirectionInsight(
+                direction_id="D1",
+                name="Tool",
+                common_ground=[InsightItem(text="shared", claim_ids=["P1-C1"])],
+                generated_by="llm",
+            ),
+            DirectionInsight(direction_id="D2", name="Other", generated_by="template"),
+        ],
+        language="en",
+        generated_by="hybrid",
+        fallback_count=1,
+        coverage=1.0,
+    )
+    assert report.generated_by == "hybrid"
+    assert report.fallback_count == 1
+    assert report.coverage == 1.0

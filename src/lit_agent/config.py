@@ -253,7 +253,7 @@ class ReportSettings(_Section):
     max_chunks_per_paper: int = Field(default=3, ge=1, le=10)
     max_claims_per_paper: int = Field(default=3, ge=1, le=10)
     min_cluster_size: int = Field(default=2, ge=2, le=10)
-    cluster_threshold: float = Field(default=0.12, ge=0.0, le=1.0)
+    cluster_threshold: float = Field(default=0.18, ge=0.0, le=1.0)
     max_sections: int = Field(default=6, ge=1, le=20)
     min_words: int = Field(default=400, ge=0)
     max_words: int = Field(default=1500, ge=100)
@@ -261,6 +261,9 @@ class ReportSettings(_Section):
     cache: bool = True
     pdf_enabled: bool = True
     max_text_chars: int = Field(default=12_000, ge=1_000, le=100_000)
+    max_tokens_card: int = Field(default=1200, ge=128, le=4000)
+    max_tokens_cluster: int = Field(default=240, ge=64, le=1000)
+    max_tokens_synthesis: int = Field(default=1000, ge=128, le=4000)
 
 
 class PipelineSettings(_Section):

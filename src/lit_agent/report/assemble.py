@@ -189,6 +189,8 @@ def assemble_report(
     insights: list[DirectionInsight],
     language: str,
     generated_by: str,
+    fallback_count: int = 0,
+    coverage: float = 0.0,
 ) -> Report:
     index_of = {
         claim.claim_id: index
@@ -214,11 +216,13 @@ def assemble_report(
         degraded=not context.cards,
         language=language,
         generated_by=generated_by,
+        fallback_count=fallback_count,
+        coverage=coverage,
         word_count=_word_count(body),
     )
 
 
-def build_report_v2(
+def build_report_bundle(
     settings: Settings,
     *,
     run_id: str,
@@ -227,7 +231,7 @@ def build_report_v2(
     title: str,
     period: str | None = None,
     gateway: Any | None = None,
-) -> Report:
+) -> tuple[Report, ReportContext]:
     language = settings.report.language
     context = build_context(settings, paper_ids, gateway=gateway)
     insights = synthesize_all(
@@ -235,7 +239,19 @@ def build_report_v2(
         context.claim_set.claims,
         gateway=gateway if settings.report.synthesis else None,
         language=language,
+        max_tokens=settings.report.max_tokens_synthesis,
     )
+    llm_insights = sum(1 for item in insights if item.generated_by == "llm")
+    fallback_count = len(insights) - llm_insights if settings.report.synthesis and gateway else 0
+    if not settings.report.synthesis or gateway is None:
+        generated_by = "template"
+    elif fallback_count:
+        generated_by = "hybrid"
+    else:
+        generated_by = "llm"
+    by_paper = context.claim_set.by_paper()
+    covered = sum(1 for card in context.cards if by_paper.get(card.paper_id))
+    coverage = round(covered / len(context.cards), 4) if context.cards else 0.0
     report = assemble_report(
         run_id=run_id,
         topic_id=topic_id,
@@ -244,7 +260,9 @@ def build_report_v2(
         context=context,
         insights=insights,
         language=language,
-        generated_by="llm" if settings.report.synthesis and gateway else "template",
+        generated_by=generated_by,
+        fallback_count=fallback_count,
+        coverage=coverage,
     )
     check = validate_report(report, language=language)
     if not check.ok:
@@ -258,6 +276,8 @@ def build_report_v2(
             insights=[],
             language=language,
             generated_by="template",
+            fallback_count=len(insights),
+            coverage=0.0,
         )
         report = report.model_copy(update={"fallback_reason": "; ".join(check.errors[:3])})
     logger.info(
@@ -268,6 +288,30 @@ def build_report_v2(
             "sections": len(report.sections),
             "words": report.word_count,
             "generated_by": report.generated_by,
+            "fallback_count": report.fallback_count,
+            "coverage": report.coverage,
         },
+    )
+    return report, context
+
+
+def build_report_v2(
+    settings: Settings,
+    *,
+    run_id: str,
+    topic_id: str,
+    paper_ids: list[str],
+    title: str,
+    period: str | None = None,
+    gateway: Any | None = None,
+) -> Report:
+    report, _context = build_report_bundle(
+        settings,
+        run_id=run_id,
+        topic_id=topic_id,
+        paper_ids=paper_ids,
+        title=title,
+        period=period,
+        gateway=gateway,
     )
     return report

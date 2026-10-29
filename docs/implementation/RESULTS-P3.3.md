@@ -7,8 +7,8 @@
 
 | 指标 | 结果 |
 |---|---|
-| 阶段 | **S1–S2 完成** |
-| 测试 | `pytest` **606 例**（新增 5 例 source 测试） |
+| 阶段 | **S1–S7 完成** |
+| 测试 | `pytest` **612 例**；Playwright **18 passed** |
 | E2E | **18 passed**（24.9s） |
 | 验证器 | `verify_phase3 13/13` |
 | 前端 | typecheck ✓ / build ✓ |
@@ -53,3 +53,70 @@
 - preview 只取样例，不代表总量；
 - 未自动应用高置信配置；
 - Settings 页面未做。
+
+
+---
+
+## 6. S3 · 批量 PaperCard 与 token
+
+| 产物 | 说明 |
+|---|---|
+| `report/cards.py` | `build_cards`：`batch_size` 一篇批；`batch_size=5` |
+| 失败策略 | 批次失败 → 二分递归 → 单篇兜底（不再无限递归） |
+| token | `max_tokens_card` / `max_tokens_cluster` / `max_tokens_synthesis` 全部可配 |
+| 测试 | 单次调用、失败拆分、缓存命中 |
+
+## 7. S4 · Post-commit 缓存
+
+| 产物 | 说明 |
+|---|---|
+| `nodes.report` | `report_cards_json` 放入 artifacts（schema 门禁排除大字段） |
+| `commit.py` | 报告提交成功后写 `paper_cards`；失败只告警 |
+| 测试 | v2 落库后 `paper_cards` 有行；二次读取命中且不调用 LLM |
+
+### 注意
+
+- 缓存写入不在 run 事务内，避免嵌套写锁；
+- 批次失败会二分重试，最坏情况退化为单篇；
+- `max_tokens_card=1200` 默认，按论文长度可调。
+
+
+---
+
+## 8. S5–S7 · 纯度、聚类、hybrid
+
+### S5 · Claim 纯度
+
+| 项 | 实现 |
+|---|---|
+| 过滤 | `published/proceedings/conference/DOI/arXiv/authors/et al` 等 |
+| 作者列表 | 连续 `Name Name, Name Name` 模式拒绝 |
+| Prompt | 只抽 research claims；禁止 venue/publication/authors |
+| 统计 | `ClaimSet.filtered`、`context.meta.filtered_claims` |
+| 测试 | 书目 claim、作者列表、正常 claim |
+
+### S6 · 聚类去噪
+
+| 项 | 实现 |
+|---|---|
+| 停用词 | ACL/EMNLP/NeurIPS/Annual/Association/Proceedings/Conference… |
+| 阈值 | `cluster_threshold` 默认 0.18 |
+| 命名 | 不含 venue 词；失败回落 top terms |
+| 测试 | `ACL 2024` 标题不会进入方向名 |
+
+### S7 · hybrid 元信息
+
+| 项 | 实现 |
+|---|---|
+| Report 字段 | `generated_by` = llm/hybrid/template；`fallback_count`、`coverage` |
+| 迁移 | `0007_report_quality`（reports 扩列） |
+| 持久化 | `reports` 落库；API 返回 |
+| UI | 报告头显示 `hybrid · N fallbacks · coverage %` |
+| 提交事件 | hybrid 也算 `extraction=llm`、`llm_used=true` |
+| 测试 | hybrid 字段、v2 落库、e2e 18 |
+
+### 当前限制
+
+- 聚类仍为词面 Jaccard（embedding 在 S6 计划中但未引入）；
+- 书目过滤是规则，可能误伤“conference room”类句式；
+- `fallback_count` 只统计方向综合，不含 card 批次回落。

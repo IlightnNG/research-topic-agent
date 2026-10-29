@@ -6,6 +6,7 @@
 from __future__ import annotations
 
 import hashlib
+import json
 import logging
 import re
 import time
@@ -99,25 +100,19 @@ def _prompt(limit: int) -> str:
         '"findings":[{"text":str,"quote":str}],"limitations":[{...}],'
         '"claims":[{"text":str,"quote":str}],"keywords":[str]}\n'
         "Rules: quote MUST be a verbatim substring of the text; use null/[] when unknown; "
+        "claims are research claims only (problem/method/findings/limitations); "
+        "never include venue, publication, authors, DOI/URL, acknowledgements; "
         f"at most {limit} claims; never invent results."
     )
 
 
-def _llm_enrich(card: PaperCard, text: str, gateway: Any, limit: int) -> PaperCard:
-    payload, _call = gateway.chat_json(
-        [
-            {"role": "system", "content": _prompt(limit)},
-            {"role": "user", "content": f"TITLE: {card.title}\nTEXT: {_norm(text)[:12000]}"},
-        ],
-        max_tokens=900,
-        agent="report_cards",
-    )
+def _apply_payload(card: PaperCard, payload: Any, source: str, limit: int) -> PaperCard:
     if not isinstance(payload, dict):
-        raise LitError(E_REPORT_LLM, "paper card 返回非 JSON")
+        raise LitError(E_REPORT_LLM, "paper card returned non-object JSON")
     dropped = 0
     for key in ("problem", "method", "data"):
         item = payload.get(key)
-        if isinstance(item, dict) and quote_ok(str(item.get("quote") or ""), text):
+        if isinstance(item, dict) and quote_ok(str(item.get("quote") or ""), source):
             card.__dict__[key] = {
                 "text": str(item.get("text") or "")[:400],
                 "quote": str(item.get("quote") or ""),
@@ -131,7 +126,7 @@ def _llm_enrich(card: PaperCard, text: str, gateway: Any, limit: int) -> PaperCa
             continue
         kept = []
         for item in values[:limit]:
-            if isinstance(item, dict) and quote_ok(str(item.get("quote") or ""), text):
+            if isinstance(item, dict) and quote_ok(str(item.get("quote") or ""), source):
                 kept.append(
                     {
                         "text": str(item.get("text") or "")[:400],
@@ -141,7 +136,7 @@ def _llm_enrich(card: PaperCard, text: str, gateway: Any, limit: int) -> PaperCa
                 )
             else:
                 dropped += 1
-        # LLM 没有产出合法项时，保留确定性兜底（不要清空）
+        # Keep deterministic fallback when the LLM produced no valid item.
         if kept:
             if key == "claims":
                 card.claims = kept[:limit]
@@ -152,6 +147,102 @@ def _llm_enrich(card: PaperCard, text: str, gateway: Any, limit: int) -> PaperCa
         card.keywords = [str(item)[:60] for item in keywords[:8]]
     card.meta.update({"llm_used": True, "dropped_quotes": dropped})
     return card
+
+
+def _llm_enrich(
+    card: PaperCard, text: str, gateway: Any, limit: int, *, max_tokens: int = 1200
+) -> PaperCard:
+    payload, _call = gateway.chat_json(
+        [
+            {"role": "system", "content": _prompt(limit)},
+            {"role": "user", "content": f"TITLE: {card.title}\nTEXT: {_norm(text)[:12000]}"},
+        ],
+        max_tokens=max_tokens,
+        agent="report_cards",
+    )
+    return _apply_payload(card, payload, text, limit)
+
+
+_BATCH_PROMPT = (
+    "Extract structured research cards for the given papers. Return JSON only:\n"
+    '{"cards":[{"paper_id":str,"problem":{"text":str,"quote":str},"method":{...},'
+    '"data":{...},"findings":[{"text":str,"quote":str}],"limitations":[{...}],'
+    '"claims":[{"text":str,"quote":str}],"keywords":[str]}]}\n'
+    "Rules: quote MUST be a verbatim substring of that paper's text; use null/[] when unknown; "
+    "claims are research claims only; never include venue/publication/authors/DOI/URL; "
+    "never invent results; return one card per paper_id."
+)
+
+
+def _batch_input(papers: list[dict[str, Any]], max_chars: int) -> list[dict[str, str]]:
+    return [
+        {
+            "paper_id": str(paper["paper_id"]),
+            "title": str(paper["title"]),
+            "text": _norm(str(paper.get("abstract") or ""))[:max_chars],
+        }
+        for paper in papers
+    ]
+
+
+def build_cards(
+    settings: Settings,
+    papers: list[dict[str, Any]],
+    *,
+    gateway: Any | None = None,
+) -> list[PaperCard]:
+    """Build cards for a batch; one LLM call per `batch_size`, with split fallback."""
+    limit = settings.report.max_claims_per_paper
+    base = [_deterministic(paper, str(paper.get("abstract") or ""), limit) for paper in papers]
+    if gateway is None or not papers:
+        return base
+
+    size = max(1, settings.report.batch_size)
+    out: list[PaperCard] = []
+    for start in range(0, len(papers), size):
+        chunk = papers[start : start + size]
+        chunk_cards = base[start : start + size]
+        try:
+            payload, _call = gateway.chat_json(
+                [
+                    {"role": "system", "content": _BATCH_PROMPT},
+                    {
+                        "role": "user",
+                        "content": json.dumps(
+                            _batch_input(chunk, settings.report.max_text_chars), ensure_ascii=False
+                        ),
+                    },
+                ],
+                max_tokens=min(4000, settings.report.max_tokens_card * max(1, len(chunk))),
+                agent="report_cards",
+            )
+            rows = payload.get("cards") if isinstance(payload, dict) else None
+            if not isinstance(rows, list):
+                raise LitError(E_REPORT_LLM, "batch card JSON missing cards")
+            by_id = {str(row.get("paper_id")): row for row in rows if isinstance(row, dict)}
+            for paper, card in zip(chunk, chunk_cards, strict=False):
+                row = by_id.get(str(paper["paper_id"]))
+                if row is None:
+                    card.meta["llm_used"] = False
+                    out.append(card)
+                    continue
+                out.append(
+                    _apply_payload(card, row, str(paper.get("abstract") or ""), limit)
+                )
+        except Exception as exc:  # noqa: BLE001 - repair by split, then deterministic
+            logger.warning(
+                "paper_card.batch_fallback",
+                extra={"size": len(chunk), "error": type(exc).__name__},
+            )
+            if len(chunk) > 1:
+                middle = len(chunk) // 2
+                out.extend(build_cards(settings, chunk[:middle], gateway=gateway))
+                out.extend(build_cards(settings, chunk[middle:], gateway=gateway))
+            else:
+                failed = chunk_cards[0]
+                failed.meta.update({"llm_used": False, "llm_error": type(exc).__name__})
+                out.append(failed)
+    return out
 
 
 def build_card(
@@ -170,7 +261,7 @@ def build_card(
 
     started = time.monotonic()
     try:
-        card = _llm_enrich(card, source, gateway, limit)
+        card = _llm_enrich(card, source, gateway, limit, max_tokens=settings.report.max_tokens_card)
         logger.info(
             "paper_card.llm_ok",
             extra={"paper_id": card.paper_id, "ms": int((time.monotonic() - started) * 1000)},
@@ -268,3 +359,74 @@ def get_or_build_card(
             return card
     finally:
         engine.dispose()
+
+
+def get_or_build_cards(
+    settings: Settings,
+    paper_ids: list[str],
+    *,
+    gateway: Any | None = None,
+    force: bool = False,
+    write_cache: bool = False,
+) -> tuple[list[PaperCard], list[str]]:
+    """Batch variant of `get_or_build_card`: one LLM call per `batch_size`.
+
+    Returns `(cards, failed_paper_ids)`. Cache writes are opt-in and must happen
+    after the business transaction commits.
+    """
+    from lit_agent.db.repo import paper_cards as card_repo
+
+    ordered = sorted(set(paper_ids))
+    cards: list[PaperCard] = []
+    missing: list[dict[str, Any]] = []
+    failed: list[str] = []
+    engine = make_engine(settings)
+    try:
+        with connect(engine) as conn:
+            for paper_id in ordered:
+                try:
+                    paper = _load_paper(conn, paper_id)
+                except Exception as exc:  # noqa: BLE001 - one paper must not kill the run
+                    failed.append(paper_id)
+                    logger.warning(
+                        "paper_card.load_failed",
+                        extra={"paper_id": paper_id, "error": type(exc).__name__},
+                    )
+                    continue
+                sha = source_sha(paper["title"], paper["abstract"])
+                if settings.report.cache and not force:
+                    cached = card_repo.get_card(conn, paper_id, sha, CARD_VERSION)
+                    if cached is not None:
+                        cards.append(PaperCard.from_dict(cached))
+                        logger.info("paper_card.cache_hit", extra={"paper_id": paper_id})
+                        continue
+                missing.append(paper)
+
+        built = build_cards(settings, missing, gateway=gateway)
+        cards.extend(built)
+
+        if settings.report.cache and write_cache and built:
+            try:
+                with connect(engine, immediate=True) as conn:
+                    for card in built:
+                        sha = source_sha(card.title, card.abstract)
+                        card_repo.upsert_card(
+                            conn,
+                            paper_id=card.paper_id,
+                            content_sha=sha,
+                            version=CARD_VERSION,
+                            card=card.to_dict(),
+                        )
+            except Exception as exc:  # noqa: BLE001 - cache is not a business fact
+                logger.warning(
+                    "paper_card.cache_write_failed",
+                    extra={"error": type(exc).__name__, "count": len(built)},
+                )
+    finally:
+        engine.dispose()
+
+    logger.info(
+        "paper_card.batch_built",
+        extra={"requested": len(ordered), "cards": len(cards), "failed": len(failed)},
+    )
+    return cards, failed

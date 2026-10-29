@@ -13,6 +13,7 @@ from __future__ import annotations
 from sqlalchemy import (
     REAL,
     Column,
+    Float,
     ForeignKey,
     Index,
     Integer,
@@ -269,6 +270,8 @@ t_reports = Table(
     Column("sections_json", Text),
     Column("language", String),
     Column("generated_by", String),
+    Column("fallback_count", Integer),
+    Column("coverage", Float),
     Column("word_count", Integer),
     Column("fallback_reason", Text),
     Column("metrics_snapshot_json", Text),

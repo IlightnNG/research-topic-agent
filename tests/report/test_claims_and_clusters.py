@@ -6,7 +6,7 @@ from pathlib import Path
 
 from lit_agent.models.evidence import Support
 from lit_agent.report.cards import PaperCard
-from lit_agent.report.claims import build_claims
+from lit_agent.report.claims import build_claims, is_research_claim
 from lit_agent.report.clusters import build_directions, label_directions
 from lit_agent.report.context import build_context
 
@@ -43,7 +43,7 @@ def test_claims_dedupe_across_papers() -> None:
 
 
 def test_claims_respect_per_paper_limit() -> None:
-    cards = [card("P1", "A", "tool use", ["one claim", "two claim", "three claim", "four claim"])]
+    cards = [card("P1", "A", "tool use", ["first finding improves accuracy", "second finding improves speed", "third finding reduces cost", "fourth finding improves recall"])]
     claim_set = build_claims(cards, max_per_paper=2)
     assert len(claim_set.claims) == 2
     assert [claim.claim_id for claim in claim_set.claims] == ["P1-C1", "P1-C2"]
@@ -111,3 +111,33 @@ def test_build_context_survives_bad_paper(tmp_path: Path) -> None:
     assert len(context.cards) == 1
     assert context.meta["failed_papers"] == ["missing"]
     assert settings.report.enabled is True
+
+
+def test_bibliographic_claims_are_filtered() -> None:
+    assert not is_research_claim("The work was published at ACL 2024.")
+    assert not is_research_claim("Proceedings of the 62nd Annual Meeting.")
+    assert not is_research_claim("Ada Lovelace, Alan Turing, Grace Hopper")
+    assert is_research_claim("Tool use improves task success and reliability.")
+
+    cards = [
+        card(
+            "P1",
+            "A",
+            "tool use improves success",
+            ["published at ACL 2024", "tool use improves task success"],
+        )
+    ]
+    claim_set = build_claims(cards)
+    assert len(claim_set.claims) == 1
+    assert claim_set.filtered == 1
+
+
+def test_direction_names_exclude_venue_terms() -> None:
+    from lit_agent.report.clusters import build_directions
+
+    cards = [
+        card("P1", "ACL 2024 paper", "tool use improves agents"),
+        card("P2", "ACL 2024 paper", "tool use improves reliability"),
+    ]
+    directions = build_directions(cards, build_claims(cards).claims)
+    assert all("ACL" not in direction.name for direction in directions)

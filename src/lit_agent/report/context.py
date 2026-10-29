@@ -6,7 +6,7 @@ import logging
 from dataclasses import dataclass, field
 
 from lit_agent.config import Settings
-from lit_agent.report.cards import PaperCard, get_or_build_card
+from lit_agent.report.cards import PaperCard, get_or_build_cards
 from lit_agent.report.claims import ClaimSet, build_claims
 from lit_agent.report.clusters import Direction, build_directions, label_directions
 
@@ -30,17 +30,9 @@ def build_context(
     gateway: object | None = None,
 ) -> ReportContext:
     """按 paper_id 构建卡片（缓存）、claims、方向；失败只影响单篇。"""
-    cards: list[PaperCard] = []
-    failed: list[str] = []
-    for paper_id in sorted(set(paper_ids)):
-        try:
-            cards.append(get_or_build_card(settings, paper_id, gateway=gateway, write_cache=False))
-        except Exception as exc:  # noqa: BLE001 - 单篇失败不阻断报告
-            failed.append(paper_id)
-            logger.warning(
-                "report.context.card_failed",
-                extra={"paper_id": paper_id, "error": type(exc).__name__},
-            )
+    cards, failed = get_or_build_cards(
+        settings, paper_ids, gateway=gateway, write_cache=False
+    )
 
     claim_set = build_claims(cards, max_per_paper=settings.report.max_claims_per_paper)
     directions = build_directions(
@@ -50,7 +42,9 @@ def build_context(
         max_clusters=settings.report.max_sections,
         threshold=settings.report.cluster_threshold,
     )
-    directions = label_directions(directions, cards, gateway=gateway)
+    directions = label_directions(
+        directions, cards, gateway=gateway, max_tokens=settings.report.max_tokens_cluster
+    )
 
     logger.info(
         "report.context.built",
@@ -70,5 +64,6 @@ def build_context(
             "failed_papers": failed,
             "duplicates": claim_set.duplicates,
             "dropped_claims": claim_set.dropped,
+            "filtered_claims": claim_set.filtered,
         },
     )

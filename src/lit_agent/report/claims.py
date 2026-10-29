@@ -15,6 +15,26 @@ __all__ = ["ClaimSet", "build_claims"]
 
 logger = logging.getLogger(__name__)
 
+_BIBLIO = re.compile(
+    r"\b(published|proceedings|conference|journal|annual meeting|"
+    r"association for computational linguistics|volume|pages|doi|arxiv|"
+    r"authors?|et al|university|institute)\b",
+    re.IGNORECASE,
+)
+_AUTHOR_LIST = re.compile(
+    r"^([A-Z][\w.-]+\s+[A-Z][\w.-]+)(,\s*[A-Z][\w.-]+\s+[A-Z][\w.-]+){2,}"
+)
+
+
+def is_research_claim(text: str) -> bool:
+    """Reject bibliographic/author metadata masquerading as a finding."""
+    value = _norm(text)
+    if len(value) < 12:
+        return False
+    if _BIBLIO.search(value):
+        return False
+    return not _AUTHOR_LIST.match(text.strip())
+
 
 def _norm(text: str) -> str:
     return re.sub(r"\s+", " ", text or "").strip().lower()
@@ -29,6 +49,7 @@ class ClaimSet:
     claims: list[Claim] = field(default_factory=list)
     duplicates: int = 0
     dropped: int = 0
+    filtered: int = 0
 
     def by_paper(self) -> dict[str, list[Claim]]:
         out: dict[str, list[Claim]] = {}
@@ -53,6 +74,9 @@ def build_claims(cards: list[PaperCard], *, max_per_paper: int = 3) -> ClaimSet:
             if not text or not quote:
                 result.dropped += 1
                 continue
+            if not is_research_claim(text):
+                result.filtered += 1
+                continue
             digest = _sha(text)
             if digest in seen:
                 result.duplicates += 1
@@ -75,6 +99,7 @@ def build_claims(cards: list[PaperCard], *, max_per_paper: int = 3) -> ClaimSet:
             "claims": len(result.claims),
             "duplicates": result.duplicates,
             "dropped": result.dropped,
+            "filtered": result.filtered,
         },
     )
     return result

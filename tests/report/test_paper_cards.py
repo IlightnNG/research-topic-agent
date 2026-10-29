@@ -6,7 +6,15 @@ import sqlite3
 from pathlib import Path
 
 from lit_agent.config import load_settings
-from lit_agent.report.cards import CARD_VERSION, build_card, get_or_build_card, quote_ok, source_sha
+from lit_agent.report.cards import (
+    CARD_VERSION,
+    build_card,
+    build_cards,
+    get_or_build_card,
+    get_or_build_cards,
+    quote_ok,
+    source_sha,
+)
 
 
 class FakeGateway:
@@ -145,3 +153,74 @@ def test_missing_text_is_marked() -> None:
     assert card.evidence_level == "missing"
     assert card.claims == []
     assert CARD_VERSION >= 1
+
+
+def test_batch_cards_single_llm_call(tmp_path: Path) -> None:
+    from tests.wiring import prepare
+
+    settings = prepare(tmp_path, papers=2)
+    text = "tool use improves task success"
+    gateway = FakeGateway(
+        {
+            "cards": [
+                {
+                    "paper_id": "P0",
+                    "claims": [{"text": text, "quote": text}],
+                },
+                {
+                    "paper_id": "P1",
+                    "findings": [{"text": text, "quote": text}],
+                },
+            ]
+        }
+    )
+    papers = [
+        {"paper_id": "P0", "title": "A", "abstract": text},
+        {"paper_id": "P1", "title": "B", "abstract": text},
+    ]
+    cards = build_cards(settings, papers, gateway=gateway)
+
+    assert gateway.calls == 1
+    assert len(cards) == 2
+    assert cards[0].claims
+
+
+def test_batch_cards_split_on_failure(tmp_path: Path) -> None:
+    from tests.wiring import prepare
+
+    settings = prepare(tmp_path, papers=3)
+    papers = [
+        {"paper_id": f"P{index}", "title": f"P{index}", "abstract": "tool use works"}
+        for index in range(3)
+    ]
+    cards = build_cards(settings, papers, gateway=FakeGateway({}, fail=True))
+
+    assert len(cards) == 3
+    assert all(card.meta.get("llm_used") is False for card in cards)
+
+
+def test_get_or_build_cards_writes_and_hits_cache(tmp_path: Path) -> None:
+    from tests.wiring import prepare
+
+    settings = prepare(tmp_path, papers=2)
+    text = "tool use improves task success"
+    valid = FakeGateway(
+        {
+            "cards": [
+                {"paper_id": "P0", "claims": [{"text": text, "quote": text}]},
+                {"paper_id": "P1", "claims": [{"text": text, "quote": text}]},
+            ]
+        }
+    )
+    first, failed = get_or_build_cards(
+        settings, ["P0", "P1"], gateway=valid, write_cache=True
+    )
+    assert not failed and len(first) == 2
+
+    failing = FakeGateway({}, fail=True)
+    second, failed = get_or_build_cards(
+        settings, ["P0", "P1"], gateway=failing, write_cache=False
+    )
+    assert not failed
+    assert len(second) == 2
+    assert failing.calls == 0
