@@ -5,10 +5,12 @@ import { api } from "@/api/endpoints";
 import type { PaperDetail, Report } from "@/api/types";
 
 const props = defineProps<{ paperId: string; report: Report | null }>();
+const emit = defineEmits<{ "open-author": [string] }>();
 
 const paper = ref<PaperDetail | null>(null);
 const error = ref("");
 const loading = ref(false);
+const showPdf = ref(false);
 
 const citations = computed(() => {
   const claims = props.report?.claims ?? [];
@@ -44,15 +46,37 @@ watch(
         <p class="muted">
           {{ paper.paper_id }} · {{ paper.source || "unknown venue" }}
           <template v-if="paper.year"> · {{ paper.year }}</template>
-          <template v-if="paper.authors.length"> · {{ paper.authors.join(", ") }}</template>
+        <span v-if="paper.authors.length" class="author-line">
+          ·
+          <button
+            v-for="person in paper.authors"
+            :key="person.author_id"
+            type="button"
+            class="author-chip"
+            @click="emit('open-author', person.author_id)"
+          >
+            {{ person.name }}
+          </button>
+        </span>
         </p>
       </div>
       <p class="paper-abstract">{{ paper.abstract || "No abstract available." }}</p>
       <div class="cluster">
         <el-tag v-if="paper.pdf_available" size="small" type="success">PDF available</el-tag>
         <el-tag v-else size="small" type="info">abstract only</el-tag>
-        <a v-if="paper.pdf_url" :href="paper.pdf_url" target="_blank" rel="noreferrer">Download PDF</a>
+        <template v-if="paper.pdf_available">
+          <el-button size="small" @click="showPdf = !showPdf">
+            {{ showPdf ? "Hide PDF" : "Read PDF" }}
+          </el-button>
+          <a :href="api.paperPdfUrl(paper.paper_id)" target="_blank" rel="noreferrer">Download PDF</a>
+        </template>
       </div>
+      <iframe
+        v-if="showPdf"
+        class="pdf-frame"
+        :src="api.paperPdfUrl(paper.paper_id)"
+        title="Paper PDF"
+      />
 
       <h4 class="title-md">Claims in this report</h4>
       <el-empty v-if="!citations.length" description="No report claim cites this paper yet." />
@@ -75,6 +99,24 @@ watch(
 .paper-abstract {
   white-space: pre-wrap;
   line-height: 1.7;
+}
+.author-line {
+  display: inline-flex;
+  gap: 0.25rem;
+  flex-wrap: wrap;
+}
+.author-chip {
+  border: 0;
+  background: none;
+  padding: 0;
+  color: var(--color-accent, #2563eb);
+  cursor: pointer;
+}
+.pdf-frame {
+  width: 100%;
+  height: 520px;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
 }
 .claim-card {
   padding: var(--space-3);

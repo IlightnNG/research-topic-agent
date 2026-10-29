@@ -5,6 +5,7 @@ import { computed, nextTick, ref } from "vue";
 import type { Report } from "@/api/types";
 
 import ClaimTable from "./ClaimTable.vue";
+import PaperIndexTable from "./PaperIndexTable.vue";
 import TocNav from "./TocNav.vue";
 
 const props = defineProps<{ report: Report }>();
@@ -87,7 +88,12 @@ async function copyMarkdown(): Promise<void> {
           class="stack report-section"
         >
           <h4 class="title-md">{{ section.title }}</h4>
-          <p class="section-text">
+          <PaperIndexTable
+            v-if="section.kind === 'paper_index'"
+            :section="section"
+            @open-paper="(paperId) => emit('open-paper', paperId)"
+          />
+          <p v-else class="section-text">
             <template v-for="(part, index) in parts(section.body)" :key="index">
               <button
                 v-if="part.claim"

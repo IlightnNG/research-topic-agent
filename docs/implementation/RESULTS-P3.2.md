@@ -7,8 +7,8 @@
 
 | 指标 | 结果 |
 |---|---|
-| 阶段 | **S1–S9 核心完成（v2 默认开）** |
-| 测试 | `pytest` **596 例**；Playwright **18 passed（21.8s）** |
+| 阶段 | **S1–S13 完成（v2 默认开）** |
+| 测试 | `pytest` **601 例**；Playwright **18 passed（23.9s）** |
 | 验证器 | `verify_phase3 13/13`、`verify_phase2_1 13/13` |
 | 迁移 | `0006_report_v2`（26 张表）已应用到 dev store |
 | 兼容 | 旧报告可读；v2 已接入 report 节点（默认开） |
@@ -163,3 +163,39 @@ tests/report                 9 passed
 
 已完成 Report 生成链路 + 阅读工作台（Tab/引用/论文面板）。
 S10–S14（右侧面板、PDF 阅读、作者面板、语言选择、虚拟列表、并列 Tab）作为后续体验增强，不阻塞 3.2 核心。
+
+
+---
+
+## 13. S10–S11 · PDF 与作者面板
+
+| 能力 | 实现 |
+|---|---|
+| PDF | `/api/papers/{id}/pdf`：本地文件、Range 206、外部 URL 307；PaperPane iframe + Download |
+| 论文详情 | authors 返回 `{author_id,name}`；点击作者打开右侧 AuthorPane |
+| 作者 | `/api/authors/{id}`：机构/ORCID/论文/合作者；点击论文开 Paper Tab |
+| 错误 | 无 PDF/作者 → `E_NOT_FOUND`（英文） |
+| 测试 | `tests/api/test_papers_authors.py`（4 例）；e2e 18 passed |
+
+### 当前完整度
+
+- Report 生成 + 工作台 + 引用 + Paper Tab + PDF + 作者面板已完成。
+- 待做：生成页语言选择（S12）、100+ 虚拟列表（S13）、双 Tab 并列（P2）。
+
+
+---
+
+## 14. S12–S13 · 语言与长列表
+
+| 能力 | 实现 |
+|---|---|
+| 报告语言 | `POST /topics/{id}/run` 的 `report_language`（en/zh）→ 按 run 的 Settings；`runs.report_language` 落库 |
+| 模板 | Overview/共同点/差异/开放问题/索引均中英；引用格式不变 |
+| 生成页 | `GenerateReportDialog` 增加 Report language |
+| 长列表 | `PaperIndexTable.vue`：每页 20，避免 100+ 行一次渲染 |
+| 测试 | `test_report_language_zh_per_run`；601 pytest；18 e2e |
+
+### 剩余
+
+- S14：最终文档/结果归档；
+- P2：双 Tab 并列/拖拽（可选）。

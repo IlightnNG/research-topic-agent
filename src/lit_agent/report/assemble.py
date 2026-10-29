@@ -32,20 +32,63 @@ def _word_count(text: str) -> int:
     return len(re.findall(r"\S+", text))
 
 
+_LABELS = {
+    "en": {
+        "overview": "Overview",
+        "gaps": "Gaps & Next Steps",
+        "index": "Paper Index",
+        "common": "Common ground:",
+        "differences": "Differences:",
+        "questions": "Open questions:",
+        "papers": "papers",
+        "claims": "claims",
+        "directions": "directions",
+        "paper": "paper",
+        "title": "title",
+        "duplicates": "duplicates",
+        "dropped": "dropped_claims",
+        "failed": "failed_papers",
+    },
+    "zh": {
+        "overview": "概览",
+        "gaps": "缺口与下一步",
+        "index": "论文索引",
+        "common": "共同点：",
+        "differences": "差异点：",
+        "questions": "开放问题：",
+        "papers": "篇论文",
+        "claims": "条结论",
+        "directions": "个方向",
+        "paper": "论文",
+        "title": "标题",
+        "duplicates": "重复",
+        "dropped": "丢弃结论",
+        "failed": "失败论文",
+    },
+}
+
+
+def _labels(language: str) -> dict[str, str]:
+    return _LABELS.get(language, _LABELS["en"])
+
+
 def _refs(item: Any, index_of: dict[str, int]) -> str:
     refs = [index_of[cid] + 1 for cid in item.claim_ids if cid in index_of][:2]
     return " ".join(f"[C{index}]" for index in refs)
 
 
-def _section_body(insight: DirectionInsight, index_of: dict[str, int]) -> tuple[str, list[int]]:
+def _section_body(
+    insight: DirectionInsight, index_of: dict[str, int], language: str
+) -> tuple[str, list[int]]:
+    labels = _labels(language)
     lines: list[str] = []
     claim_ids: list[str] = []
     if insight.definition:
         lines.append(insight.definition)
     for title, items in (
-        ("Common ground:", insight.common_ground),
-        ("Differences:", insight.differences),
-        ("Open questions:", insight.open_questions),
+        (labels["common"], insight.common_ground),
+        (labels["differences"], insight.differences),
+        (labels["questions"], insight.open_questions),
     ):
         if not items:
             continue
@@ -67,14 +110,18 @@ def _build_sections(
     sections: list[ReportSection] = []
     cards = context.cards
     claims = context.claim_set.claims
+    labels = _labels(language)
     overview = (
-        f"{len(cards)} papers, {len(claims)} claims, {len(context.directions)} directions."
+        f"{len(cards)} {labels['papers']}, {len(claims)} {labels['claims']},"
+        f" {len(context.directions)} {labels['directions']}."
         + (f" Period: {period}." if period else "")
     )
-    sections.append(ReportSection(id="overview", title="Overview", body=overview, kind="overview"))
+    sections.append(
+        ReportSection(id="overview", title=labels["overview"], body=overview, kind="overview")
+    )
 
     for insight in insights:
-        body, claim_ids = _section_body(insight, index_of)
+        body, claim_ids = _section_body(insight, index_of, language)
         indexes = sorted({index_of[cid] for cid in claim_ids if cid in index_of})
         sections.append(
             ReportSection(
@@ -90,23 +137,23 @@ def _build_sections(
         sections.append(
             ReportSection(
                 id="gaps",
-                title="Gaps & Next Steps",
+                title=labels["gaps"],
                 body=(
-                    f"duplicates={context.meta.get('duplicates', 0)}; "
-                    f"dropped_claims={context.meta.get('dropped_claims', 0)}; "
-                    f"failed_papers={len(context.meta.get('failed_papers') or [])}"
+                    f"{labels['duplicates']}={context.meta.get('duplicates', 0)}; "
+                    f"{labels['dropped']}={context.meta.get('dropped_claims', 0)}; "
+                    f"{labels['failed']}={len(context.meta.get('failed_papers') or [])}"
                 ),
                 kind="gaps",
             )
         )
 
     if cards:
-        rows = ["| paper | title | claims |", "|---|---|---|"]
+        rows = [f"| {labels['paper']} | {labels['title']} | {labels['claims']} |", "|---|---|---|"]
         by_paper = context.claim_set.by_paper()
         for card in cards:
             rows.append(f"| {card.paper_id} | {card.title[:80]} | {len(by_paper.get(card.paper_id, []))} |")
         sections.append(
-            ReportSection(id="index", title="Paper Index", body="\n".join(rows), kind="paper_index")
+            ReportSection(id="index", title=labels["index"], body="\n".join(rows), kind="paper_index")
         )
     return sections
 

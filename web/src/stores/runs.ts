@@ -82,7 +82,7 @@ export const useRunsStore = defineStore("runs", () => {
 
   async function triggerRun(
     topicId: string,
-    body: { focus_hint?: string | null; wait?: boolean },
+    body: { focus_hint?: string | null; wait?: boolean; report_language?: "en" | "zh" },
   ): Promise<{ run_id: string }> {
     return api.triggerRun(topicId, body);
   }

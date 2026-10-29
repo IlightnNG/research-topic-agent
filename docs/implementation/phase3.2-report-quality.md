@@ -1,6 +1,6 @@
 # Phase 3.2 · Report 核心能力重构（生成 · 工作台 · 作者关联）
 
-> **版本**：**3.0.0**（2026-10-26，**核心 S1–S9 收尾**；S10–S14 为体验扩展）
+> **版本**：**3.2.0**（2026-10-29，S1–S13 完成；S14 收尾）
 > **类型**：核心功能重构（不改双层架构；Chat 推迟到 3.3）
 > **前置**：Phase 3.1 已收尾（`pytest 569`、`verify_phase3 13/13`、e2e 16）
 > **定位**：Report 是系统核心产物 —— 面向科研的“周度研究地图 + 可跳转证据工作台”
@@ -468,10 +468,10 @@ Outline | Citations | Author | Claims
 
 | 步 | 内容 | 验收 |
 |---|---|---|
-| S10 ◐ | Paper Tab + PDF/下载 | Tab/论文详情已做；PDF 内嵌/下载待做 |
-| S11 | 作者面板（paper–author） | 点击作者显示其他论文 |
-| S12 | 语言选择（生成页） | en/zh 均出报告 |
-| S13 | 长列表分页/虚拟 | 100 篇不卡 |
+| S10 ✅ | Paper Tab + PDF/下载 | `/api/papers/{id}/pdf`（Range）；PaperPane iframe + Download |
+| S11 ✅ | 作者面板（paper–author） | 作者 chips → 右侧 AuthorPane；`/api/authors/{id}`；合作者列表 |
+| S12 ✅ | 语言选择（生成页） | `report_language` 按 run；模板中英；`reports.language=zh` |
+| S13 ✅ | 长列表分页 | Paper Index 每页 20；100 篇不一次性渲染 |
 | S14 | 收尾文档 | H1–H15 |
 
 ### 3.2c · 可选（P2）
@@ -570,6 +570,8 @@ npx playwright test e2e/smoke.spec.ts -g "report|Report|paper" --reporter=line
 
 | 版本 | 日期 | 内容 |
 |---|---|---|
+| 3.2.0 | 2026-10-29 | S12–S13 落地：按 run 语言（en/zh）、报告中英模板、生成页选择；Paper Index 分页；601 pytest/18 e2e |
+| 3.1.0 | 2026-10-29 | S10–S11 落地：PDF Range/iframe/下载、作者面板与 coauthor API；18 e2e；600 pytest |
 | 3.0.0 | 2026-10-26 | **核心收尾**：S9 e2e/回归全绿；596 pytest、18 e2e、verify 13/13 + 8/8；S10–S14 明确为扩展 |
 | 2.4.0 | 2026-10-26 | S7–S8 落地：报告指标/门禁、paper API、引用 chip、动态 Paper Tab；v2 默认开；修复报告阶段嵌套写锁与 claim id 不一致 |
 | 2.3.0 | 2026-10-26 | S5–S6 落地：方向综合（claim 白名单/回落）、报告组装与硬校验、v2 两阶段提交（`report.v2_enabled` 默认 false） |
@@ -611,13 +613,10 @@ ruff                      clean
 | paper API / PaperPane | ✅ |
 | e2e 稳定、英文命名、无重试 | ✅ |
 
-### 不在核心范围（S10–S14）
+### 剩余收尾（S14）
 
-- 右侧 Outline/Citations/Author 面板；
-- PDF 内嵌阅读/下载；
-- 作者面板（paper–author 简化版）；
-- 生成页语言选择；
-- 100+ 论文虚拟列表；
-- Tab 并列/拖拽。
+- S14 文档/结果归档；
+- Tab 并列/拖拽（P2，可选）；
+- 右侧 Outline/Citations 面板（可选）。
 
 这些是体验增强，不阻塞当前 Report 核心链路。

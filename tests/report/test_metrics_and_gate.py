@@ -38,3 +38,17 @@ def test_paper_endpoint(tmp_path: Path) -> None:
     missing = client.get("/api/papers/nope")
     assert missing.status_code == 404
     assert missing.json()["code"] == "E_NOT_FOUND"
+
+
+def test_report_language_zh_per_run(tmp_path: Path) -> None:
+    settings = prepare(tmp_path, papers=2)
+    client = TestClient(create_app(settings))
+    created = client.post(
+        "/api/topics/ai-agents/run",
+        json={"run_id": "zh-run", "report_language": "zh", "wait": True},
+    )
+    assert created.status_code == 200
+    report = client.get("/api/runs/zh-run/report").json()
+    assert report["language"] == "zh"
+    assert report["sections"][0]["title"] == "概览"
+    assert any("共同点" in section["body"] for section in report["sections"])

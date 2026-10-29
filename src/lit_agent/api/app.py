@@ -15,6 +15,7 @@ from fastapi.responses import JSONResponse
 
 from lit_agent._version import __version__
 from lit_agent.api.routes import (
+    authors,
     chat,
     graph,
     health,
@@ -78,6 +79,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     app.include_router(chat.router, prefix="/api/topics", tags=["chat"])
     app.include_router(graph.router, prefix="/api/graph", tags=["graph"])
     app.include_router(papers.router, prefix="/api/papers", tags=["papers"])
+    app.include_router(authors.router, prefix="/api/authors", tags=["authors"])
     return app
 
 

@@ -27,11 +27,18 @@ const dialogOpen = ref(false);
 const busy = ref(false);
 const dialogError = ref("");
 
-async function generate(hint: string | null): Promise<void> {
+let lastLanguage: "en" | "zh" = "en";
+
+async function generate(hint: string | null, language: "en" | "zh" = "en"): Promise<void> {
+  lastLanguage = language;
   dialogError.value = "";
   busy.value = true;
   try {
-    const result = await runs.triggerRun(topicId.value, { focus_hint: hint, wait: false });
+    const result = await runs.triggerRun(topicId.value, {
+      focus_hint: hint,
+      wait: false,
+      report_language: language,
+    });
     dialogOpen.value = false;
     await runs.loadList(topicId.value);
     await session.openRun(result.run_id, true);
@@ -45,7 +52,7 @@ async function generate(hint: string | null): Promise<void> {
   }
 }
 
-const retry = (): Promise<void> => generate(runs.current?.focus_hint ?? null);
+const retry = (): Promise<void> => generate(runs.current?.focus_hint ?? null, lastLanguage);
 
 onMounted(async () => {
   session.applyUrlView();

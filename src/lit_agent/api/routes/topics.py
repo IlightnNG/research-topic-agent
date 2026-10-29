@@ -90,15 +90,24 @@ def trigger_run(
 
     body = payload or RunRequest()
     budget = RunBudget(limit_usd=body.max_usd or settings.routing.run_cost_budget_usd)
+    language = body.report_language or settings.report.language
+    run_settings = settings.model_copy(
+        update={"report": settings.report.model_copy(update={"language": language})}
+    )
 
     if body.wait:
         result = run_graph(
-            settings,
+            run_settings,
             topic_id,
             run_id=body.run_id,
             budget=budget,
             focus_hint=body.focus_hint,
         )
+        with connect(engine, immediate=True) as conn:
+            conn.execute(
+                text("UPDATE runs SET report_language = :lang WHERE id = :id"),
+                {"lang": language, "id": result["run_id"]},
+            )
         return {
             "run_id": result["run_id"],
             "state": result["state"],
@@ -110,11 +119,16 @@ def trigger_run(
     from lit_agent.runtime.runner import prepare_run
 
     run_id = body.run_id or f"run-{uuid.uuid4().hex[:10]}"
-    prepare_run(settings, topic_id, run_id, body.focus_hint)
+    prepare_run(run_settings, topic_id, run_id, body.focus_hint)
+    with connect(engine, immediate=True) as conn:
+        conn.execute(
+            text("UPDATE runs SET report_language = :lang WHERE id = :id"),
+            {"lang": language, "id": run_id},
+        )
     threading.Thread(
         target=run_graph,
         kwargs={
-            "settings": settings,
+            "settings": run_settings,
             "topic_id": topic_id,
             "run_id": run_id,
             "budget": budget,

@@ -1,5 +1,5 @@
 import { request } from "./client";
-import type { ChatPost, ChatState, PaperDetail, Report, RunDetail, RunEvent, RunItem, RunMetrics, Topic } from "./types";
+import type { AuthorDetail, ChatPost, ChatState, PaperDetail, Report, RunDetail, RunEvent, RunItem, RunMetrics, Topic } from "./types";
 
 export interface EventsPage {
   run_id: string;
@@ -24,7 +24,7 @@ export const api = {
     request<{ items: RunItem[]; count: number }>(
       `/api/topics/${topicId}/runs?limit=${limit}&offset=${offset}`,
     ),
-  triggerRun: (topicId: string, body: { run_id?: string; focus_hint?: string | null; wait?: boolean }) =>
+  triggerRun: (topicId: string, body: { run_id?: string; focus_hint?: string | null; wait?: boolean; report_language?: "en" | "zh" }) =>
     request<{ run_id: string; state?: string }>(`/api/topics/${topicId}/run`, {
       method: "POST",
       body: JSON.stringify(body),
@@ -34,6 +34,8 @@ export const api = {
     request<EventsPage>(`/api/runs/${runId}/events?after_seq=${afterSeq}&limit=500`),
   getReport: (runId: string) => request<Report>(`/api/runs/${runId}/report`),
   getPaper: (paperId: string) => request<PaperDetail>(`/api/papers/${paperId}`),
+  getAuthor: (authorId: string) => request<AuthorDetail>(`/api/authors/${authorId}`),
+  paperPdfUrl: (paperId: string) => `/api/papers/${paperId}/pdf`,
   getRunMetrics: (runId: string) => request<RunMetrics>(`/api/runs/${runId}/metrics`),
   createChatSession: (topicId: string) =>
     request<{ topic_id: string; session_id: string }>(`/api/topics/${topicId}/chat/sessions`, {
@@ -66,4 +68,4 @@ export const api = {
     ),
 };
 
-export type { PaperDetail, Report, RunDetail, RunEvent, RunItem, Topic };
+export type { AuthorDetail, PaperDetail, Report, RunDetail, RunEvent, RunItem, Topic };

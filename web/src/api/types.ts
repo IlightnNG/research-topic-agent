@@ -61,6 +61,16 @@ export interface Report {
   fallback_reason?: string | null;
 }
 
+export interface AuthorDetail {
+  author_id: string;
+  name: string;
+  orcid: string | null;
+  institution: string | null;
+  works_count: number;
+  papers: { paper_id: string; title: string; year: number | null; source: string }[];
+  coauthors: { author_id: string; name: string; shared_papers: number }[];
+}
+
 export interface PaperDetail {
   paper_id: string;
   title: string;
@@ -70,7 +80,7 @@ export interface PaperDetail {
   pdf_path: string | null;
   pdf_url: string | null;
   pdf_available: boolean;
-  authors: string[];
+  authors: { author_id: string; name: string }[];
   claims: { claim_id: string; text: string; snippet: string }[];
 }
 
@@ -80,6 +90,7 @@ export interface RunDetail {
   state: string;
   stage: string | null;
   period?: string | null;
+  report_language?: string | null;
   focus_hint?: string | null;
   scope_sha?: string | null;
   error_code?: string | null;

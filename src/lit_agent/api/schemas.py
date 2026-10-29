@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from typing import Any
+from typing import Any, Literal
 
 from pydantic import BaseModel, ConfigDict, Field
 
@@ -41,6 +41,9 @@ class RunRequest(BaseModel):
     max_usd: float | None = Field(default=None, gt=0)
     focus_hint: str | None = Field(default=None, max_length=120, description="本次运行的子主题提示")
     wait: bool = Field(default=True, description="True=同步返回；False=立即 202 后台执行")
+    report_language: Literal["en", "zh"] | None = Field(
+        default=None, description="报告语言；默认取配置"
+    )
 
 
 class ErrorOut(BaseModel):

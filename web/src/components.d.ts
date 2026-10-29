@@ -11,6 +11,7 @@ export {}
 /* prettier-ignore */
 declare module 'vue' {
   export interface GlobalComponents {
+    AuthorPane: typeof import('./components/AuthorPane.vue')['default']
     ClaimTable: typeof import('./components/ClaimTable.vue')['default']
     DialogForm: typeof import('./components/DialogForm.vue')['default']
     ElAlert: typeof import('element-plus/es')['ElAlert']
@@ -26,6 +27,9 @@ declare module 'vue' {
     ElEmpty: typeof import('element-plus/es')['ElEmpty']
     ElIcon: typeof import('element-plus/es')['ElIcon']
     ElInput: typeof import('element-plus/es')['ElInput']
+    ElOption: typeof import('element-plus/es')['ElOption']
+    ElPagination: typeof import('element-plus/es')['ElPagination']
+    ElSelect: typeof import('element-plus/es')['ElSelect']
     ElSkeleton: typeof import('element-plus/es')['ElSkeleton']
     ElSwitch: typeof import('element-plus/es')['ElSwitch']
     ElTable: typeof import('element-plus/es')['ElTable']
@@ -38,6 +42,7 @@ declare module 'vue' {
     FailureCard: typeof import('./components/FailureCard.vue')['default']
     GenerateReportDialog: typeof import('./components/GenerateReportDialog.vue')['default']
     PageHeader: typeof import('./components/PageHeader.vue')['default']
+    PaperIndexTable: typeof import('./components/PaperIndexTable.vue')['default']
     PaperPane: typeof import('./components/PaperPane.vue')['default']
     ReportViewer: typeof import('./components/ReportViewer.vue')['default']
     RouterLink: typeof import('vue-router')['RouterLink']

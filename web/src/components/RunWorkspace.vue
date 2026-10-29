@@ -5,6 +5,7 @@ import type { Report, RunDetail, RunEvent, RunMetrics } from "@/api/types";
 
 import { t } from "@/i18n";
 
+import AuthorPane from "./AuthorPane.vue";
 import FailureCard from "./FailureCard.vue";
 import PaperPane from "./PaperPane.vue";
 import ReportViewer from "./ReportViewer.vue";
@@ -57,6 +58,7 @@ function submitInject() {
 
 const activeTab = ref<string>(props.view);
 const paperTabs = ref<string[]>([]);
+const authorId = ref<string | null>(null);
 
 watch(
   () => props.view,
@@ -76,6 +78,10 @@ watch(
 function onTab(value: string | number): void {
   activeTab.value = String(value);
   if (value === "trajectory" || value === "report") emit("update:view", value);
+}
+
+function openAuthor(id: string): void {
+  authorId.value = id;
 }
 
 function openPaper(paperId: string): void {
@@ -141,43 +147,63 @@ function removePaper(name: string | number): void {
       </template>
     </el-dialog>
 
-    <template v-if="activeTab === 'trajectory'">
-      <FailureCard
-        v-if="isFailed"
-        :run="run"
-        :error-code="run?.error_code"
-        @retry="emit('retry')"
-      />
-      <TrajectoryTimeline :events="events" :highlight-seq="highlightSeq" />
-    </template>
+    <div class="workspace-body">
+      <div class="grow workspace-content">
+        <template v-if="activeTab === 'trajectory'">
+          <FailureCard
+            v-if="isFailed"
+            :run="run"
+            :error-code="run?.error_code"
+            @retry="emit('retry')"
+          />
+          <TrajectoryTimeline :events="events" :highlight-seq="highlightSeq" />
+        </template>
 
-    <template v-else>
-      <ReportViewer
-        v-if="report"
-        :report="report"
-        @why="(index) => emit('why', index)"
+        <template v-else-if="activeTab === 'report'">
+          <ReportViewer
+            v-if="report"
+            :report="report"
+            @why="(index) => emit('why', index)"
+            @open-paper="openPaper"
+          />
+          <FailureCard
+            v-else-if="isFailed"
+            :run="run"
+            :error-code="run?.error_code"
+            @retry="emit('retry')"
+          />
+          <p v-else class="muted">{{ reportError || "Report not generated yet." }}</p>
+        </template>
+
+        <PaperPane
+          v-if="activeTab.startsWith('paper:')"
+          :paper-id="activeTab.slice('paper:'.length)"
+          :report="report"
+          @open-author="openAuthor"
+        />
+      </div>
+
+      <AuthorPane
+        v-if="authorId"
+        :author-id="authorId"
+        @close="authorId = null"
         @open-paper="openPaper"
       />
-      <FailureCard
-        v-else-if="isFailed"
-        :run="run"
-        :error-code="run?.error_code"
-        @retry="emit('retry')"
-      />
-      <p v-else class="muted">{{ reportError || "Report not generated yet." }}</p>
-    </template>
-
-    <PaperPane
-      v-if="activeTab.startsWith('paper:')"
-      :paper-id="activeTab.slice('paper:'.length)"
-      :report="report"
-    />
+    </div>
   </div>
 </template>
 
 <style scoped>
 .run-workspace {
   gap: var(--space-3);
+}
+.workspace-body {
+  display: flex;
+  gap: var(--space-3);
+  align-items: flex-start;
+}
+.workspace-content {
+  min-width: 0;
 }
 .sr-only {
   position: absolute;
