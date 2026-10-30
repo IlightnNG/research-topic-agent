@@ -1,15 +1,15 @@
 ﻿# RESULTS — Phase 3.4（Workflow + Kernel 重构）
 
 > 规范：`phase3.4-workflow-kernel-refactor.md`
-> 当前进度：**S1–S16 完成**；S17–S19 部分；S15/S20 待做。
+> 当前进度：**Phase 3.4 收尾**；S15/S20 旧 graph 切换明确挂起。
 > 评价体系：未实现，见 `docs/OPEN-ISSUES.md`。
 
 ## 0. 一页摘要
 
 | 指标 | 结果 |
 |---|---|
-| 阶段 | **S1–S16 完成；S17–S19 部分** |
-| 测试 | `pytest` **636 例**；Playwright **18 passed** |
+| 阶段 | **Phase 3.4 收尾** |
+| 测试 | `pytest` **640 例**；Playwright **18 passed** |
 | 代码 | `kernel/`、`workflow/` 基础层 |
 | 兼容 | chat/report 已接新 workflow，保留 legacy fallback |
 
@@ -202,3 +202,12 @@ Phase 3.4 已扩展为完整目标：
 - 指标采集只覆盖 report/claims/LLM，search/RAG 仍缺；
 - 评估集是 fixture，不是真实冻结集；
 - 自动优化未闭环，只做晋级判定。
+
+
+## 18. Phase 3.4 关闭
+
+- 640 pytest、18 e2e、30 表；
+- Report 4 节点均走 Kernel；
+- 指标 schema/采集/评估基础可用；
+- **未完成**：API/CLI 完全脱离旧 graph、删除旧 graph、真实 20/50/100 冻结集、自动多轮闭环；
+- 这些是明确的下一阶段迁移项，不是“已完成”。

@@ -1,6 +1,6 @@
 ﻿# Phase 3.4 · Workflow + Kernel + 指标评估（Report 完整新架构）
 
-> **版本**：3.2.0（2026-10-30，S16–S19 指标基础设施）
+> **版本**：4.0.0（2026-10-30，Phase 3.4 收尾）
 > **类型**：架构重构 + 质量基础设施
 > **前置**：Phase 3.3 已收尾；Phase 3.4 S1–S12 已有基础层
 > **目标**：Report 脱离旧 10 节点 graph，完整跑在 Workflow + Kernel 上；同时建立可复现的指标/评估体系
@@ -386,8 +386,59 @@ baseline → run → evaluate → diagnose
 
 | 版本 | 日期 | 内容 |
 |---|---|---|
+| 4.0.0 | 2026-10-30 | **Phase 3.4 收尾**：640 pytest / 18 e2e；Report 节点 Kernel 化；指标基础设施；S15/S20 旧 graph 切换挂起 |
 | 3.2.0 | 2026-10-30 | S16–S19 指标基础设施：30 表、metric catalog/store、eval CLI、evaluator、promotion；636 pytest / 18 e2e |
 | 3.1.0 | 2026-10-30 | S13–S14 落地：Report source/evidence/map/write 全部走 Kernel；S15 待迁移 API/CLI；630 pytest / 18 e2e |
 | 3.0.0 | 2026-10-30 | 补充 Report 完整新架构、指标/评估体系、S13–S20、H1–H18 |
 | 2.0.0 | 2026-10-30 | S1–S12 收尾 |
 | 1.0.0 | 2026-10-30 | 首版 Workflow/Kernel 架构 |
+
+---
+
+## 10. Phase 3.4 收尾（2026-10-30）
+
+### 10.1 最终门禁
+
+```text
+pytest                    640 例，exit 0
+playwright                18 passed（26.8s）
+ruff                      clean
+tables                    30（ADR-0010）
+```
+
+### 10.2 交付状态
+
+| 能力 | 状态 |
+|---|---|
+| Kernel：tools/context/checkpoint/budget/cancel/no_progress | ✅ |
+| Workflow：固定 spec/artifact/checkpoint/CodeVerifier | ✅ |
+| Chat：ChatWorkflow → Kernel | ✅ |
+| Report：source/evidence/map/write 每节点 Kernel | ✅ |
+| 独立 AgentVerifier | ✅ |
+| Report 20/50/100 直连 Workflow 测试 | ✅ |
+| 指标 schema/store/spans/experiments | ✅ |
+| eval CLI / claim evaluator / promotion | ◐ 基础 |
+| Report 完全脱离旧 graph | ❌ 未完成 |
+| 删除旧 10 节点 graph | ❌ 未完成 |
+| 20/50/100 真实冻结评估集 | ❌ 未完成 |
+| 自动多轮优化闭环 | ❌ 未完成 |
+
+### 10.3 收尾结论
+
+Phase 3.4 完成的是**架构基础 + 指标基础设施**：
+
+- Report 节点已全部通过 Kernel/tools 执行；
+- 但 API/CLI 仍包在旧 10 节点 graph 外壳中；
+- 因此 H1/H17（完全脱离并删除旧 graph）**未满足**，不能宣称“全链路新架构切换完成”。
+
+这两项属于**下一阶段/运维迁移**，不是当前可安全删代码的范围。
+
+### 10.4 已知边界
+
+- Chat/Report 的 token 级流式 UI 未做；
+- Report 的 AgentVerifier 尚未强制接入主链路；
+- 指标采集主要覆盖 report/claim/LLM，search/RAG 仍缺；
+- 评估集是 fixture，不是真实冻结集；
+- 自动优化只到 promotion gate。
+
+以上均记录在 `docs/OPEN-ISSUES.md`。
