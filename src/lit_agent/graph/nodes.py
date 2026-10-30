@@ -468,9 +468,28 @@ class Phase2Nodes:
         if self.settings.report.v2_enabled:
             from lit_agent.workflow.report import ReportWorkflow
 
+            def report_event(event: dict[str, Any]) -> None:
+                log = getattr(self.ctx, "log", None)
+                if log is None:
+                    return
+                from lit_agent.models.event import EventType
+
+                log.emit(
+                    EventType.PHASE_CHANGE,
+                    stage="report",
+                    payload={
+                        "phase": "step",
+                        "step": str(event.get("node_id") or ""),
+                        "status": str(event.get("event") or ""),
+                        "error": str(event.get("error") or ""),
+                    },
+                )
+
             try:
                 draft, report_context = ReportWorkflow(
-                    self.settings, gateway=getattr(self.ctx, "gateway", None)
+                    self.settings,
+                    gateway=getattr(self.ctx, "gateway", None),
+                    event_sink=report_event,
                 ).run(
                     run_id=str(state.get("run_id") or ""),
                     topic_id=str(state.get("topic_id") or ""),
@@ -520,9 +539,15 @@ class Phase2Nodes:
         }
 
     def evaluate(self, state: dict[str, Any]) -> dict[str, Any]:
+        from lit_agent.eval.metric_store import collect_report_points
         from lit_agent.eval.metrics import compute_run_metrics
 
-        metrics = compute_run_metrics(self.settings, str(state.get("run_id")))
+        run_id = str(state.get("run_id"))
+        from contextlib import suppress
+
+        with suppress(Exception):
+            collect_report_points(self.settings, run_id)
+        metrics = compute_run_metrics(self.settings, run_id)
         return {
             "stage": "evaluate",
             "artifacts": {

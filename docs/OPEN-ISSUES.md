@@ -4,9 +4,9 @@
 > **用途**：记录“知道要做、但当前不阻塞主线”的问题，避免遗忘。
 > **关联**：Phase 3.3 处理质量问题；本文件保留产品/工程/体验类欠账。
 
-## 待完成：Report/Chat 指标与评价体系
+## Phase 3.4 指标与评价体系（S16–S19）
 
-**状态：未实现；先完成 Phase 3.4 Workflow/Kernel 重构，再启动。**
+**状态：S16 已实现；S17–S19 部分实现。**
 
 目标不是“加一个仪表盘”，而是让后续 AI 能：
 
@@ -23,7 +23,23 @@
 4. `eval_run` / `eval_compare` / `experiments`；
 5. 人工 rubric 与 LLM judge 校准。
 
-**禁止**：在 Phase 3.4 中顺手实现半套指标；先完成 Workflow/Kernel 边界。
+**阶段**：S16 schema/采集 → S17 固定评估集 → S18 评估器 → S19 闭环。
+
+---
+
+## Phase 3.4 迁移遗留
+
+### OI-016 · 删除旧 10 节点 graph（P2，open）
+
+- `graph_runner` 仍是 API/CLI 的兼容外壳；
+- 新执行应走 `workflow/`；
+- 删除前需迁移所有调用点和 10 阶段回归测试。
+
+### OI-017 · Report 节点真正 Kernel 化（P1，open）
+
+- 当前 ReportWorkflow 的 `evidence/map/write` 是 deterministic handler；
+- 尚未每个节点启动 Kernel；
+- 需要拆成“节点 → Kernel → tools”，并保留 artifact/checkpoint。
 
 ---
 

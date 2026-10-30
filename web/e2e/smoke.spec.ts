@@ -138,7 +138,7 @@ test("F12: health endpoint reports the current schema", async ({ request }) => {
   expect(response.ok()).toBeTruthy();
   const payload = (await response.json()) as { ok: boolean; sqlite: { tables: number } };
   expect(payload.ok).toBe(true);
-  expect(payload.sqlite.tables).toBe(26);
+  expect(payload.sqlite.tables).toBe(30);
 });
 
 test("S12: trajectory shows ten stages", async ({ page }) => {

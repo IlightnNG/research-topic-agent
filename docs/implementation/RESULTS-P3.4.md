@@ -1,15 +1,15 @@
 ﻿# RESULTS — Phase 3.4（Workflow + Kernel 重构）
 
 > 规范：`phase3.4-workflow-kernel-refactor.md`
-> 当前进度：**S1–S9 完成**；S10+ 待做。
+> 当前进度：**S1–S16 完成**；S17–S19 部分；S15/S20 待做。
 > 评价体系：未实现，见 `docs/OPEN-ISSUES.md`。
 
 ## 0. 一页摘要
 
 | 指标 | 结果 |
 |---|---|
-| 阶段 | **S1–S9 完成** |
-| 测试 | `pytest` **629 例**；Playwright **18 passed** |
+| 阶段 | **S1–S16 完成；S17–S19 部分** |
+| 测试 | `pytest` **636 例**；Playwright **18 passed** |
 | 代码 | `kernel/`、`workflow/` 基础层 |
 | 兼容 | chat/report 已接新 workflow，保留 legacy fallback |
 
@@ -107,3 +107,98 @@
 - S10：Report 节点拆分 + 事件/stream；
 - S11：旧 graph 兼容/删除；
 - S12：收尾。
+
+
+## 12. S10 · Report 拆节点 + step 事件
+
+- `ReportWorkflow` 从单节点改为 `evidence → map → write`。
+- `report` 节点通过 `phase_change` payload 发出 step 事件；run_events 可见。
+- 输出仍保持 `report_draft_json`、`report_cards_json`、两阶段提交。
+- e2e 18。
+
+## 13. S11 · 旧 graph 兼容
+
+- 10 节点 `graph_runner` 保留为**兼容外壳**。
+- 没有删除，避免一次性破坏 CLI/API/测试。
+- 删除计划列入 `docs/OPEN-ISSUES.md`，待所有调用点迁移完成。
+- 当前 `report` 节点内部已走 Workflow；外层仍是旧 graph。
+
+## 14. S12 · 收尾
+
+- Report：evidence/map/write 三节点；
+- Chat：单节点 workflow；
+- Kernel：context/checkpoint/tools/verifier；
+- 结果：630 pytest、18 e2e；
+- 评价体系仍未做，见 OPEN-ISSUES。
+
+### 已知边界
+
+- Report 的 evidence/map/write 目前是 deterministic handler，不是每个节点都启动 Kernel；
+- S10 只做到“节点拆分 + step 事件”，token 级流式 UI 未做；
+- 旧 graph 删除延后。
+
+
+## 15. 后续阶段（S13–S20）
+
+Phase 3.4 已扩展为完整目标：
+
+- S13/S14：Report `source/evidence/map/write` 真正 Kernel 化；
+- S15：Report 脱离旧 graph；
+- S16：指标 definitions/points/spans；
+- S17：固定评估集 + eval CLI；
+- S18：自动评估器 + 人工 rubric；
+- S19：自优化闭环；
+- S20：20/50/100 压测、删除旧 graph、收尾。
+
+详见 `phase3.4-workflow-kernel-refactor.md` v3.0.0。
+
+
+## 16. S13–S14 · Report 节点 Kernel 化
+
+- `ReportWorkflow` 的 `source/evidence/map/write` 各自拥有独立 `Kernel` 与 `KernelTools`。
+- 工具：`load_scope / build_context / synthesize / assemble`。
+- 每个节点有 Kernel loop、tool trace、独立 goal/budget。
+- 节点之间仍通过 `WorkflowRunner` + artifact 传递。
+- 测试：v2 wiring、step 事件、e2e 18。
+
+### S15 状态
+
+- 节点已不再直接调用 report engine；
+- 但 API/CLI 仍是“10 节点 graph 外壳 → report 节点 → ReportWorkflow”；
+- 真正删除 graph 需要迁移 run 生命周期/事件/CLI；当前未做，避免破坏 10 阶段契约。
+
+
+## 17. S16–S19 · 指标与评估
+
+### S16 已完成
+
+- 迁移 `0009_metrics_v2`：`metric_definitions / metric_points / run_spans / experiments`；
+- 表总数 26 → 30；ADR-0010；
+- `eval/metric_catalog.py`：指标目录；
+- `eval/metric_store.py`：点/span/采集；`evaluate` 自动采集 report 指标；
+- `NULL` 与 0 分离。
+
+### S17 部分
+
+- `eval/datasets/ai-agents.json` fixture；
+- `scripts/eval_run.py`、`scripts/eval_compare.py`；
+- 真实 20 篇 `tune-cheap` 评估：score 0.5478，coverage .6087，citation 1.0，fallback .2；
+- 20/50/100 冻结集尚未建立。
+
+### S18 部分
+
+- `eval/evaluators.py`：claim purity/citation 规则、LLMJudge 接口；
+- `eval/rubrics/report.md`；
+- 人工双评审未执行。
+
+### S19 部分
+
+- `eval/optimizer.py`：promotion policy、experiments 记录；
+- `scripts/optimize.py`：baseline/candidate 晋级/拒绝；
+- 自动多轮搜索/执行尚未做。
+
+### 当前限制
+
+- 指标采集只覆盖 report/claims/LLM，search/RAG 仍缺；
+- 评估集是 fixture，不是真实冻结集；
+- 自动优化未闭环，只做晋级判定。

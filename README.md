@@ -144,7 +144,7 @@ Where things live:
 
 - `docs/implementation/phase1-implementation-steps.md` - the plan (steps, depth matrix, acceptance).
 - `docs/implementation/RESULTS-P1.md` - measured numbers (single source of truth).
-- `docs/implementation/phase3.4-workflow-kernel-refactor.md` - fixed Workflow + shared Kernel + Producer/Verifier architecture (design only).
+- `docs/implementation/phase3.4-workflow-kernel-refactor.md` - Report full Workflow/Kernel migration plus metrics/evaluation plan.
 - `docs/OPEN-ISSUES.md` - cross-phase backlog.
 - `docs/implementation/adr/0004-*.md` - vector store + embedding model.
 - `docs/implementation/adr/0005-*.md` - 24 tables, event seq allocation, idempotency keys.

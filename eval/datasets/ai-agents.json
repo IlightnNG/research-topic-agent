@@ -1,0 +1,7 @@
+﻿{
+  "name": "ai-agents-fixture",
+  "version": "1.0",
+  "topic": "ai-agents",
+  "papers": ["P0", "P1", "P2"],
+  "notes": "Small deterministic fixture for evaluator smoke tests; replace with a frozen real dataset for tuning."
+}

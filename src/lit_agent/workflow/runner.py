@@ -33,7 +33,8 @@ class WorkflowRunner:
         self,
         spec: WorkflowSpec,
         *,
-        kernel: Kernel,
+        kernel: Kernel | None = None,
+        kernels: dict[str, Kernel] | None = None,
         handlers: dict[str, Callable[[dict[str, Any]], Any]] | None = None,
         completers: dict[str, Callable[..., dict[str, Any]]] | None = None,
         verifier: VerifierAgent | None = None,
@@ -42,6 +43,7 @@ class WorkflowRunner:
     ) -> None:
         self.spec = spec
         self.kernel = kernel
+        self.kernels = kernels or {}
         self.handlers = handlers or {}
         self.completers = completers or {}
         self.code_verifier = CodeVerifier()
@@ -117,7 +119,10 @@ class WorkflowRunner:
             if handler is None:
                 raise RuntimeError(f"missing deterministic handler: {node.id}")
             return handler(inputs_payload), 0
-        result = self.kernel.run(
+        selected_kernel = self.kernels.get(node.id, self.kernel)
+        if selected_kernel is None:
+            raise RuntimeError(f"agent node without kernel: {node.id}")
+        result = selected_kernel.run(
             KernelGoal(
                 node_id=node.id,
                 objective=node.goal,

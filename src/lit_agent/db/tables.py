@@ -47,6 +47,10 @@ __all__ = [
     "t_paper_authors",
     "t_paper_cards",
     "t_report_steps",
+    "t_metric_definitions",
+    "t_metric_points",
+    "t_run_spans",
+    "t_experiments",
     "t_paper_chunks",
     "t_paper_merges",
     "t_papers",
@@ -510,6 +514,82 @@ t_report_steps = Table(
     Column("created_at", String, nullable=False),
 )
 Index("ix_report_steps_run", t_report_steps.c.run_id)
+
+
+t_metric_definitions = Table(
+    "metric_definitions",
+    metadata,
+    Column("metric_id", String, primary_key=True),
+    Column("version", String, nullable=False),
+    Column("domain", String, nullable=False),
+    Column("unit", String, nullable=False),
+    Column("direction", String, nullable=False),
+    Column("formula", Text, nullable=False),
+    Column("target_json", Text),
+    Column("owner", String),
+    Column("created_at", String, nullable=False),
+)
+
+t_metric_points = Table(
+    "metric_points",
+    metadata,
+    Column("id", String, primary_key=True),
+    Column("metric_id", String, nullable=False),
+    Column("metric_version", String, nullable=False),
+    Column("scope", String, nullable=False),
+    Column("scope_id", String, nullable=False),
+    Column("run_id", String),
+    Column("node_id", String),
+    Column("step", String),
+    Column("value", Float),
+    Column("numerator", Float),
+    Column("denominator", Float),
+    Column("sample_size", Integer),
+    Column("unit", String),
+    Column("config_hash", String),
+    Column("prompt_version", String),
+    Column("model", String),
+    Column("dataset", String),
+    Column("ts", String, nullable=False),
+)
+Index("ix_metric_points_run", t_metric_points.c.run_id)
+Index("ix_metric_points_metric", t_metric_points.c.metric_id)
+
+t_run_spans = Table(
+    "run_spans",
+    metadata,
+    Column("span_id", String, primary_key=True),
+    Column("trace_id", String, nullable=False),
+    Column("parent_span_id", String),
+    Column("run_id", String, nullable=False),
+    Column("node_id", String),
+    Column("step", String),
+    Column("name", String, nullable=False),
+    Column("status", String, nullable=False),
+    Column("start_ts", String, nullable=False),
+    Column("end_ts", String),
+    Column("duration_ms", Integer),
+    Column("attributes_json", Text),
+    Column("error_code", String),
+)
+Index("ix_run_spans_run", t_run_spans.c.run_id)
+
+t_experiments = Table(
+    "experiments",
+    metadata,
+    Column("id", String, primary_key=True),
+    Column("name", String, nullable=False),
+    Column("hypothesis", Text),
+    Column("config_json", Text, nullable=False),
+    Column("config_hash", String, nullable=False),
+    Column("dataset", String),
+    Column("baseline_run_id", String),
+    Column("candidates_json", Text),
+    Column("score", Float),
+    Column("hard_fail_json", Text),
+    Column("status", String, nullable=False),
+    Column("created_at", String, nullable=False),
+)
 
 #: `metadata.sorted_tables`（按外键依赖排序），用于建表/删表
 ALL_TABLES = metadata.sorted_tables

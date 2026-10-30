@@ -89,3 +89,22 @@ def test_thin_report_and_old_metadata_defaults(tmp_path: Path) -> None:
     assert old["coverage"] == 0.0
     assert old["thin"] is False
     assert old["word_count"] > 0
+
+
+def test_report_workflow_emits_step_events(tmp_path: Path) -> None:
+    from tests.wiring import fetch_events
+
+    settings = prepare(tmp_path, papers=2)
+    report_settings = settings.report.model_copy(update={"v2_enabled": True})
+    settings = settings.model_copy(update={"report": report_settings})
+    run_graph(settings, "ai-agents", run_id="events-run", focus_hint="tool use")
+
+    events = fetch_events(settings, "events-run")
+    steps = [
+        event["payload"]
+        for event in events
+        if event.get("stage") == "report"
+        and event.get("payload", {}).get("phase") == "step"
+    ]
+    assert any(item.get("step") == "evidence" for item in steps)
+    assert any(item.get("step") == "write" for item in steps)

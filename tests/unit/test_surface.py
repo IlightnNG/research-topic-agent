@@ -73,4 +73,4 @@ def test_schema_version_is_single_source() -> None:
 
 
 def test_expected_table_count_is_26() -> None:
-    assert len(tables.EXPECTED_TABLES) == 26, sorted(tables.EXPECTED_TABLES)
+    assert len(tables.EXPECTED_TABLES) == 30, sorted(tables.EXPECTED_TABLES)
