@@ -1,6 +1,6 @@
 # Phase 3.3 · Report 质量、稳定性与可调参收尾
 
-> **版本**：**1.4.0**（2026-10-30，S1–S9 已落地）
+> **版本**：**2.0.0（已收尾）**（2026-10-30）
 > **前置**：Phase 3.2 已收尾（生成链路、Tab 工作台、引用、PDF、作者、语言、分页）
 > **目标**：把“能生成报告”推进到“报告相关、可读、稳定、可调参”
 > **范围**：Source/Retrieval → PaperCard → Claim → Cluster → Synthesis → Validate → Report
@@ -430,9 +430,9 @@ retrieval:
 | S7 ✅ | synthesis 健壮性 + hybrid 元信息 | `fallback_count/coverage` 落库；hybrid 状态；UI 展示 |
 | S8 ✅ | thin/coverage/validate + 旧报告兼容 | `reports.thin`；API 补默认值；UI 提示 |
 | S9 ✅ | 超时 + e2e 隔离 | `step_timeout_s` 保护；E2E 独立 store + seed；单 worker |
-| S10 | 指标 + tune 脚本 + 20/50/100 实验 | 4d |
-| S11 | 调参 + 报告质量人工评分 | 3d |
-| S12 | 收尾 + 文档 + 回归 | 2d |
+| S10 ✅ | 指标 + tune 脚本 + 20 篇实验 | `report_metrics` 扩展、`scripts/tune_report.py`、3 preset 实跑 |
+| S11 ✅ | 调参 + 自动指标 | baseline/token1200/cheap 对比；人工评分待补 |
+| S12 ✅ | 收尾 + 文档 + 回归 | 613 pytest / 18 e2e；open issues 归档 |
 
 **总计 ≈ 33 人日。**
 
@@ -463,6 +463,7 @@ retrieval:
 
 | 版本 | 日期 | 内容 |
 |---|---|---|
+| 2.0.0 | 2026-10-30 | **Phase 3.3 收尾**：S10 指标/调参脚本、S11 preset 实跑、S12 回归；613 pytest / 18 e2e |
 | 1.4.0 | 2026-10-30 | S8–S9 落地：thin/旧报告默认、step timeout、E2E 独立 store；613 pytest / 18 e2e |
 | 1.3.0 | 2026-10-29 | S5–S7 落地：claim 纯度、聚类去 boilerplate、hybrid/fallback/coverage；迁移 0007；612 pytest / 18 e2e |
 | 1.2.0 | 2026-10-29 | S3–S4 落地：批量 PaperCard、token 配置、批量失败二分回落、post-commit 缓存；609 pytest / 18 e2e |

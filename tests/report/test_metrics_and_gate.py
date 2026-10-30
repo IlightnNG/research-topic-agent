@@ -25,6 +25,10 @@ def test_report_metrics_are_numeric(tmp_path: Path) -> None:
     assert metrics["report_words"] > 0
     assert metrics["report_claims"] >= 1
     assert metrics["report_cited_ratio"] == pytest.approx(1.0)
+    assert metrics["report_fallback_count"] is not None
+    assert metrics["report_coverage"] is not None
+    assert metrics["report_thin"] is not None
+    assert metrics["report_cache_hit_rate"] is None or 0.0 <= metrics["report_cache_hit_rate"] <= 1.0
 
 
 def test_paper_endpoint(tmp_path: Path) -> None:

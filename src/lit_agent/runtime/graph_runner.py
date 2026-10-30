@@ -137,7 +137,7 @@ def run_graph(
         if llm_mode == "on" or (llm_mode == "auto" and has_key):
             from lit_agent.gateway.llm import LLMGateway
 
-            gateway = LLMGateway(settings, budget=run_budget)
+            gateway = LLMGateway(settings, budget=run_budget, default_run_id=rid)
 
     from lit_agent.contracts.shell import default_shell
 

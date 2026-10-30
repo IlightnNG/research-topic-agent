@@ -7,8 +7,8 @@
 
 | 指标 | 结果 |
 |---|---|
-| 阶段 | **S1–S9 完成** |
-| 测试 | `pytest` **613 例**；Playwright **18 passed（25.4s）** |
+| 阶段 | **Phase 3.3 收尾（S1–S12）** |
+| 测试 | `pytest` **613 例**；Playwright **18 passed（24.9s）** |
 | E2E | **18 passed**（24.9s） |
 | 验证器 | `verify_phase3 13/13` |
 | 前端 | typecheck ✓ / build ✓ |
@@ -147,3 +147,42 @@
 - S10：指标 + `tune_report.py` + 20/50/100 实验；
 - S11：调参；
 - S12：收尾。
+
+
+---
+
+## 12. S10 · 指标与调参
+
+| 指标 | 来源 |
+|---|---|
+| `report_fallback_count` | `reports.fallback_count` |
+| `report_coverage` | `reports.coverage` |
+| `report_thin` | `reports.thin` |
+| `report_cache_hit_rate` | `llm_calls.cache_hit / calls`（已绑定 run_id） |
+| `report_llm_failures` | `llm_calls.ok = 0` |
+
+`scripts/tune_report.py`：
+
+```powershell
+uv run python scripts/tune_report.py --topic ai-agents-live --preset cheap --runs 1 --execute
+```
+
+输出 CSV：`out/tune-report.csv`。
+
+## 13. S11 · 20 篇 preset 实跑
+
+| preset | claims | sections | words | coverage | fallback | cache hit | latency |
+|---|---:|---:|---:|---:|---:|---:|---:|
+| baseline | 18 | 5 | 587 | 0.6087 | 1 | 0.2 | 36.4s |
+| token1200 | 18 | 5 | 638 | 0.6087 | 1 | 0.2 | 32.7s |
+| cheap | 18 | 5 | 643 | 0.6087 | 1 | 0.6 | 22.9s |
+
+**结论**：`cheap` 在当前 23 篇数据上延迟最低，claim/coverage 不变；  
+**但“相关性/可读性”仍需人工评分**，不能只凭自动指标选型。
+
+## 14. Phase 3.3 关闭
+
+- 生成链路：Source → Card → Claim → Cluster → Synthesis → Validate → Report；
+- S1–S12 代码/测试完成；
+- 613 pytest、18 e2e、typecheck/build；
+- 剩余：人工相关性评分、embedding 聚类、50/100 篇压测（Open Issues）。

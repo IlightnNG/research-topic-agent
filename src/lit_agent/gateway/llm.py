@@ -68,8 +68,10 @@ class LLMGateway:
         budget: BudgetGuard | None = None,
         breaker: CircuitBreaker | None = None,
         engine: Any | None = None,
+        default_run_id: str | None = None,
     ) -> None:
         self.settings = settings
+        self.default_run_id = default_run_id
         self.model = settings.providers.cloud.model
         self._completer = completer
         self.budget = budget or BudgetGuard(settings.routing.run_cost_budget_usd)
@@ -163,7 +165,7 @@ class LLMGateway:
                 usage = CallUsage(cost=0.0, estimated=False)
                 llm_repo.record(
                     conn,
-                    run_id=run_id,
+                    run_id=run_id or self.default_run_id,
                     agent=agent,
                     provider=cloud.name,
                     model=self.model,
@@ -224,7 +226,7 @@ class LLMGateway:
                 with connect(engine) as conn:
                     llm_repo.record(
                         conn,
-                        run_id=run_id,
+                        run_id=run_id or self.default_run_id,
                         agent=agent,
                         provider=cloud.name,
                         model=self.model,
@@ -249,7 +251,7 @@ class LLMGateway:
         with connect(engine) as conn:
             llm_repo.record(
                 conn,
-                run_id=run_id,
+                run_id=run_id or self.default_run_id,
                 agent=agent,
                 provider=cloud.name,
                 model=self.model,
