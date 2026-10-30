@@ -59,6 +59,7 @@ export interface Report {
   generated_by?: string;
   fallback_count?: number;
   coverage?: number;
+  thin?: boolean;
   word_count?: number;
   fallback_reason?: string | null;
 }

@@ -69,6 +69,13 @@ async function copyMarkdown(): Promise<void> {
       :closable="false"
       title="No citable evidence; the report is degraded"
     />
+    <el-alert
+      v-if="report.thin"
+      type="warning"
+      show-icon
+      :closable="false"
+      title="Thin report: few papers or claims. Add/sync more sources for a fuller report."
+    />
     <div class="between">
       <div class="stack" style="gap: var(--space-1)">
         <h3 class="title-md">{{ report.title }}</h3>

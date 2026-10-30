@@ -272,6 +272,7 @@ t_reports = Table(
     Column("generated_by", String),
     Column("fallback_count", Integer),
     Column("coverage", Float),
+    Column("thin", Integer),
     Column("word_count", Integer),
     Column("fallback_reason", Text),
     Column("metrics_snapshot_json", Text),

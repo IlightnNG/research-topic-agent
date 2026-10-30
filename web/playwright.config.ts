@@ -24,7 +24,7 @@ export default defineConfig({
     : [
         {
           command:
-            "powershell -NoProfile -Command \". .\\scripts\\env.ps1; $env:LIT_AGENT_PIPELINE__LLM='off'; uv run uvicorn lit_agent.api.app:app --port 8000\"",
+            "powershell -NoProfile -Command \". .\\scripts\\env.ps1; $env:LIT_AGENT_PIPELINE__LLM='off'; $env:LIT_AGENT_STORAGE__DATA_ROOT='D:\\lit-agent-store\\e2e-data'; uv run python scripts/seed_e2e_store.py; uv run uvicorn lit_agent.api.app:app --port 8000\"",
           cwd: "..",
           url: "http://127.0.0.1:8000/api/health",
           reuseExistingServer: true,

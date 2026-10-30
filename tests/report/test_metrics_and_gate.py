@@ -52,3 +52,36 @@ def test_report_language_zh_per_run(tmp_path: Path) -> None:
     assert report["language"] == "zh"
     assert report["sections"][0]["title"] == "概览"
     assert any("共同点" in section["body"] for section in report["sections"])
+
+
+def test_thin_report_and_old_metadata_defaults(tmp_path: Path) -> None:
+    from sqlalchemy import text
+
+    from lit_agent.db.session import connect, make_engine
+
+    settings = prepare(tmp_path, papers=2)
+    client = TestClient(create_app(settings))
+    client.post("/api/topics/ai-agents/run", json={"run_id": "thin-run", "wait": True})
+
+    report = client.get("/api/runs/thin-run/report").json()
+    assert report["thin"] is True
+
+    engine = make_engine(settings)
+    try:
+        with connect(engine, immediate=True) as conn:
+            conn.execute(
+                text(
+                    "UPDATE reports SET language=NULL, generated_by=NULL, fallback_count=NULL,"
+                    " coverage=NULL, thin=NULL, word_count=NULL WHERE run_id='thin-run'"
+                )
+            )
+    finally:
+        engine.dispose()
+
+    old = client.get("/api/runs/thin-run/report").json()
+    assert old["language"] == "en"
+    assert old["generated_by"] == "template"
+    assert old["fallback_count"] == 0
+    assert old["coverage"] == 0.0
+    assert old["thin"] is False
+    assert old["word_count"] > 0

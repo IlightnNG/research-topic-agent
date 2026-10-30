@@ -7,8 +7,8 @@
 
 | 指标 | 结果 |
 |---|---|
-| 阶段 | **S1–S7 完成** |
-| 测试 | `pytest` **612 例**；Playwright **18 passed** |
+| 阶段 | **S1–S9 完成** |
+| 测试 | `pytest` **613 例**；Playwright **18 passed（25.4s）** |
 | E2E | **18 passed**（24.9s） |
 | 验证器 | `verify_phase3 13/13` |
 | 前端 | typecheck ✓ / build ✓ |
@@ -120,3 +120,30 @@
 - 聚类仍为词面 Jaccard（embedding 在 S6 计划中但未引入）；
 - 书目过滤是规则，可能误伤“conference room”类句式；
 - `fallback_count` 只统计方向综合，不含 card 批次回落。
+
+
+---
+
+## 9. S8 · Thin / 旧报告兼容
+
+| 项 | 实现 |
+|---|---|
+| `reports.thin` | 迁移 0008；`papers<5 or claims<5 or words<300` |
+| API | 旧报告 `language/generated_by/fallback_count/coverage/thin/word_count` 补默认值 |
+| UI | 报告头显示 Thin warning |
+| 测试 | 2 篇 fixture 报告 `thin=true`；NULL 元数据回退 en/template/0 |
+
+## 10. S9 · 超时与 E2E 隔离
+
+| 项 | 实现 |
+|---|---|
+| 超时 | `report.step_timeout_s`（默认 120s）；context 超时 → 模板 + `E_REPORT_TIMEOUT` |
+| E2E | `LIT_AGENT_STORAGE__DATA_ROOT=D:\lit-agent-store\e2e-data` + `scripts/seed_e2e_store.py` |
+| 稳定性 | E2E 18 passed；live 数据不再污染 e2e |
+| 限制 | 单 worker；并行 run 压测未做 |
+
+## 11. 下一步
+
+- S10：指标 + `tune_report.py` + 20/50/100 实验；
+- S11：调参；
+- S12：收尾。

@@ -8,6 +8,7 @@ from __future__ import annotations
 import hashlib
 import logging
 import re
+import time
 from dataclasses import dataclass, field
 from typing import Any
 
@@ -202,6 +203,8 @@ def assemble_report(
     )
     body = f"# {title}\n\n" + "\n\n".join(f"## {s.title}\n{s.body}" for s in sections)
     digest = hashlib.sha256(body.encode("utf-8")).hexdigest()[:12]
+    word_count = _word_count(body)
+    thin = len(context.cards) < 5 or len(context.claim_set.claims) < 5 or word_count < 300
     return Report(
         report_id=f"{run_id}:{digest}",
         topic_id=topic_id,
@@ -218,7 +221,8 @@ def assemble_report(
         generated_by=generated_by,
         fallback_count=fallback_count,
         coverage=coverage,
-        word_count=_word_count(body),
+        thin=thin,
+        word_count=word_count,
     )
 
 
@@ -233,7 +237,24 @@ def build_report_bundle(
     gateway: Any | None = None,
 ) -> tuple[Report, ReportContext]:
     language = settings.report.language
+    started = time.monotonic()
     context = build_context(settings, paper_ids, gateway=gateway)
+    if time.monotonic() - started > settings.report.step_timeout_s:
+        logger.warning("report.step_timeout", extra={"step": "context"})
+        report = assemble_report(
+            run_id=run_id,
+            topic_id=topic_id,
+            title=title,
+            period=period,
+            context=context,
+            insights=[],
+            language=language,
+            generated_by="template",
+            fallback_count=len(context.directions),
+            coverage=0.0,
+        )
+        report = report.model_copy(update={"fallback_reason": "E_REPORT_TIMEOUT"})
+        return report, context
     insights = synthesize_all(
         context.directions,
         context.claim_set.claims,

@@ -80,6 +80,15 @@ def get_report(run_id: str, engine: Any = Depends(get_engine)) -> dict[str, Any]
     data = dict(row._mapping)
     data["claims"] = json.loads(data.pop("claims_json", "null") or "[]")
     data.pop("metrics_snapshot_json", None)
+    # Old reports (pre-3.2) may have null metadata.
+    data["language"] = data.get("language") or "en"
+    data["generated_by"] = data.get("generated_by") or "template"
+    data["fallback_count"] = int(data.get("fallback_count") or 0)
+    data["coverage"] = float(data.get("coverage") or 0.0)
+    data["thin"] = bool(data.get("thin"))
+    data["word_count"] = int(
+        data.get("word_count") or len(str(data.get("content_md") or "").split())
+    )
     # S12：分节以库里的 sections_json 为准；旧数据回落"一 claim 一节"
     stored = json.loads(data.pop("sections_json", "null") or "null")
     if stored:
@@ -91,6 +100,7 @@ def get_report(run_id: str, engine: Any = Depends(get_engine)) -> dict[str, Any]
                 "title": f"Evidence {index + 1}",
                 "body": claim.get("text", ""),
                 "claim_indexes": [index],
+                "kind": "findings",
             }
             for index, claim in enumerate(data["claims"])
         ]

@@ -264,6 +264,7 @@ class ReportSettings(_Section):
     max_tokens_card: int = Field(default=1200, ge=128, le=4000)
     max_tokens_cluster: int = Field(default=240, ge=64, le=1000)
     max_tokens_synthesis: int = Field(default=1000, ge=128, le=4000)
+    step_timeout_s: float = Field(default=120.0, ge=1.0, le=900.0)
 
 
 class PipelineSettings(_Section):

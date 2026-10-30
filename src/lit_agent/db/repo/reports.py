@@ -47,6 +47,7 @@ def insert_ignore(conn: Connection, report: Report, *, now: str | None = None) -
             generated_by=report.generated_by,
             fallback_count=report.fallback_count,
             coverage=report.coverage,
+            thin=int(report.thin),
             word_count=report.word_count,
             fallback_reason=report.fallback_reason,
             created_at=now or utcnow_iso(),
