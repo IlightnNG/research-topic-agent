@@ -4,6 +4,29 @@
 > **用途**：记录“知道要做、但当前不阻塞主线”的问题，避免遗忘。
 > **关联**：Phase 3.3 处理质量问题；本文件保留产品/工程/体验类欠账。
 
+## 待完成：Report/Chat 指标与评价体系
+
+**状态：未实现；先完成 Phase 3.4 Workflow/Kernel 重构，再启动。**
+
+目标不是“加一个仪表盘”，而是让后续 AI 能：
+
+- 按阶段采集指标（search/RAG/report/chat/process）；
+- 用固定数据集复跑；
+- 从指标自动诊断优化方向；
+- 按 baseline/candidate 对比决定晋级或回滚。
+
+最低交付：
+
+1. `metric_definitions` / `metric_points` / `run_spans`；
+2. 每阶段 span + Report 子步骤记录；
+3. 固定评估集（20/50/100 篇）；
+4. `eval_run` / `eval_compare` / `experiments`；
+5. 人工 rubric 与 LLM judge 校准。
+
+**禁止**：在 Phase 3.4 中顺手实现半套指标；先完成 Workflow/Kernel 边界。
+
+---
+
 ## 优先级
 
 | 级别 | 含义 |
