@@ -17,6 +17,7 @@ from lit_agent.config import Settings
 from lit_agent.db.repo import chat as chat_repo
 from lit_agent.db.session import connect
 from lit_agent.errors import E_NOT_FOUND, LitError
+from lit_agent.workflow.chat import ChatWorkflow
 
 router = APIRouter()
 
@@ -89,13 +90,20 @@ def post_chat(
 
         gateway = LLMGateway(settings)
     try:
-        reply = answer(
-            settings,
-            topic_id=topic_id,
-            message=body.message,
-            history=history,
-            gateway=gateway,
-        )
+        try:
+            reply = ChatWorkflow(settings, gateway=gateway).run(
+                topic_id=topic_id,
+                message=body.message,
+                history=history,
+            )
+        except Exception:  # noqa: BLE001 - keep the legacy path as a safety net
+            reply = answer(
+                settings,
+                topic_id=topic_id,
+                message=body.message,
+                history=history,
+                gateway=gateway,
+            )
     finally:
         if gateway is not None:
             gateway.close()

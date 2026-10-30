@@ -1,4 +1,4 @@
-﻿"""Node acceptance for fixed workflows (Phase 3.4 / S6)."""
+﻿"""Node acceptance for fixed workflows (Phase 3.4 / S6-S7)."""
 
 from __future__ import annotations
 
@@ -7,7 +7,7 @@ from typing import Any, Protocol
 
 from lit_agent.workflow.spec import NodeSpec
 
-__all__ = ["CodeVerifier", "Verdict", "VerifierAgent"]
+__all__ = ["AgentVerifier", "CodeVerifier", "Verdict", "VerifierAgent"]
 
 
 @dataclass
@@ -39,3 +39,47 @@ class CodeVerifier:
                 if key not in artifact:
                     reasons.append(f"missing postcondition: {key}")
         return Verdict(accept=not reasons, reasons=reasons, repair=bool(reasons))
+
+
+class AgentVerifier:
+    """Independent verifier: fresh prompt, artifact only, no producer trace."""
+
+    def __init__(self, gateway: Any, *, max_tokens: int = 400) -> None:
+        self.gateway = gateway
+        self.max_tokens = max_tokens
+
+    def verify(self, node: NodeSpec, artifact: Any, artifacts: Any) -> Verdict:
+        try:
+            payload, _ = self.gateway.chat_json(
+                [
+                    {
+                        "role": "system",
+                        "content": (
+                            "You are an independent verifier. Do not rewrite the artifact. "
+                            'Return JSON only: {"verdict":"accept|repair|fail",'
+                            '"reasons":[str]}. Reject missing citations, '
+                            "unsupported claims, or contract violations."
+                        ),
+                    },
+                    {
+                        "role": "user",
+                        "content": (
+                            f"Node: {node.id}\nGoal: {node.goal}\n"
+                            f"Contract: output={node.output_key}, "
+                            f"postconditions={list(node.postconditions)}\n"
+                            f"Artifact: {artifact!r}"
+                        ),
+                    },
+                ],
+                max_tokens=self.max_tokens,
+                agent="verifier",
+            )
+            if not isinstance(payload, dict):
+                return Verdict(accept=False, reasons=["verifier returned non-object"])
+            raw = str(payload.get("verdict") or "fail")
+            reasons = [str(item) for item in (payload.get("reasons") or [])]
+            if raw == "accept":
+                return Verdict(accept=True, reasons=reasons)
+            return Verdict(accept=False, reasons=reasons or [raw], repair=raw == "repair")
+        except Exception as exc:  # noqa: BLE001 - verifier failure is a rejection, not a crash
+            return Verdict(accept=False, reasons=[f"verifier error: {type(exc).__name__}"])

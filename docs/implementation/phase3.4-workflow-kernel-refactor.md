@@ -1,6 +1,6 @@
 # Phase 3.4 · Workflow + Kernel 重构（固定 Workflow，共享 Agent 内核）
 
-> **版本**：1.2.0（2026-10-30，S1–S6 已落地）
+> **版本**：1.3.0（2026-10-30，S1–S9 已落地）
 > **类型**：架构重构（大规模替换，不是局部优化）
 > **前置**：Phase 3.3 已收尾（613 pytest / 18 e2e）
 > **目标**：把 Report/Chat 从“两套流程 + 零散函数”重构为 **固定 Workflow + 共享 Kernel + 独立 Verifier**
@@ -351,9 +351,9 @@ src/lit_agent/
 | S4 ✅ | Context 分层 + handoff/compress | `start_node/finish_node` 保留 L0/L1；L2 清空；`compress` |
 | S5 ✅ | Checkpoint/resume | `KernelCheckpoint` + `CheckpointStore`；resume 复用 trace/context |
 | S6 ✅ | WorkflowRunner + ArtifactStore | 固定顺序、输入/输出 artifact、checkpoint、CodeVerifier |
-| S7 | Code Gate + Verifier protocol | 失败可 repair/fail |
-| S8 | ChatWorkflow 迁移 | Chat API 走新路径 |
-| S9 | ReportWorkflow 迁移 | report API 走新路径 |
+| S7 ✅ | Code Gate + AgentVerifier | `CodeVerifier` 先验；`AgentVerifier` 独立上下文，accept/repair/fail |
+| S8 ✅ | ChatWorkflow 迁移 | `/chat` 走 WorkflowRunner + Kernel；安全回退 legacy |
+| S9 ✅ | ReportWorkflow 迁移 | `report` 节点走 WorkflowRunner + Kernel；完整拆节点待 S10+ |
 | S10 | 事件/stream 接入 UI | 节点/步骤可见 |
 | S11 | 旧 graph 兼容/删除 | 全量回归 |
 | S12 | 文档/收尾 | H1–H12 |
@@ -412,6 +412,7 @@ Phase 3.4 只保证：
 
 | 版本 | 日期 | 内容 |
 |---|---|---|
+| 1.3.0 | 2026-10-30 | S7–S9 落地：AgentVerifier、ChatWorkflow、ReportWorkflow 接入；629 pytest / 18 e2e |
 | 1.2.0 | 2026-10-30 | S4–S6 落地：分层 context、kernel checkpoint、workflow runner/artifact/verifier；625 pytest |
 | 1.1.0 | 2026-10-30 | S1–S3 落地：Kernel/Workflow 类型、工具注册、有界 loop；621 pytest |
 | 1.0.0 | 2026-10-30 | 新架构：固定 Workflow + 共享 Kernel + Producer/Verifier；评价体系移至 3.5 |

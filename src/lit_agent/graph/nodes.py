@@ -466,16 +466,28 @@ class Phase2Nodes:
 
         claims = claims_from_json(self._claims_json(state))
         if self.settings.report.v2_enabled:
-            from lit_agent.report.assemble import build_report_bundle
+            from lit_agent.workflow.report import ReportWorkflow
 
-            draft, report_context = build_report_bundle(
-                self.settings,
-                run_id=str(state.get("run_id") or ""),
-                topic_id=str(state.get("topic_id") or ""),
-                paper_ids=self._paper_ids(state),
-                title=f"Weekly report: {state.get('topic_id')}",
-                gateway=getattr(self.ctx, "gateway", None),
-            )
+            try:
+                draft, report_context = ReportWorkflow(
+                    self.settings, gateway=getattr(self.ctx, "gateway", None)
+                ).run(
+                    run_id=str(state.get("run_id") or ""),
+                    topic_id=str(state.get("topic_id") or ""),
+                    paper_ids=self._paper_ids(state),
+                    title=f"Weekly report: {state.get('topic_id')}",
+                )
+            except Exception:  # noqa: BLE001 - transitional fallback while S9 lands
+                from lit_agent.report.assemble import build_report_bundle
+
+                draft, report_context = build_report_bundle(
+                    self.settings,
+                    run_id=str(state.get("run_id") or ""),
+                    topic_id=str(state.get("topic_id") or ""),
+                    paper_ids=self._paper_ids(state),
+                    title=f"Weekly report: {state.get('topic_id')}",
+                    gateway=getattr(self.ctx, "gateway", None),
+                )
             from lit_agent.report.cards import source_sha
 
             cards_payload = [

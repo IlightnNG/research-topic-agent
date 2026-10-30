@@ -1,17 +1,17 @@
 ﻿# RESULTS — Phase 3.4（Workflow + Kernel 重构）
 
 > 规范：`phase3.4-workflow-kernel-refactor.md`
-> 当前进度：**S1–S6 完成**；S7+ 待做。
+> 当前进度：**S1–S9 完成**；S10+ 待做。
 > 评价体系：未实现，见 `docs/OPEN-ISSUES.md`。
 
 ## 0. 一页摘要
 
 | 指标 | 结果 |
 |---|---|
-| 阶段 | **S1–S6 完成** |
-| 测试 | `pytest` **625 例**（新增 12 例 kernel/workflow） |
+| 阶段 | **S1–S9 完成** |
+| 测试 | `pytest` **629 例**；Playwright **18 passed** |
 | 代码 | `kernel/`、`workflow/` 基础层 |
-| 兼容 | 未改旧 graph/report/chat 路径 |
+| 兼容 | chat/report 已接新 workflow，保留 legacy fallback |
 
 ## 1. S1 · 类型与固定 Workflow
 
@@ -80,3 +80,30 @@
 - S8：ChatWorkflow 迁移；
 - S9：ReportWorkflow 迁移；
 - S10：事件/stream 接 UI。
+
+
+## 9. S7 · 独立 Verifier
+
+- `AgentVerifier`：独立 prompt/上下文，只看 artifact + node contract。
+- 输出 `accept / repair / fail`；异常一律 reject。
+- CodeVerifier 始终先执行。
+
+## 10. S8 · ChatWorkflow
+
+- 单节点 `answer`，Kernel 工具：`search_topic / verify_claim`。
+- `/api/.../chat` 默认走 ChatWorkflow；异常回退旧 `answer`。
+- 行为保持：引用、拒答、中文镜像、LLM query rewrite。
+- 测试：13 chat + 2 workflow 全部通过。
+
+## 11. S9 · ReportWorkflow
+
+- `ReportWorkflow` 通过 WorkflowRunner + Kernel 调用 `generate_report` 工具。
+- `report` 节点优先走 Workflow；异常回退旧 `build_report_bundle`。
+- **当前是迁移缝合层**：内部仍复用现有 report engine；下一步再拆 `evidence/map/write` 节点。
+- 测试：report 全量 + e2e 18。
+
+## 12. 下一步
+
+- S10：Report 节点拆分 + 事件/stream；
+- S11：旧 graph 兼容/删除；
+- S12：收尾。
