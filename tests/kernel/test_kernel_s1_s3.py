@@ -121,9 +121,15 @@ def test_kernel_tool_then_final() -> None:
 
 def test_kernel_max_steps() -> None:
     kernel = Kernel(tools=FakeTools())
+    counter = {"n": 0}
+
+    def varying(_history, _goal):
+        counter["n"] += 1
+        return {"action": "tool", "tool": "echo", "args": {"x": counter["n"]}}
+
     result = kernel.run(
         KernelGoal(node_id="n1", objective="loop", allowed_tools=("echo",), max_steps=2),
-        completer=lambda _h, _g: {"action": "tool", "tool": "echo", "args": {"x": 1}},
+        completer=varying,
     )
     assert result.stop_reason == "max_steps"
     assert result.steps_used == 2
@@ -170,3 +176,119 @@ def test_kernel_budget_stops() -> None:
     )
     assert result.stop_reason == "budget"
     assert result.cost_usd >= 0.2
+
+
+def test_context_handoff_keeps_l0_l1_and_drops_l2() -> None:
+    from lit_agent.kernel.context import ContextLayers
+
+    ctx = ContextLayers(invariants={"topic": "ai"})
+    ctx.start_node("evidence")
+    ctx.working["raw"] = "temporary"
+    ctx.raw_refs.append("span-1")
+    ctx.artifacts["papers"] = "paper list"
+    handoff = ctx.finish_node("cards", "20 cards")
+
+    assert handoff.invariants["topic"] == "ai"
+    assert handoff.artifacts["papers"] == "paper list"
+    assert handoff.artifacts["cards"] == "20 cards"
+    assert ctx.working == {}
+    assert ctx.raw_refs == []
+
+
+def test_kernel_checkpoint_resume_continues() -> None:
+    from lit_agent.kernel.checkpoint import CheckpointStore
+
+    store = CheckpointStore()
+    kernel = Kernel(tools=FakeTools())
+    first = kernel.run(
+        KernelGoal(node_id="n1", objective="resume", allowed_tools=("echo",), max_steps=1),
+        completer=lambda _h, _g: {"action": "tool", "tool": "echo", "args": {"x": 1}},
+        checkpoint=store,
+    )
+    assert first.stop_reason == "max_steps"
+
+    resumed = Kernel(tools=FakeTools()).run(
+        KernelGoal(node_id="n1", objective="resume", allowed_tools=("echo",), max_steps=3),
+        completer=lambda _h, _g: {"action": "final", "outputs": {"done": True}},
+        checkpoint=store,
+        resume=True,
+    )
+    assert resumed.stop_reason == "final"
+    assert resumed.output == {"done": True}
+    assert resumed.trace  # restored previous tool call
+
+
+def test_fixed_workflow_runner_and_resume() -> None:
+    from lit_agent.workflow.artifacts import CheckpointStore as WorkflowStore
+    from lit_agent.workflow.runner import WorkflowRunner
+    from lit_agent.workflow.spec import NodeSpec, WorkflowSpec
+
+    spec = WorkflowSpec(
+        name="demo",
+        nodes=(
+            NodeSpec(id="a", kind="deterministic", goal="a", output_key="a"),
+            NodeSpec(
+                id="b",
+                kind="deterministic",
+                goal="b",
+                input_keys=("a",),
+                output_key="b",
+                postconditions=("value",),
+            ),
+        ),
+    )
+    store = WorkflowStore()
+    calls: list[str] = []
+
+    def a(_inputs):
+        calls.append("a")
+        return {"value": 1}
+
+    def bad_b(_inputs):
+        calls.append("bad_b")
+        raise RuntimeError("boom")
+
+    first = WorkflowRunner(
+        spec,
+        kernel=Kernel(tools=FakeTools()),
+        handlers={"a": a, "b": bad_b},
+        checkpoint=store,
+    ).run()
+    assert first.failed_node == "b"
+
+    def good_b(inputs):
+        calls.append("good_b")
+        return {"value": inputs["a"]["value"] + 1}
+
+    second = WorkflowRunner(
+        spec,
+        kernel=Kernel(tools=FakeTools()),
+        handlers={"a": a, "b": good_b},
+        checkpoint=store,
+    ).run(resume=True)
+    assert second.completed == ["a", "b"]
+    assert second.artifacts["b"]["value"] == 2
+    assert calls == ["a", "bad_b", "good_b"]
+
+
+def test_workflow_verifier_rejects_node() -> None:
+    from lit_agent.workflow.runner import WorkflowRunner
+    from lit_agent.workflow.spec import NodeSpec, WorkflowSpec
+    from lit_agent.workflow.verifier import Verdict
+
+    class Reject:
+        def verify(self, node, artifact, artifacts):  # noqa: ANN001
+            return Verdict(accept=False, reasons=["bad"])
+
+    spec = WorkflowSpec(
+        name="demo",
+        nodes=(NodeSpec(id="a", kind="deterministic", goal="a", output_key="a"),),
+    )
+    result = WorkflowRunner(
+        spec,
+        kernel=Kernel(tools=FakeTools()),
+        handlers={"a": lambda _inputs: {"value": 1}},
+        verifier=Reject(),
+    ).run()
+    assert result.failed_node == "a"
+    assert "bad" in (result.error or "")

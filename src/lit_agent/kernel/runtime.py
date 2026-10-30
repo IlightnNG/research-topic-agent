@@ -1,7 +1,7 @@
-﻿"""Bounded kernel loop (Phase 3.4 / S3).
+﻿"""Bounded kernel loop (Phase 3.4 / S3-S5).
 
-The kernel executes one node's goal. It cannot add/remove workflow nodes; that
-is the outer workflow's responsibility.
+One kernel run executes one node goal. Checkpoints allow a crashed or paused
+run to continue without repeating completed tool calls.
 """
 
 from __future__ import annotations
@@ -11,6 +11,7 @@ import time
 from collections.abc import Callable
 from typing import Any
 
+from lit_agent.kernel.checkpoint import CheckpointStore, KernelCheckpoint
 from lit_agent.kernel.context import ContextLayers
 from lit_agent.kernel.events import EventSink, emit
 from lit_agent.kernel.tools import KernelTools
@@ -90,34 +91,56 @@ class Kernel:
         goal: KernelGoal,
         *,
         completer: KernelCompleter | None = None,
+        checkpoint: CheckpointStore | None = None,
+        resume: bool = False,
     ) -> KernelResult:
         if completer is None:
             if self.gateway is None:
                 return KernelResult({}, [], 0, "failed")
             completer = LLMToolCompleter(self.gateway, self.tools)
 
+        saved = checkpoint.load() if checkpoint is not None and resume else None
+        if saved is not None:
+            self.context = ContextLayers.from_dict(saved.context)
+            trace = [ToolCallRecord(**item) for item in saved.trace]
+            step = saved.step
+            cost = saved.cost_usd
+            history = [
+                {"tool": item.name, "args": item.args, "ok": item.ok, "output": item.output}
+                for item in trace
+            ]
+            if saved.stop_reason == "final":
+                return KernelResult(
+                    saved.output, trace, step, "final", cost
+                )
+        else:
+            trace = []
+            step = 0
+            cost = 0.0
+            history = []
+
         started = time.monotonic()
-        trace: list[ToolCallRecord] = []
-        history: list[dict[str, Any]] = []
-        repeat_key = ""
-        repeats = 0
-        cost = 0.0
         emit(self.event_sink, "kernel.started", node_id=goal.node_id, goal=goal.objective)
 
-        for step in range(1, max(1, goal.max_steps) + 1):
+        for _ in range(step + 1, max(1, goal.max_steps) + 1):
+            step += 1
             if self._cancelled:
-                return self._finish(goal, {}, trace, step - 1, "cancelled", cost)
+                return self._finish(goal, {}, trace, step - 1, "cancelled", cost, checkpoint)
             if time.monotonic() - started > goal.timeout_s:
-                return self._finish(goal, {}, trace, step - 1, "timeout", cost)
+                return self._finish(goal, {}, trace, step - 1, "timeout", cost, checkpoint)
             if cost >= goal.max_usd > 0:
-                return self._finish(goal, {}, trace, step - 1, "budget", cost)
+                return self._finish(goal, {}, trace, step - 1, "budget", cost, checkpoint)
 
-            reply = completer(history, goal)
+            try:
+                reply = completer(history, goal)
+            except Exception:  # noqa: BLE001 - checkpoint the failed step, caller decides
+                self._save(goal, step - 1, trace, {}, "failed", cost, checkpoint)
+                return self._finish(goal, {}, trace, step - 1, "failed", cost, checkpoint)
             if not isinstance(reply, dict):
-                return self._finish(goal, {}, trace, step - 1, "failed", cost)
+                return self._finish(goal, {}, trace, step - 1, "failed", cost, checkpoint)
             if reply.get("action") == "final":
                 output = dict(reply.get("outputs") or {})
-                return self._finish(goal, output, trace, step, "final", cost)
+                return self._finish(goal, output, trace, step, "final", cost, checkpoint)
 
             name = str(reply.get("tool") or "")
             args = dict(reply.get("args") or {})
@@ -130,7 +153,7 @@ class Kernel:
                         error_code="E_TOOL_NOT_ALLOWED",
                     )
                 )
-                return self._finish(goal, {}, trace, step, "failed", cost)
+                return self._finish(goal, {}, trace, step, "failed", cost, checkpoint)
 
             result = self.tools.call(name, args)
             cost += float(getattr(result, "meta", {}).get("cost_usd") or 0.0)
@@ -144,26 +167,44 @@ class Kernel:
                 )
             )
             history.append(
-                {
-                    "tool": name,
-                    "args": args,
-                    "ok": bool(result.ok),
-                    "output": result.output,
-                }
+                {"tool": name, "args": args, "ok": bool(result.ok), "output": result.output}
             )
             self.context.working["last_tool"] = name
             self.context.working["last_output"] = result.output
+            self._save(goal, step, trace, {}, "failed", cost, checkpoint)
 
             key = f"{name}:{json.dumps(args, sort_keys=True, ensure_ascii=False)}"
-            if key == repeat_key:
-                repeats += 1
-            else:
-                repeat_key = key
-                repeats = 0
-            if repeats >= 2:
-                return self._finish(goal, {}, trace, step, "no_progress", cost)
+            if len(history) >= 2:
+                previous = history[-2]
+                previous_key = f"{previous['tool']}:{json.dumps(previous['args'], sort_keys=True, ensure_ascii=False)}"
+                if key == previous_key:
+                    return self._finish(goal, {}, trace, step, "no_progress", cost, checkpoint)
 
-        return self._finish(goal, {}, trace, goal.max_steps, "max_steps", cost)
+        return self._finish(goal, {}, trace, goal.max_steps, "max_steps", cost, checkpoint)
+
+    def _save(
+        self,
+        goal: KernelGoal,
+        step: int,
+        trace: list[ToolCallRecord],
+        output: dict[str, Any],
+        reason: str,
+        cost: float,
+        checkpoint: CheckpointStore | None,
+    ) -> None:
+        if checkpoint is None:
+            return
+        checkpoint.save(
+            KernelCheckpoint(
+                goal=goal.to_dict(),
+                step=step,
+                trace=[item.to_dict() for item in trace],
+                output=output,
+                stop_reason=reason,  # type: ignore[arg-type]
+                cost_usd=cost,
+                context=self.context.to_dict(),
+            )
+        )
 
     def _finish(
         self,
@@ -173,7 +214,9 @@ class Kernel:
         steps: int,
         reason: str,
         cost: float,
+        checkpoint: CheckpointStore | None,
     ) -> KernelResult:
+        self._save(goal, steps, trace, output, reason, cost, checkpoint)
         emit(
             self.event_sink,
             "kernel.finished",
