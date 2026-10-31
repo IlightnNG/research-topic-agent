@@ -1,159 +1,76 @@
-# Research Topic Agent
+# lit-agent v2
 
-An intelligent, multi-agent literature research assistant built on **Context
-Engineering** and **Harness Engineering**.
+Greenfield literature-research system. The legacy `lit_agent` package, old graph/report/chat, old tests and old docs have been removed from this repository.
 
-Keeping pace with scientific literature is a foundational challenge for researchers.
-This project develops an autonomous assistant that explores, tracks, and maps complex
-research topics over time — running scheduled, unattended analysis instead of relying
-on brittle single-prompt wrappers.
+## Current status
 
-## Objectives
+This is a **working prototype**, not a completed research system.
 
-- **Topic tracking over time.** For each user-managed topic, run a scheduled pipeline:
-  retrieve the newest literature → ingest and deduplicate → update the paper/author
-  graph → analyse → write a weekly report.
-- **Multi-agent orchestration.** Specialised sub-agents (retrieval, network mapping,
-  scheduled update, analysis, reporting, quality review) working under one orchestrator
-  toward a unified research goal.
-- **Paper relations and author activity.** Model relationships between papers
-  (citation, co-authorship, topical proximity, temporal) so a user can see who is
-  active and how a research direction evolves.
-- **Deterministic execution and self-correction.** Runtime guards, state-machine
-  discipline, and a post-run quality gate detect and recover from topic drift, loops,
-  and stagnation — failures are annotated, never silent.
-- **Context Engineering.** Manage the flow and folding of active information so the
-  right academic context enters the context window without exceeding VRAM limits.
-- **Harness Engineering.** State machines, evaluation loops, document parsing
-  runtimes, retry logic, data provenance, and full event replay around the agents.
-- **Dual LLM engine.** Route reasoning between locally deployed open-source models
-  (privacy-focused, cost-restricted) and cloud APIs, by task complexity and data
-  sensitivity, with circuit breaking and fallback.
+What works:
 
-## Tech Stack
+- OpenAlex ingestion + local corpus;
+- PDF text extraction;
+- source selection;
+- evidence + exact-quote claims;
+- direction clustering;
+- deterministic report assembly and persistence;
+- metrics points/spans;
+- chat with citations;
+- v2 API with async runs, SSE events, pause/resume, report retrieval;
+- v2 tests.
 
-| Layer | Choice |
-|---|---|
-| Orchestration | LangGraph (scheduled pipeline as an explicit state graph) |
-| LLM gateway | LiteLLM — Ollama / vLLM (local) + DeepSeek (cloud), with routing, circuit breaking, fallback |
-| Backend | FastAPI, SQLAlchemy 2.0, Alembic, SSE |
-| Frontend | Vue 3 or React + TypeScript + Vite + ECharts |
-| Storage | SQLite (runs, events, reports) · Kuzu (paper/author graph) · Qdrant (vector search) |
-| Data sources | OpenAlex (primary), arXiv, custom venue whitelist |
-| Parsing | PyMuPDF, pdfplumber |
-| Scheduling | APScheduler |
-| Evaluation | DeepEval + in-house domain metrics (drift, self-healing, grounding) |
-| Language | Python 3.11+ |
+What is not done:
 
-Single machine, no external services required — all stores are embedded or local.
+- LLM section writing;
+- 5–8 high-quality directions on real 100-paper corpora;
+- ≥30% full-text coverage;
+- report count/claim consistency;
+- LLM judge + human gold evaluation;
+- production UI.
 
+See [`docs/TODO.md`](docs/TODO.md) for the audit findings and P0/P1 work.
 
-## Phase 1 quick start (this machine)
+## Layout
 
-> Phase 1 builds the full-system skeleton. Everything that grows is centralised on
-> `D:\lit-agent-store` (C: was full); the repository itself stays where it is.
+```text
+src/lit_agent_v2/
+  api/            FastAPI v2
+  kernel/         minimal agent kernel
+  workflow/       runner, events, verifier
+  domains/
+    report/       source, evidence, map, write, persist
+    chat/         answer, sessions, stream
+  metrics/        metric specs, store, gates
+  evaluation/     dataset, evaluators, tuner
+  storage/        SQLite + content-addressed artifacts
+tests/v2/         v2 tests only
+docs/             current docs only
+```
+
+## Run
 
 ```powershell
-# 1) environment: sets UV/PIP/HF/TORCH/TEMP to D: and PYTHONPATH=<repo>\src
 . .\scripts\env.ps1
-
-# 2) dependencies + self-check
-uv sync
-.\scripts\lit-agent.ps1 doctor --strict
-
-# 3) database (26 tables) + structure check
-.\scripts\lit-agent.ps1 db upgrade
-.\scripts\lit-agent.ps1 db status
-python scripts/check_structure.py
-
-# 4) quality gates
-uv run ruff check . ; uv run ruff format --check .
-uv run pytest -q
+uv run pytest -q tests/v2
+uv run uvicorn lit_agent_v2.api.app:create_app --factory --port 8001
 ```
 
+The v2 API is independent of the removed legacy app.
 
-## Manual demo (Phase 3.2)
-
-### Backend
+## Report from local corpus
 
 ```powershell
-cd "E:\大学\NUS\EE5003\agent"
-. .\scripts\env.ps1
-uv run uvicorn lit_agent.api.app:app --port 8000
+uv run python -c "from lit_agent_v2.cli import main; main()" run --topic llm-agents --limit 100 --corpus D:\lit-agent-store\v2-live\corpus
 ```
 
-### Frontend
+## Data
 
-In a second terminal:
+Live data and archives are stored outside the repository:
 
-```powershell
-cd "E:\大学\NUS\EE5003\agent"
-. .\scripts\env.ps1
-cd web
-npm run dev -- --port 5173
+```text
+D:\lit-agent-store\
 ```
 
-Open `http://127.0.0.1:5173/topics/e2e-topic` (or `/topics`).
-The backend reads `.env` for the LLM key; set `$env:LIT_AGENT_PIPELINE__LLM='off'`
-before starting the backend if you only want deterministic templates.
+## Rule
 
-### Generate and inspect one report
-
-```powershell
-uv run python scripts/check_report.py --topic ai-agents --language en --no-llm
-```
-
-It prints `papers_in_db`, `claims`, `sections`, `word_count`, `thin`, `problems`.
-`thin=true` is expected when the database only contains the 3 `E2E-P*` fixture papers.
-
-> **Data note**: report generation reads papers already in the local store; it does
-> not call OpenAlex. Sync a topic first if you need real papers:
->
-> ```powershell
-> uv run python -m lit_agent.cli sources sync --topic ai-agents --limit 50
-> ```
->
-> OpenAlex works without a key, but the free pool shares a daily quota and can return
-> 401; a free API key + `mailto` in `.env` is recommended for real ingestion.
-> A topic with an empty `venue_ids` selector may return no new papers.
-
-
-### Source suggestions
-
-In **New topic**, use **Research sources → Suggest with AI**:
-
-1. AI proposes venue names and queries;
-2. OpenAlex resolves names to real source ids;
-3. Review/remove candidates, optionally add a source id manually;
-4. **Preview 5 papers** before creating the topic.
-
-Nothing is applied automatically; manual editing always wins.
-
-### Tests
-
-```powershell
-uv run pytest -q
-cd web
-npm run typecheck
-npm run build
-$env:PLAYWRIGHT_BROWSERS_PATH='D:\lit-agent-store\playwright'
-npx playwright test e2e/smoke.spec.ts --reporter=line
-```
-
-Where things live:
-
-- `docs/implementation/phase1-implementation-steps.md` - the plan (steps, depth matrix, acceptance).
-- `docs/implementation/RESULTS-P1.md` - measured numbers (single source of truth).
-- `docs/implementation/phase3.4-workflow-kernel-refactor.md` - Report full Workflow/Kernel migration plus metrics/evaluation plan.
-- `docs/OPEN-ISSUES.md` - cross-phase backlog.
-- `docs/implementation/adr/0004-*.md` - vector store + embedding model.
-- `docs/implementation/adr/0005-*.md` - 24 tables, event seq allocation, idempotency keys.
-
-Known environment constraints:
-
-- The repository path contains non-ASCII characters, so the project is **not installed editable**
-  (`[tool.uv] package = false`). Use `scripts/lit-agent.ps1`, or set `PYTHONPATH=src` yourself.
-- `alembic.ini` and every `*.ps1` are ASCII-only on purpose: Windows PowerShell and alembic read
-  them with the locale codec (GBK here) and non-ASCII bytes break parsing.
-- All fast-growing storage (uv/pip caches, model weights, temp files, run data) lives on D:.
-  See `scripts/env.ps1` and `RESULTS-P1.md` section 1.1.
+No legacy imports. No compatibility layer. No dual runtime. New work goes into `src/lit_agent_v2/` only.

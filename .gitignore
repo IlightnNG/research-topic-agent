@@ -5,36 +5,10 @@ __pycache__/
 .pytest_cache/
 .ruff_cache/
 .mypy_cache/
-
-# Virtual environments
 .venv/
 venv/
 env/
-
-# Temporary build/download scratch
 .pip-tmp/
-
-# Agent tooling and generated artifacts (local only)
-.agents/
-
-# Runtime data: SQLite / Kuzu / Qdrant stores, cached full text
-data/
-
-# Environment and secrets
-.env
-.env.*
-!.env.example
-
-# Editor and OS
-.vscode/
-.idea/
-.DS_Store
-Thumbs.db
-
-# Logs
-*.log
-
-# Local tooling artifacts (uv cache/python, temp, verification libs)
 .local/
 .uv-cache/
 .uv-python/
@@ -42,13 +16,18 @@ Thumbs.db
 .pip-cache/
 .tmp/
 
-# Runtime products of the prototype / app
+# Env and secrets
+.env
+.env.*
+!.env.example
+
+# Runtime
 out/
 logs/
+*.log
 
-# Frontend (Phase 1)
-node_modules/
-dist/
-web/screens/
-web/playwright-report/
-web/test-results/
+# Editor / OS
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db

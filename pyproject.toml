@@ -1,92 +1,44 @@
 [project]
 name = "lit-agent"
 version = "0.1.0"
-description = "Intelligent multi-agent literature research assistant (Phase 1: full-system skeleton)"
+description = "Greenfield literature research system (v2)"
 readme = "README.md"
 requires-python = ">=3.11,<3.13"
 license = { text = "Proprietary" }
 dependencies = [
-    # --- core contracts / config / persistence (Step 1.1-1.4) ---
     "pydantic>=2.7",
-    "pydantic-settings>=2.3",
-    "pyyaml>=6.0",
-    "python-dotenv>=1.0",
-    "structlog>=24.1",
-    "sqlalchemy>=2.0",
-    "alembic>=1.13",
     "httpx>=0.27",
-    # --- api (Step 1.15) ---
     "fastapi>=0.111",
     "uvicorn[standard]>=0.30",
-    # --- harness / runtime (Step 1.10-1.17) ---
-    "langgraph>=0.2",
-    "langgraph-checkpoint-sqlite>=2.0",
-    "apscheduler>=3.10",
-    # --- gateway (Step 1.9) ---
-    "litellm>=1.50",
-    "tiktoken>=0.7",
-    # --- sources / parsing (Step 1.6-1.7) ---
-    "pyalex>=0.15",
-    "arxiv>=2.1",
     "pymupdf>=1.24",
-    "pdfplumber>=0.11",
-    # --- stores (Step 1.5) ---
-    "qdrant-client>=1.9",
-    "kuzu>=0.6",
-    # --- embeddings (ADR-0004; installed ahead of Step 1.5) ---
-    "numpy>=1.26",
-    "sentence-transformers>=3.0",
-    # --- evaluation (Step 1.18) ---
-    "deepeval>=2.0",
 ]
 
 [project.scripts]
-lit-agent = "lit_agent.cli:main"
+lit-agent = "lit_agent_v2.cli:main"
 
 [dependency-groups]
 dev = [
     "pytest>=8",
-    "pytest-asyncio>=0.24",
     "ruff>=0.6",
-    "respx>=0.21",
 ]
 
 [tool.uv]
-# IMPORTANT: the repository path contains non-ASCII characters (E:\大学\...).
-# An editable install writes a *.pth containing that path; CPython's site.py then
-# decodes it with the locale codec (GBK on zh-CN Windows) and raises
-# UnicodeDecodeError at interpreter start-up, breaking the whole venv.
-# Therefore the project is NOT installed; use `pythonpath = ["src"]` (pytest) and
-# `scripts/lit-agent.ps1` / `$env:PYTHONPATH="src"` for the CLI.
 package = false
 
 [tool.ruff]
 line-length = 100
 target-version = "py311"
-src = ["src", "tests", "scripts"]
-# 文档里的 Phase 0 PPT 构建脚本与 prototype 实验区不参与 Phase 1 的代码质量门
-extend-exclude = ["docs/ppt/scripts", "prototype"]
+src = ["src", "tests"]
 
 [tool.ruff.lint]
 select = ["E", "F", "I", "UP", "B", "SIM", "C4"]
 ignore = ["E501"]
 
 [tool.ruff.lint.isort]
-known-first-party = ["lit_agent"]
-
-[tool.ruff.lint.per-file-ignores]
-# FastAPI 的依赖注入惯用法就是 `x: T = Depends(...)`（B008 在此不适用）
-"src/lit_agent/api/**" = ["B008"]
-
-[tool.ruff.format]
-quote-style = "double"
+known-first-party = ["lit_agent_v2"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 pythonpath = ["src"]
 asyncio_mode = "auto"
 addopts = "-q"
-markers = [
-    "slow: 需要真实模型/大规模数据/网络的慢用例（默认不跑）",
-    "integration: 使用真实 SQLite/Kuzu/Qdrant 的集成用例",
-]
