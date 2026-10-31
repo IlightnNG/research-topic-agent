@@ -2,7 +2,7 @@
 
 > 模块：M3 Evidence
 > 版本：1.0（2026-10-31）
-> 状态：planned
+> 状态：done
 > 依赖：M1-P01（LLM client）
 > 目标：让 claim 是 research claim，而不是句子切片、作者列表或参考文献。
 
@@ -213,7 +213,24 @@ fixture：
 
 ---
 
-## 12. Commit
+## 12. 实施记录（2026-10-31）
+
+已完成：
+
+- 5 类 claim；
+- 作者/refs/ack/copyright/truncation 过滤；
+- quote exact；
+- research claim 计数；
+- LLM claim extractor；
+- live LLM 测试；
+- `claim_type` contract v1.1。
+
+未接入：
+
+- M4 writer 仍使用 deterministic extractor；
+- nonresearch rate 未单列 metric。
+
+## 13. Commit
 
 ```text
 feat(M3-P01): add typed claims and author-list rejection

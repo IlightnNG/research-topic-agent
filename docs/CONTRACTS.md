@@ -1,8 +1,8 @@
 # Contracts & Module Communication
 
-> 版本：1.0 FROZEN（2026-10-31）
-> CONTRACT_VERSION=1.0 · SCHEMA_VERSION=1
-> CONTRACT_HASH=c13bb3fa8b16263c69c44e6a16adf733074e6016b12147b1bbf23ea781897dc7
+> 版本：1.2 FROZEN（2026-10-31）
+> CONTRACT_VERSION=1.2 · SCHEMA_VERSION=1
+> CONTRACT_HASH=cf2243febe2d1b924b4ca2c179abee9a341d703ed9945ba1ae579eeb2daf9e90
 > 日期：2026-10-31
 > 状态：DRAFT；冻结后版本升为 1.0，写入 `DECISIONS.md`
 > 目标：规定 M1–M6 的唯一通信方式，消除跨模块具体实现依赖。
@@ -530,9 +530,9 @@ C1–C4 已完成；M4-P02 只允许通过 ports 接 writer/verifier/scorer。
 ## 15. 当前状态
 
 ```text
-版本：1.0 FROZEN
+版本：1.2 FROZEN
 冻结：2026-10-31
-CONTRACT_VERSION：1.0
+CONTRACT_VERSION：1.2
 SCHEMA_VERSION：1
 M1-P01：可开始
 C1–C9：完成
@@ -575,6 +575,6 @@ C1–C9：完成
 ### 当前门禁
 
 ```text
-pytest tests/v2   32 passed
+pytest tests/v2   53 passed
 ruff              clean
 ```

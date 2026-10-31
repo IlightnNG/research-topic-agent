@@ -34,7 +34,7 @@ class SourceService:
         wanted = _terms(query)
         for paper in papers:
             key = paper.paper_id.strip().lower()
-            if not key or key in seen:
+            if not key or key in seen or not paper.title.strip():
                 continue
             seen.add(key)
             score = len(wanted & _terms(f"{paper.title} {paper.abstract}"))
@@ -53,8 +53,15 @@ class SourceService:
         )
         coverage = len(selected) / max(1, limit)
         duplicates = (len(papers) - len(unique)) / max(1, len(papers))
+        complete = sum(
+            1 for paper in selected if paper.title and paper.authors and paper.venue and paper.year
+        )
+        metadata_completeness = complete / max(1, len(selected))
+        authors_rate = sum(1 for paper in selected if paper.authors) / max(1, len(selected))
         assert_metric("search.coverage", coverage, sample_size=len(selected))
         assert_metric("search.duplicate_rate", duplicates, sample_size=len(papers))
+        assert_metric("metadata.completeness", metadata_completeness, sample_size=len(selected))
+        assert_metric("metadata.authors_rate", authors_rate, sample_size=len(selected))
         if self.metrics and run_id:
             self.metrics.point(
                 "search.coverage", coverage, run_id=run_id, node_id="source", sample_size=len(selected)
@@ -65,6 +72,20 @@ class SourceService:
                 run_id=run_id,
                 node_id="source",
                 sample_size=len(papers),
+            )
+            self.metrics.point(
+                "metadata.completeness",
+                metadata_completeness,
+                run_id=run_id,
+                node_id="source",
+                sample_size=len(selected),
+            )
+            self.metrics.point(
+                "metadata.authors_rate",
+                authors_rate,
+                run_id=run_id,
+                node_id="source",
+                sample_size=len(selected),
             )
         return artifact
 

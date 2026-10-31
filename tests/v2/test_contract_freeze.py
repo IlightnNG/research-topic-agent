@@ -25,6 +25,6 @@ def _hash() -> str:
 
 
 def test_contract_version_frozen() -> None:
-    assert CONTRACT_VERSION == "1.0"
+    assert CONTRACT_VERSION == "1.2"
     assert SCHEMA_VERSION == 1
     assert _hash() == CONTRACT_HASH

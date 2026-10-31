@@ -1,7 +1,7 @@
 # M3 · Evidence
 
 > 模块 ID：M3
-> 代码：`src/lit_agent_v2/domains/report/{evidence.py,claim_extractor.py,contracts.py}`
+> 代码：`src/lit_agent_v2/domains/report/{evidence.py,claim_extractor.py}`
 > 目标：把论文变成可核验的 claim + quote，不允许“句子切分即 claim”。
 
 ---
@@ -191,11 +191,11 @@ fixture 必须包含：
 | L1/L2 | ✅ |
 | quote | ✅ |
 | claim | ✅ |
-| claim 类型 | ❌ |
-| 作者过滤 | ❌ |
-| purity 真计算 | ❌ |
-| LLM extractor | ✅ 接口，未默认 |
-| 全文 30% | ❌ |
+| claim 类型 | ✅ |
+| 作者过滤 | ✅ |
+| purity 真计算 | ✅ |
+| LLM extractor | ✅ 接口 + live 测试 |
+| 全文 30% | M2 负责 |
 
 ---
 

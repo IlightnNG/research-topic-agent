@@ -1,4 +1,4 @@
-"""Report writing for v2 S3."""
+"""Deterministic report assembly for M4-P01."""
 
 from __future__ import annotations
 
@@ -16,6 +16,10 @@ def _words(text: str) -> int:
     return len(re.findall(r"\S+", text))
 
 
+def _cell(value: Any) -> str:
+    return str(value if value is not None else "").replace("|", "/").strip() or "-"
+
+
 class WriteService:
     def build(
         self,
@@ -27,8 +31,6 @@ class WriteService:
         mapping: MapArtifact,
         on_section=None,
     ) -> ReportDraft:
-        cap = 20 if len(evidence.papers) <= 60 else 6
-        notes = 12 if len(evidence.papers) <= 60 else 3
         claims: list[dict[str, Any]] = []
         for paper in evidence.papers:
             for claim in paper.get("claims", []):
@@ -52,9 +54,7 @@ class WriteService:
         add(Section("overview", "overview", "At a Glance", overview))
 
         for direction in mapping.directions:
-            direction_claims = [
-                by_id[cid] for cid in direction.claim_ids if cid in by_id
-            ][:cap]
+            direction_claims = [by_id[cid] for cid in direction.claim_ids if cid in by_id]
             lines = [
                 f"## {direction.name}",
                 (
@@ -81,11 +81,9 @@ class WriteService:
                 "benchmarks; a controlled comparison with matched datasets is still missing."
             )
             lines.append("### Evidence notes")
-            for claim in direction_claims[:notes]:
+            for claim in direction_claims:
                 idx = index_of[str(claim["claim_id"])]
-                lines.append(
-                    f"- `{claim['paper_id']}`: {claim['text']} [C{idx + 1}]"
-                )
+                lines.append(f"- `{claim['paper_id']}`: {claim['text']} [C{idx + 1}]")
             body = "\n".join(lines)
             add(
                 Section(
@@ -100,7 +98,7 @@ class WriteService:
         rows = ["| Direction | Papers | Claims | Coherence |", "|---|---|---|---|"]
         for direction in mapping.directions:
             rows.append(
-                f"| {direction.name} | {len(direction.paper_ids)} | "
+                f"| {_cell(direction.name)} | {len(direction.paper_ids)} | "
                 f"{len(direction.claim_ids)} | {direction.coherence:.2f} |"
             )
         add(
@@ -113,10 +111,14 @@ class WriteService:
             )
         )
 
+        largest = max((len(item.paper_ids) for item in mapping.directions), default=0) / max(
+            1, mapping.papers
+        )
         gaps = [
             "## Gaps & Limitations",
             f"- Full-text coverage: {evidence.fulltext}/{len(evidence.papers)} papers.",
             f"- Directions: {len(mapping.directions)} ({mapping.count_quality}).",
+            f"- Largest direction share: {largest:.2f}.",
             "- Several directions rely on a single benchmark; cross-benchmark evidence is limited.",
             "- Claims are extracted from available text; missing PDFs reduce coverage.",
         ]
@@ -127,29 +129,39 @@ class WriteService:
             f"This review starts from {len(evidence.papers)} candidate papers and builds claims "
             "from their available full text or abstracts. Claims are kept only when the quoted "
             "sentence appears verbatim in the source. Directions are formed by average-link "
-            "clustering over character n-gram vectors, then labelled from the most frequent "
-            "content terms inside the cluster. The comparison matrix is generated from the "
-            "cluster membership and claim counts. The report is assembled deterministically so "
-            "that every section can be traced back to claim ids; unsupported sentences are "
-            "removed rather than paraphrased. This design prioritises auditability over prose "
-            "fluency, and it deliberately leaves open the question of whether the observed "
-            "gains transfer to unseen benchmarks, languages, and deployment constraints. The paper index lists every candidate so that a reader can audit the coverage of the corpus rather than relying on the narrative alone. All counts in this report are computed from the stored artifacts and can be reproduced from the same corpus.",
+            "clustering over term-frequency vectors, then labelled from safe content terms. "
+            "The comparison matrix is generated from cluster membership and claim counts. "
+            "The report is assembled deterministically so every section can be traced back to "
+            "claim ids; unsupported sentences are removed rather than paraphrased.",
         ]
-        add(
-            Section("method", "method", "Method & Scope", "\n".join(method))
-        )
+        add(Section("method", "method", "Method & Scope", "\n".join(method)))
 
-        index_rows = ["## Paper Index", "| Paper | Title |", "|---|---|"]
+        index_rows = [
+            "## Paper Index",
+            "| Paper | Title | Authors | Venue | Year | URL |",
+            "|---|---|---|---|---|---|",
+        ]
         for paper in evidence.papers:
-            label = paper["paper_id"] if len(evidence.papers) > 60 else (paper.get("title") or paper["paper_id"])
-            index_rows.append(f"| {paper['paper_id']} | {label} |")
-        add(
-            Section("index", "paper_index", "Paper Index", "\n".join(index_rows))
-        )
+            index_rows.append(
+                "| "
+                + " | ".join(
+                    [
+                        _cell(paper.get("paper_id")),
+                        _cell(paper.get("title")),
+                        _cell(", ".join(paper.get("authors") or [])),
+                        _cell(paper.get("venue")),
+                        _cell(paper.get("year")),
+                        _cell(paper.get("url")),
+                    ]
+                )
+                + " |"
+            )
+        add(Section("index", "paper_index", "Paper Index", "\n".join(index_rows)))
 
-        ledger = ["## Claim Ledger", "| Claim | Paper |", "|---|---|"]
+        ledger = ["## Claim Ledger", "| Claim | Paper | Type |", "|---|---|---|"]
         ledger.extend(
-            f"| [C{index + 1}] | {claim['paper_id']} |" for index, claim in enumerate(claims)
+            f"| [C{index + 1}] | {_cell(claim.get('paper_id'))} | {_cell(claim.get('claim_type'))} |"
+            for index, claim in enumerate(claims)
         )
         add(
             Section(
@@ -163,16 +175,19 @@ class WriteService:
 
         body = "\n\n".join(section.body for section in sections)
         digest = hashlib.sha256(body.encode("utf-8")).hexdigest()[:12]
+        displayed = sorted(
+            {idx for section in sections if section.kind == "deep_dive" for idx in section.claim_indexes}
+        )
+        max_share = max((len(item.paper_ids) for item in mapping.directions), default=0) / max(
+            1, mapping.papers
+        )
         state = (
             "complete"
             if mapping.count_quality == "complete"
             and evidence.fulltext_ratio >= 0.3
             and 1500 <= _words(body) <= 3000
-            and (
-                max((len(item.paper_ids) for item in mapping.directions), default=0)
-                / max(1, mapping.papers)
-            )
-            <= 0.6
+            and max_share <= 0.6
+            and len(displayed) == len(claims)
             else "degraded"
         )
         return ReportDraft(

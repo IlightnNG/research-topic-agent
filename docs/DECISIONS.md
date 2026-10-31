@@ -109,3 +109,23 @@
   - 修改任何 contract（除 `version.py`）必须同步更新 hash、版本和本文件；
   - breaking change 升 major；
   - M1–M6 不允许绕过 ports。
+
+
+## D-012 · Contracts v1.1 (claim type)
+
+- 日期：2026-10-31
+- 状态：accepted
+- 决定：`Claim` 新增可选字段 `claim_type`，默认 `finding`；`CONTRACT_VERSION=1.1`。
+- Hash：`8df591896a40b6efd65780191a9b94ad76f39316cdf06c96274574ab6b8f4f96`
+- 原因：M3-P01 必须区分 finding/method/dataset/limitation/background，且不能把作者列表计入 purity。
+- 兼容性：additive minor；旧调用不需要改。
+
+
+## D-013 · Contracts v1.2 (paper authors)
+
+- 日期：2026-10-31
+- 状态：accepted
+- 决定：`Paper` 新增可选 `authors` 列表，`CONTRACT_VERSION=1.2`。
+- Hash：`cf2243febe2d1b924b4ca2c179abee9a341d703ed9945ba1ae579eeb2daf9e90`
+- 原因：M2-P01 需要 authors 进入 metadata / paper index，并计算 authors rate。
+- 兼容性：additive minor；旧 JSON 缺 authors 时为空列表。

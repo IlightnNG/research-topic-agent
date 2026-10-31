@@ -16,11 +16,11 @@ def _corpus(tmp_path: Path) -> Path:
     root = tmp_path / "corpus"
     (root / "fulltext").mkdir(parents=True)
     topics = [
-        "Function calling routes external APIs. Tool routing lowers latency.",
-        "Dense retrievers rank passages. Rerankers sharpen recall.",
-        "Hierarchical planners decompose tasks. Search budgets prune branches.",
-        "Episodic buffers store context. Memory lookup persists across turns.",
-        "Rubric judges score outputs. Annotators calibrate agreement.",
+        "Function calling improves API routing accuracy in agent systems. Tool routing reduces latency for multi-step agent workflows.",
+        "Dense retrievers improve passage ranking accuracy on benchmarks. Rerankers improve recall for retrieval augmented systems.",
+        "Hierarchical planners improve task decomposition in long horizon agents. Search budgets reduce branch expansion during planning efficiently.",
+        "Episodic buffers improve context retention across conversation turns. Memory lookup improves persistence across multi turn sessions.",
+        "Rubric judges improve scoring agreement with human annotators. Annotators calibrate agreement for reliable evaluation benchmarks.",
     ]
     with (root / "papers.jsonl").open("w", encoding="utf-8") as handle:
         for group, text in enumerate(topics):
@@ -28,7 +28,7 @@ def _corpus(tmp_path: Path) -> Path:
                 pid = f"P{group}{index}"
                 (root / "fulltext" / f"{pid}.txt").write_text(text, encoding="utf-8")
                 handle.write(
-                    json.dumps({"paper_id": pid, "title": pid, "abstract": text}) + "\n"
+                    json.dumps({"paper_id": pid, "title": pid, "abstract": text, "authors": [f"Author {group}"], "venue": "ACL", "year": 2025}) + "\n"
                 )
     return root
 

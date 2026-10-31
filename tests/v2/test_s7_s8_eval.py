@@ -12,9 +12,9 @@ from lit_agent_v2.storage.artifacts import ArtifactStore
 from lit_agent_v2.storage.db import Database
 
 TOPICS = [
-    ("tool", "Function calling routes external APIs. Tool routing lowers latency."),
-    ("retrieval", "Dense retrievers rank passages. Rerankers sharpen recall."),
-    ("planning", "Hierarchical planners decompose tasks. Search budgets prune branches."),
+    ("tool", "Function calling improves API routing accuracy in agent systems. Tool routing reduces latency for multi-step agent workflows."),
+    ("retrieval", "Dense retrievers improve passage ranking accuracy on benchmarks. Rerankers improve recall for retrieval augmented systems."),
+    ("planning", "Hierarchical planners improve task decomposition in long horizon agents. Search budgets reduce branch expansion during planning efficiently."),
     ("memory", "Episodic buffers store context. Memory lookup persists across turns."),
     ("eval", "Rubric judges score outputs. Annotators calibrate agreement."),
 ]
@@ -31,7 +31,7 @@ def _corpus(root: Path) -> tuple[Path, list[list[str]]]:
                 ids.append(pid)
                 (root / "fulltext" / f"{pid}.txt").write_text(text, encoding="utf-8")
                 handle.write(
-                    json.dumps({"paper_id": pid, "title": pid, "abstract": text}) + "\n"
+                    json.dumps({"paper_id": pid, "title": pid, "abstract": text, "authors": [f"Author {group}"], "venue": "ACL", "year": 2025}) + "\n"
                 )
             groups.append(ids)
     return root, groups

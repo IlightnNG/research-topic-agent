@@ -24,6 +24,7 @@ def test_openalex_adapter_maps_records() -> None:
                 "publication_year": 2025,
                 "abstract_inverted_index": {"Tool": [0], "use": [1], "works": [2]},
                 "primary_location": {"source": {"display_name": "ACL"}},
+                "authorships": [{"author": {"display_name": "Ada Lovelace"}}],
                 "best_oa_location": {"pdf_url": "https://example.org/p.pdf"},
             }
         ]
@@ -34,6 +35,7 @@ def test_openalex_adapter_maps_records() -> None:
     assert papers[0].paper_id == "W1"
     assert papers[0].abstract == "Tool use works"
     assert papers[0].venue == "ACL"
+    assert papers[0].authors == ["Ada Lovelace"]
     assert papers[0].pdf_url.endswith("p.pdf")
 
 
@@ -52,20 +54,20 @@ def test_llm_claim_extractor_filters_non_verbatim() -> None:
         def chat_json(self, messages, **kwargs):  # noqa: ANN001
             return {
                 "claims": [
-                    {"text": "tool use helps", "quote": "Tool use helps."},
+                    {"text": "tool use improves agent success", "quote": "Tool use improves agent success in realistic tasks."},
                     {"text": "not in source", "quote": "nope"},
                 ]
             }, None
 
-    claims = LLMClaimExtractor(Client())( "P1", "Tool use helps. Agents solve tasks.")
+    claims = LLMClaimExtractor(Client())( "P1", "Tool use improves agent success in realistic tasks. Agents solve tasks.")
     assert len(claims) == 1
-    assert claims[0].quote == "Tool use helps."
+    assert claims[0].quote == "Tool use improves agent success in realistic tasks."
 
 
 def test_deterministic_extractor_rejects_bibliographic() -> None:
-    claims = extract_deterministic("P1", "Published at ACL 2024. Tool use improves success.")
+    claims = extract_deterministic("P1", "Published at ACL 2024. Tool use improves agent success in realistic tasks.")
     assert len(claims) == 1
-    assert claims[0].quote == "Tool use improves success."
+    assert claims[0].quote == "Tool use improves agent success in realistic tasks."
 
 
 def test_ingest_service_writes_corpus(tmp_path: Path) -> None:

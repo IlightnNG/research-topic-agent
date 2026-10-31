@@ -10,7 +10,7 @@
 
 ```text
 阶段：v2 prototype
-最后测试：39 passed / ruff clean
+最后测试：53 passed / ruff clean
 真实联调：100 篇 OpenAlex，报告 degraded
 LLM audit：reject
 ```
@@ -22,9 +22,9 @@ LLM audit：reject
 | 模块 | 状态 | 当前 phase | 下一 phase |
 |---|---|---|---|
 | M1 Engine | prototype | M1-P01 done | M1-P02 |
-| M2 Source | prototype | — | M2-P01 |
-| M3 Evidence | prototype | — | M3-P01 |
-| M4 Report | prototype | — | M4-P01 |
+| M2 Source | prototype | M2-P01 done | M2-P02 |
+| M3 Evidence | prototype | M3-P01 done | M3-P02 |
+| M4 Report | prototype | M4-P01 done（words degraded） | M4-P02 |
 | M5 Evaluation | prototype | — | M5-P01 |
 | M6 Interface | prototype | — | M6-P01 |
 
@@ -33,13 +33,12 @@ LLM audit：reject
 ## 契约状态
 
 ```text
-CONTRACTS.md  1.0 FROZEN；C1–C9 已落地
-M1-P01 已完成；下一 phase M3-P01
+CONTRACTS.md  1.1 FROZEN；C1–C9 已落地
+M1-P01 / M2-P01 / M3-P01 / M4-P01 已完成；下一 phase M4-P02
 ```
 
 ## 当前阻塞
 
-1. M3 claim 质量（作者列表/截断/purity）；
 2. M4 计数不一致、方向塌缩、无 LLM writer；
 3. M2 全文只有 5/100；
 4. M5 无 100 篇 gold / judge；

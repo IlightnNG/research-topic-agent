@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import re
+
 from lit_agent_v2.contracts.report import EvidenceArtifact, SourceArtifact
 from lit_agent_v2.domains.report.claim_extractor import extract_deterministic
 from lit_agent_v2.metrics.gates import assert_metric
@@ -29,10 +31,15 @@ class EvidenceService:
             if paper.fulltext:
                 artifact.fulltext += 1
             claims = []
+            normalized_body = re.sub(r"\s+", " ", body or "")
             if body:
                 extracted = self.extractor(paper.paper_id, body)
-                for claim in extracted[:max_claims_per_paper]:
-                    if claim.quote not in body:
+                for claim in extracted:
+                    if len(claims) >= max_claims_per_paper:
+                        break
+                    if claim.quote not in normalized_body:
+                        continue
+                    if getattr(claim, "claim_type", "finding") == "background":
                         continue
                     claims.append(claim)
                     artifact.claims += 1
@@ -46,6 +53,12 @@ class EvidenceService:
                     "paper_id": paper.paper_id,
                     "title": paper.title,
                     "abstract": paper.abstract,
+                    "authors": list(paper.authors),
+                    "venue": paper.venue,
+                    "year": paper.year,
+                    "url": paper.url,
+                    "pdf_url": paper.pdf_url,
+                    "html_url": paper.html_url,
                     "level": levels,
                     "fulltext_available": bool(paper.fulltext),
                     "quote_windows": [

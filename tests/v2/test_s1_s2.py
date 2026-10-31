@@ -89,6 +89,9 @@ def test_s2_source_and_evidence(tmp_path: Path, count: int) -> None:
             paper_id=f"P{index:03d}",
             title=f"Tool use in agents {index}",
             abstract=f"Tool use improves task success in study {index}.",
+            authors=[f"Author {index}"],
+            venue="ACL",
+            year=2025,
         )
         papers.append(paper)
         if index % 2 == 0:

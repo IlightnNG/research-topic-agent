@@ -2,7 +2,7 @@
 
 > 模块：M4 Report
 > 版本：1.0（2026-10-31）
-> 状态：planned
+> 状态：done（100 篇方向/计数通过；words 待 M4-P02）
 > 依赖：M2-P01、M3-P01
 > 目标：先让报告的“骨架和会计”正确，再让 LLM 写正文。
 
@@ -226,7 +226,24 @@ fixture：
 
 ---
 
-## 12. Commit
+## 12. 实施记录（2026-10-31）
+
+已完成：
+
+- 5–8 方向 / min size / max share；
+- 小方向不再合并成单一 Other；
+- 作者/venue 名过滤；
+- 全报告 claim 计数一致；
+- Paper Index metadata；
+- deep dive 覆盖全部 claims；
+- `report.count_reconciliation`。
+
+未完成：
+
+- 100 篇 words 仍 >3000；
+- LLM writer / comparison 正文 / 非模板 open questions。
+
+## 13. Commit
 
 ```text
 fix(M4-P01): enforce direction quality and claim-count reconciliation

@@ -10,16 +10,16 @@
 
 | ID | Module | Phase | Priority | Status | Title |
 |---|---|---|---|---|---|
-| TODO-001 | M3 | M3-P01 | P0 | open | Claim 类型校验与作者列表过滤 |
-| TODO-002 | M3 | M3-P01 | P0 | open | Claim purity 真计算 |
-| TODO-003 | M4 | M4-P01 | P0 | open | 全报告 claim 计数一致 |
-| TODO-004 | M4 | M4-P01 | P0 | open | Paper Index metadata 完整 |
-| TODO-005 | M4 | M4-P01 | P0 | open | 正文真实 claim 覆盖，禁止 ledger 刷分 |
-| TODO-006 | M4 | M4-P01 | P0 | open | 方向质量：5–8 / min 3 / max share |
+| TODO-001 | M3 | M3-P01 | P0 | done | Claim 类型校验与作者列表过滤 |
+| TODO-002 | M3 | M3-P01 | P0 | done | Claim purity 真计算 |
+| TODO-003 | M4 | M4-P01 | P0 | done | 全报告 claim 计数一致 |
+| TODO-004 | M4 | M4-P01 | P0 | done | Paper Index metadata 完整 |
+| TODO-005 | M4 | M4-P01 | P0 | done | 正文真实 claim 覆盖，禁止 ledger 刷分 |
+| TODO-006 | M4 | M4-P01 | P0 | done | 方向质量：5–8 / min 3 / max share |
 | TODO-007 | M4 | M4-P02 | P1 | open | 分方向 LLM writer |
 | TODO-008 | M5 | M5-P01 | P1 | open | 模块分 + 方向分评分卡 |
 | TODO-009 | M5 | M5-P02 | P1 | open | 100 篇 gold + LLM judge |
-| TODO-010 | M2 | M2-P01 | P1 | open | 全文率 ≥30% |
+| TODO-010 | M2 | M2-P01 | P1 | open | 全文率 ≥30%（10 篇 3/10，100 篇待复跑） |
 | TODO-011 | M1 | M1-P01 | P1 | done | Kernel ReAct + step checkpoint |
 | TODO-012 | M6 | M6-P01 | P2 | open | 生产 UI / 错误格式 |
 | TODO-013 | M1 | M1-P02 | P1 | open | 事件单写者与 module/severity |
@@ -35,7 +35,7 @@
 - Module：M3
 - Phase：M3-P01
 - Priority：P0
-- Status：open
+- Status：done
 - Evidence：
   - `Tongxin Yuan, Zhiwei He, ...` 被当 claim；
   - `Faria Huq, ...` 被当 claim；

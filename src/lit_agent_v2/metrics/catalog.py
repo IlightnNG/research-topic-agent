@@ -46,6 +46,12 @@ CATALOG: dict[str, MetricSpec] = {
     "search.duplicate_rate": _m(
         "search.duplicate_rate", "source", "ratio", "lower_better", "duplicates / retrieved", hard=True, max_value=0.1
     ),
+    "metadata.completeness": _m(
+        "metadata.completeness", "source", "ratio", "higher_better", "complete_metadata / papers", min_value=0.9
+    ),
+    "metadata.authors_rate": _m(
+        "metadata.authors_rate", "source", "ratio", "higher_better", "papers_with_authors / papers", min_value=0.9
+    ),
     "fulltext.available_ratio": _m(
         "fulltext.available_ratio", "evidence", "ratio", "higher_better", "fulltext / papers", min_value=0.3
     ),
@@ -75,6 +81,9 @@ CATALOG: dict[str, MetricSpec] = {
     ),
     "direction.max_share": _m(
         "direction.max_share", "map", "ratio", "lower_better", "max(direction.papers) / papers", max_value=0.6
+    ),
+    "report.count_reconciliation": _m(
+        "report.count_reconciliation", "write", "ratio", "higher_better", "displayed_claims / claims", hard=True, min_value=1.0
     ),
     "report.citation_coverage": _m(
         "report.citation_coverage", "write", "ratio", "higher_better", "cited_facts / facts", hard=True, min_value=1.0

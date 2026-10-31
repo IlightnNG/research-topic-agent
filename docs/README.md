@@ -17,6 +17,9 @@ Current documents only.
 | [`modules/README.md`](modules/README.md) | 6 module map and boundaries |
 | [`implementation/RESULTS-P3.6-LIVE.md`](implementation/RESULTS-P3.6-LIVE.md) | real OpenAlex run + audit |
 | [`implementation/RESULTS-M1-P01.md`](implementation/RESULTS-M1-P01.md) | M1-P01 result |
+| [`implementation/RESULTS-M3-P01.md`](implementation/RESULTS-M3-P01.md) | M3-P01 result |
+| [`implementation/RESULTS-M2-P01.md`](implementation/RESULTS-M2-P01.md) | M2-P01 result |
+| [`implementation/RESULTS-M4-P01.md`](implementation/RESULTS-M4-P01.md) | M4-P01 result |
 
 Module docs:
 

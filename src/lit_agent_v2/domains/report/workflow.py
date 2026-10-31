@@ -145,10 +145,18 @@ class ReportWorkflow:
             self.metrics.point(
                 "report.words", float(draft.word_count), run_id=active_run_id, node_id="write"
             )
-            displayed = {index for section in draft.sections for index in section.claim_indexes}
+            displayed = sorted(
+                {index for section in draft.sections if section.kind == "deep_dive" for index in section.claim_indexes}
+            )
             self.metrics.point(
                 "report.claim_coverage",
                 float(len(displayed)) / max(1, len(draft.claims)),
+                run_id=active_run_id,
+                node_id="write",
+            )
+            self.metrics.point(
+                "report.count_reconciliation",
+                1.0 if len(displayed) == len(draft.claims) else 0.0,
                 run_id=active_run_id,
                 node_id="write",
             )

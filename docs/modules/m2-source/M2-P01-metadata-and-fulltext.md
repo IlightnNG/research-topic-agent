@@ -2,7 +2,7 @@
 
 > 模块：M2 Source
 > 版本：1.0（2026-10-31）
-> 状态：planned
+> 状态：done（100 篇 ratio 待复跑）
 > 依赖：无（可与 M3 并行）
 > 目标：让 100 篇报告有真实 metadata 和 ≥30% 全文，而不是 5 篇全文 + 只有 ID。
 
@@ -235,7 +235,25 @@ OpenAlex 20 篇 + PDF 3 篇
 
 ---
 
-## 11. Commit
+## 11. 实施记录（2026-10-31）
+
+已完成：
+
+- `Paper.authors`；
+- OpenAlex authors/doi/landing/pdf/html；
+- title 缺失过滤；
+- metadata completeness / authors rate；
+- PDF → HTML → abstract 回退；
+- ingest fulltext 写入修复；
+- live OpenAlex 10 篇：metadata 10/10，fulltext 3/10。
+
+未完成：
+
+- 100 篇 fulltext ratio 复跑；
+- arXiv/Semantic Scholar adapter；
+- fulltext failure 指标。
+
+## 12. Commit
 
 ```text
 feat(M2-P01): add paper metadata and multi-source fulltext

@@ -30,6 +30,7 @@ class Paper:
     year: int | None = None
     pdf_url: str = ""
     html_url: str = ""
+    authors: list[str] = field(default_factory=list)
 
 
 @dataclass
@@ -48,6 +49,7 @@ class Claim:
     section: str = "abstract"
     page: int = 1
     confidence: float = 0.5
+    claim_type: str = "finding"
 
     def to_dict(self) -> dict[str, Any]:
         return {
@@ -58,6 +60,7 @@ class Claim:
             "section": self.section,
             "page": self.page,
             "confidence": self.confidence,
+            "claim_type": self.claim_type,
         }
 
 

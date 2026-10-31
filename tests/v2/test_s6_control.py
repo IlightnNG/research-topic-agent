@@ -70,7 +70,7 @@ def test_report_pause_and_resume_from_committed_node(tmp_path: Path) -> None:
         for index in range(10):
             text = f"Tool use improves agent success in study {index}."
             (corpus / "fulltext" / f"P{index}.txt").write_text(text, encoding="utf-8")
-            handle.write(__import__("json").dumps({"paper_id": f"P{index}", "title": "tool", "abstract": text}) + "\n")
+            handle.write(__import__("json").dumps({"paper_id": f"P{index}", "title": "tool", "abstract": text, "authors": ["Author"], "venue": "ACL", "year": 2025}) + "\n")
 
     db = Database(tmp_path / "v2.sqlite")
     db.migrate()

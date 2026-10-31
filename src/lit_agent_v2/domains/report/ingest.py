@@ -34,6 +34,7 @@ class LocalCorpus:
                 year=raw.get("year"),
                 pdf_url=str(raw.get("pdf_url") or ""),
                 html_url=str(raw.get("html_url") or ""),
+                authors=[str(name) for name in raw.get("authors") or []],
             )
             text_path = self.fulltext_dir / f"{paper.paper_id}.txt"
             if text_path.exists():
@@ -67,25 +68,24 @@ class IngestService:
             for paper in papers:
                 handle.write(json.dumps(paper.__dict__, ensure_ascii=False) + "\n")
         if fulltext_limit:
-            from lit_agent_v2.domains.report.pdf import download_pdf_text
+            from lit_agent_v2.domains.report.pdf import download_html_text, download_pdf_text
 
-            for paper in papers[:fulltext_limit]:
+            for paper in papers:
+                if len(list((self.root / "fulltext").glob("*.txt"))) >= fulltext_limit:
+                    break
+                text = ""
                 if paper.pdf_url:
                     try:
                         text = download_pdf_text(paper.pdf_url)
                     except Exception:
                         text = ""
-                elif paper.html_url:
-                    from lit_agent_v2.domains.report.pdf import download_html_text
-
+                if not text and paper.html_url:
                     try:
                         text = download_html_text(paper.html_url)
                     except Exception:
                         text = ""
-                else:
-                    text = ""
-                    if text:
-                        (self.root / "fulltext" / f"{paper.paper_id}.txt").write_text(
-                            text, encoding="utf-8"
-                        )
+                if text:
+                    (self.root / "fulltext" / f"{paper.paper_id}.txt").write_text(
+                        text, encoding="utf-8"
+                    )
         return LocalCorpus(self.root)

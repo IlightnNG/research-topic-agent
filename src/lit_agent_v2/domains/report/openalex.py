@@ -57,17 +57,24 @@ class OpenAlexAdapter:
             location = item.get("primary_location") or {}
             source = location.get("source") or {}
             best = item.get("best_oa_location") or {}
+            authors = [
+                str((entry.get("author") or {}).get("display_name") or "").strip()
+                for entry in item.get("authorships") or []
+            ]
+            authors = [name for name in authors if name]
+            landing = str(location.get("landing_page_url") or "")
             papers.append(
                 Paper(
                     paper_id=str(item.get("id") or "").rsplit("/", 1)[-1],
                     title=str(item.get("title") or ""),
                     abstract=_abstract(item.get("abstract_inverted_index")),
-                    url=str(item.get("doi") or item.get("id") or ""),
+                    url=str(item.get("doi") or landing or item.get("id") or ""),
                     source="openalex",
                     venue=str(source.get("display_name") or ""),
                     year=item.get("publication_year"),
                     pdf_url=str(best.get("pdf_url") or location.get("pdf_url") or ""),
-                    html_url=str(location.get("landing_page_url") or ""),
+                    html_url=landing,
+                    authors=authors,
                 )
             )
         return [paper for paper in papers if paper.paper_id]

@@ -13,11 +13,11 @@ from lit_agent_v2.storage.artifacts import ArtifactStore
 from lit_agent_v2.storage.db import Database
 
 TOPICS = [
-    ("tool use", "Function calling routes external APIs. Tool routing lowers latency."),
-    ("retrieval", "Dense retrievers rank passages. Rerankers sharpen recall."),
-    ("planning", "Hierarchical planners decompose tasks. Search budgets prune branches."),
-    ("memory", "Episodic buffers store context. Memory lookup persists across turns."),
-    ("evaluation", "Rubric judges score outputs. Annotators calibrate agreement."),
+    ("tool use", "Function calling improves API routing accuracy in agent systems. Tool routing reduces latency for multi-step agent workflows."),
+    ("retrieval", "Dense retrievers improve passage ranking accuracy on benchmarks. Rerankers improve recall for retrieval augmented systems."),
+    ("planning", "Hierarchical planners improve task decomposition in long horizon agents. Search budgets reduce branch expansion during planning efficiently."),
+    ("memory", "Episodic buffers improve context retention across conversation turns. Memory lookup improves persistence across multi turn sessions."),
+    ("evaluation", "Rubric judges improve scoring agreement with human annotators. Annotators calibrate agreement for reliable evaluation benchmarks."),
 ]
 
 
@@ -39,6 +39,9 @@ def _fixture(tmp_path: Path, *, per_group: int = 10) -> Path:
                             "title": f"{topic.title()} study {index}",
                             "abstract": text,
                             "source": "fixture",
+                            "authors": [f"Author {group}"],
+                            "venue": "ACL",
+                            "year": 2025,
                         }
                     )
                     + "\n"
