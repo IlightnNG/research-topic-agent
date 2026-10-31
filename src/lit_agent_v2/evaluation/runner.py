@@ -1,4 +1,4 @@
-"""Evaluation runner and parameter tuner for v2 S7/S8."""
+"""Evaluation runner and parameter tuner, decoupled from report construction."""
 
 from __future__ import annotations
 
@@ -6,18 +6,12 @@ import hashlib
 import json
 import time
 import uuid
-from collections.abc import Iterable
+from collections.abc import Callable, Iterable
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
 
-from lit_agent_v2.contracts import RunRequest
-from lit_agent_v2.domains.report.ingest import LocalCorpus
-from lit_agent_v2.domains.report.map import MapService
-from lit_agent_v2.domains.report.workflow import ReportWorkflow
 from lit_agent_v2.evaluation.dataset import EvalCase, EvalDataset
-from lit_agent_v2.evaluation.evaluators import EvalResult, evaluate
-from lit_agent_v2.run_shell import RunShell
-from lit_agent_v2.storage.artifacts import ArtifactStore
+from lit_agent_v2.evaluation.evaluators import EvalResult
 from lit_agent_v2.storage.db import Database
 
 __all__ = ["EvalRunner", "TuneConfig", "Tuner"]
@@ -32,32 +26,12 @@ class TuneConfig:
 
 @dataclass
 class EvalRunner:
-    db: Database
-    artifacts: ArtifactStore
+    """Runs one eval case; the composition root supplies the implementation."""
 
-    def run_case(self, case: EvalCase, config: TuneConfig) -> EvalResult:
-        shell = RunShell(self.db, self.artifacts)
-        outcome = ReportWorkflow(
-            shell,
-            LocalCorpus(case.corpus_root),
-            mapper=MapService(
-                threshold=config.threshold,
-                min_size=config.min_size,
-                max_directions=config.max_directions,
-            ),
-        ).run(
-            RunRequest(
-                topic_id=case.topic_id,
-                limit=case.limit,
-                focus_hint=case.focus_hint,
-            )
-        )
-        return evaluate(
-            case=case,
-            mapping=outcome.mapping,
-            words=outcome.draft.word_count,
-            citations=1.0,
-        )
+    run_case: Callable[[EvalCase, TuneConfig], EvalResult]
+
+    def evaluate(self, case: EvalCase, config: TuneConfig) -> EvalResult:
+        return self.run_case(case, config)
 
 
 @dataclass
@@ -69,17 +43,16 @@ class TuneResult:
 
 
 class Tuner:
-    def __init__(self, db: Database, artifacts: ArtifactStore, dataset: EvalDataset) -> None:
+    def __init__(self, db: Database, dataset: EvalDataset, runner: EvalRunner) -> None:
         self.db = db
-        self.artifacts = artifacts
         self.dataset = dataset
-        self.runner = EvalRunner(db, artifacts)
+        self.runner = runner
 
     def evaluate(self, config: TuneConfig) -> TuneResult:
         started = time.monotonic()
         totals: dict[str, list[float]] = {}
         for case in self.dataset.cases:
-            result = self.runner.run_case(case, config)
+            result = self.runner.evaluate(case, config)
             for key, value in result.metrics.items():
                 totals.setdefault(key, []).append(value)
         metrics = {

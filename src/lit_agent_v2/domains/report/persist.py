@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from datetime import UTC, datetime
 
-from lit_agent_v2.domains.report.write import ReportDraft
+from lit_agent_v2.contracts.report import ReportDraft
 from lit_agent_v2.storage.db import Database
 
 __all__ = ["persist_report"]
@@ -77,3 +77,36 @@ def persist_report(db: Database, *, run_id: str, topic_id: str, draft: ReportDra
                     (report_id, section.section_id, claim["claim_id"], claim["paper_id"], claim["quote"]),
                 )
     return report_id
+
+
+class ReportStore:
+    """ReportStorePort implementation."""
+
+    def __init__(self, db: Database) -> None:
+        self.db = db
+
+    def save(self, *, run_id: str, topic_id: str, draft: ReportDraft) -> str:
+        return persist_report(self.db, run_id=run_id, topic_id=topic_id, draft=draft)
+
+
+    def get(self, report_id: str) -> dict:
+        with self.db.connect() as conn:
+            report = conn.execute(
+                "SELECT * FROM reports WHERE report_id=?", (report_id,)
+            ).fetchone()
+            sections = conn.execute(
+                "SELECT section_id,kind,title,body FROM report_sections"
+                " WHERE report_id=? ORDER BY ord",
+                (report_id,),
+            ).fetchall()
+        if report is None:
+            return None
+        return {"report": dict(report), "sections": [dict(row) for row in sections]}
+
+    def by_run(self, run_id: str) -> str | None:
+        with self.db.connect() as conn:
+            row = conn.execute(
+                "SELECT report_id FROM reports WHERE run_id=? ORDER BY created_at DESC LIMIT 1",
+                (run_id,),
+            ).fetchone()
+        return str(row[0]) if row else None

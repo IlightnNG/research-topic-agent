@@ -14,9 +14,9 @@
 | TODO-002 | M3 | M3-P01 | P0 | open | Claim purity 真计算 |
 | TODO-003 | M4 | M4-P01 | P0 | open | 全报告 claim 计数一致 |
 | TODO-004 | M4 | M4-P01 | P0 | open | Paper Index metadata 完整 |
-| TODO-005 | M4 | M4-P02 | P0 | open | 正文真实 claim 覆盖，禁止 ledger 刷分 |
-| TODO-006 | M4 | M4-P02 | P0 | open | 方向质量：5–8 / min 3 / max share |
-| TODO-007 | M4 | M4-P03 | P1 | open | 分方向 LLM writer |
+| TODO-005 | M4 | M4-P01 | P0 | open | 正文真实 claim 覆盖，禁止 ledger 刷分 |
+| TODO-006 | M4 | M4-P01 | P0 | open | 方向质量：5–8 / min 3 / max share |
+| TODO-007 | M4 | M4-P02 | P1 | open | 分方向 LLM writer |
 | TODO-008 | M5 | M5-P01 | P1 | open | 模块分 + 方向分评分卡 |
 | TODO-009 | M5 | M5-P02 | P1 | open | 100 篇 gold + LLM judge |
 | TODO-010 | M2 | M2-P01 | P1 | open | 全文率 ≥30% |
@@ -24,7 +24,7 @@
 | TODO-012 | M6 | M6-P01 | P2 | open | 生产 UI / 错误格式 |
 | TODO-013 | M1 | M1-P02 | P1 | open | 事件单写者与 module/severity |
 | TODO-014 | M5 | M5-P03 | P2 | open | 自动调参闭环 |
-| TODO-015 | M4 | M4-P03 | P1 | open | 分方向实时 section 流 |
+| TODO-015 | M4 | M4-P02 | P1 | open | 分方向实时 section 流 |
 
 ---
 
@@ -87,7 +87,7 @@
 ### TODO-005 · 正文真实 claim 覆盖
 
 - Module：M4
-- Phase：M4-P02
+- Phase：M4-P01
 - Priority：P0
 - Evidence：86 篇只写 6 条；ledger 刷 coverage=1。
 - Acceptance：
@@ -99,7 +99,7 @@
 ### TODO-006 · 方向质量
 
 - Module：M4
-- Phase：M4-P02
+- Phase：M4-P01
 - Priority：P0
 - Evidence：3 方向；max_share 0.86；`Agents / Wang`。
 - Acceptance：
@@ -113,7 +113,7 @@
 ### TODO-007 · 分方向 LLM writer
 
 - Module：M4
-- Phase：M4-P03
+- Phase：M4-P02
 - Priority：P1
 - Evidence：writer 是确定性模板；open questions 全相同；differences 不可比。
 - Acceptance：
@@ -220,7 +220,7 @@
 ### TODO-015 · 分方向实时 section 流
 
 - Module：M4
-- Phase：M4-P03
+- Phase：M4-P02
 - Priority：P1
 - Evidence：当前 section 生成后 emit；writer 仍整篇构造。
 - Acceptance：

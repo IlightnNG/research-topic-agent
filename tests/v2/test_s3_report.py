@@ -5,9 +5,9 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
+from lit_agent_v2.composition import build_report_workflow
 from lit_agent_v2.contracts import RunRequest
 from lit_agent_v2.domains.report.ingest import LocalCorpus
-from lit_agent_v2.domains.report.workflow import ReportWorkflow
 from lit_agent_v2.run_shell import RunShell
 from lit_agent_v2.storage.artifacts import ArtifactStore
 from lit_agent_v2.storage.db import Database
@@ -50,7 +50,7 @@ def test_s3_full_report_50(tmp_path: Path) -> None:
     db = Database(tmp_path / "v2.sqlite")
     db.migrate()
     shell = RunShell(db, ArtifactStore(tmp_path / "artifacts"))
-    outcome = ReportWorkflow(shell, LocalCorpus(_fixture(tmp_path))).run(
+    outcome = build_report_workflow(shell, LocalCorpus(_fixture(tmp_path))).run(
         RunRequest(topic_id="agents", limit=50, focus_hint="agents")
     )
 

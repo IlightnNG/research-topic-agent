@@ -28,7 +28,7 @@ What is not done:
 - LLM judge + human gold evaluation;
 - production UI.
 
-See [`docs/TODO.md`](docs/TODO.md) for the audit findings and P0/P1 work.
+See [`docs/TODO.md`](docs/TODO.md) for the audit findings, [`docs/modules/README.md`](docs/modules/README.md) for module boundaries, and [`docs/implementation/PHASE4-report-end-to-end.md`](docs/implementation/PHASE4-report-end-to-end.md) for Phase 4.
 
 ## Layout
 

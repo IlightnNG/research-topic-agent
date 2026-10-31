@@ -79,3 +79,33 @@
 3. 推翻旧决定必须写 supersedes；
 4. 影响接口的决定必须同步模块 README；
 5. phase 文档引用相关 D-xxx。
+
+
+## D-009 · 模块只依赖 contracts/ports
+
+- 日期：2026-10-31
+- 状态：accepted
+- 决定：M1–M6 之间只允许 import `contracts/` 中的 port/artifact；唯一例外是 `composition.py`。
+- 原因：消除 M4/M5/M6 对具体实现的直接依赖。
+- 约束：冻结后由 import guard + contract tests 保证；破坏性变更升 major。
+
+## D-010 · 组合根唯一装配
+
+- 日期：2026-10-31
+- 状态：accepted
+- 决定：新增 `src/lit_agent_v2/composition.py`，只做构造/注入，不写业务逻辑。
+- 原因：模块内部不再 new 其他模块实现。
+- 约束：M1–M6 不允许 import composition。
+
+
+## D-011 · Contracts v1.0 frozen
+
+- 日期：2026-10-31
+- 状态：accepted
+- 决定：冻结 `src/lit_agent_v2/contracts/` 的 port/artifact/error/event 契约，`CONTRACT_VERSION=1.0`。
+- Hash：`c13bb3fa8b16263c69c44e6a16adf733074e6016b12147b1bbf23ea781897dc7`
+- 约束：
+  - contract freeze test 必须通过；
+  - 修改任何 contract（除 `version.py`）必须同步更新 hash、版本和本文件；
+  - breaking change 升 major；
+  - M1–M6 不允许绕过 ports。

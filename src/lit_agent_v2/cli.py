@@ -6,9 +6,8 @@ import argparse
 import json
 from pathlib import Path
 
+from lit_agent_v2.composition import build_report_workflow_from_path
 from lit_agent_v2.contracts import RunRequest
-from lit_agent_v2.domains.report.ingest import LocalCorpus
-from lit_agent_v2.domains.report.workflow import ReportWorkflow
 from lit_agent_v2.run_shell import RunShell
 from lit_agent_v2.storage.artifacts import ArtifactStore
 from lit_agent_v2.storage.db import Database
@@ -29,7 +28,7 @@ def main() -> int:
     db = Database(args.db)
     db.migrate()
     shell = RunShell(db, ArtifactStore(Path(args.db).parent / "artifacts"))
-    outcome = ReportWorkflow(shell, LocalCorpus(args.corpus)).run(
+    outcome = build_report_workflow_from_path(shell, args.corpus).run(
         RunRequest(topic_id=args.topic, limit=args.limit)
     )
     print(

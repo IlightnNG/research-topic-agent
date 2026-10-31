@@ -30,6 +30,13 @@ LLM audit：reject
 
 ---
 
+## 契约状态
+
+```text
+CONTRACTS.md  1.0 FROZEN；C1–C9 已落地
+M4-P02 已无接口阻塞；可进入 M1-P01
+```
+
 ## 当前阻塞
 
 1. M3 claim 质量（作者列表/截断/purity）；
@@ -45,12 +52,13 @@ LLM audit：reject
 按模块顺序：
 
 ```text
+M1-P01 Kernel ReAct + LLM client
 M3-P01 claim 类型与作者列表过滤
-M4-P01 计数一致与 paper index
-M2-P01 全文率
-M5-P01 评分卡
-M1-P01 Kernel/state
-M6-P01 API/UI
+M2-P01 metadata + 全文率
+M4-P01 方向质量 + 计数一致
+M4-P02 分方向 LLM writer
+M5-P01 scorecard + judge
+M6-P01 Report API + minimal UI
 ```
 
 优先级见 `docs/TODO.md`。

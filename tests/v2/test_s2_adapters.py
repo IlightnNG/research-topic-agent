@@ -7,8 +7,8 @@ from pathlib import Path
 import httpx
 import pymupdf
 
+from lit_agent_v2.contracts.report import Paper
 from lit_agent_v2.domains.report.claim_extractor import LLMClaimExtractor, extract_deterministic
-from lit_agent_v2.domains.report.contracts import Paper
 from lit_agent_v2.domains.report.ingest import IngestService, LocalCorpus
 from lit_agent_v2.domains.report.openalex import OpenAlexAdapter
 from lit_agent_v2.domains.report.pdf import extract_pdf_text

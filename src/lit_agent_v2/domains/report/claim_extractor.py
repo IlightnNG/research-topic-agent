@@ -5,7 +5,7 @@ from __future__ import annotations
 import re
 from typing import Any, Protocol
 
-from lit_agent_v2.domains.report.contracts import Claim
+from lit_agent_v2.contracts.report import Claim
 
 __all__ = ["LLMClaimExtractor", "extract_deterministic"]
 

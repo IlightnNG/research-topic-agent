@@ -2,8 +2,8 @@
 
 from __future__ import annotations
 
+from lit_agent_v2.contracts.report import EvidenceArtifact, SourceArtifact
 from lit_agent_v2.domains.report.claim_extractor import extract_deterministic
-from lit_agent_v2.domains.report.contracts import EvidenceArtifact, SourceArtifact
 from lit_agent_v2.metrics.gates import assert_metric
 from lit_agent_v2.metrics.store import MetricStore
 

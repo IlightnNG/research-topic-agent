@@ -236,3 +236,10 @@ tests/v2/test_m1_*.py
 - `docs/ERRORS.md`
 - `docs/LOGGING.md`
 - `docs/TODO.md`
+
+
+---
+
+## Phase docs
+
+- [M1-P01-kernel-react-and-llm.md](M1-P01-kernel-react-and-llm.md)

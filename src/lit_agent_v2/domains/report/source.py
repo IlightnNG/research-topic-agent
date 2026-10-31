@@ -5,7 +5,7 @@ from __future__ import annotations
 import re
 from datetime import UTC, datetime
 
-from lit_agent_v2.domains.report.contracts import Paper, SourceArtifact
+from lit_agent_v2.contracts.report import Paper, SourceArtifact
 from lit_agent_v2.metrics.gates import assert_metric
 from lit_agent_v2.metrics.store import MetricStore
 
@@ -67,3 +67,20 @@ class SourceService:
                 sample_size=len(papers),
             )
         return artifact
+
+
+class LocalCorpusSource:
+    """SourcePort adapter for a LocalCorpus; keeps M4 independent of corpus IO."""
+
+    def __init__(self, corpus, service: SourceService | None = None) -> None:
+        self.corpus = corpus
+        self.service = service or SourceService()
+
+    def select(self, *, topic_id: str, query: str, limit: int, run_id: str):
+        return self.service.select(
+            topic_id=topic_id,
+            query=query,
+            papers=self.corpus.papers(),
+            limit=limit,
+            run_id=run_id,
+        )

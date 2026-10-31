@@ -5,7 +5,7 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
-from lit_agent_v2.domains.report.contracts import Paper
+from lit_agent_v2.contracts.report import Paper
 
 __all__ = ["LocalCorpus"]
 

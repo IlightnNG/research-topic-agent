@@ -59,10 +59,10 @@ def test_node_boundary_pause_then_resume(tmp_path: Path) -> None:
 
 
 def test_report_pause_and_resume_from_committed_node(tmp_path: Path) -> None:
+    from lit_agent_v2.composition import build_report_workflow
     from lit_agent_v2.contracts import RunRequest
     from lit_agent_v2.domains.report.ingest import LocalCorpus
-    from lit_agent_v2.domains.report.source import SourceService
-    from lit_agent_v2.domains.report.workflow import ReportWorkflow
+    from lit_agent_v2.domains.report.source import LocalCorpusSource, SourceService
 
     corpus = tmp_path / "corpus"
     (corpus / "fulltext").mkdir(parents=True)
@@ -77,7 +77,10 @@ def test_report_pause_and_resume_from_committed_node(tmp_path: Path) -> None:
     shell = RunShell(db, ArtifactStore(tmp_path / "artifacts"))
     holder: dict[str, str] = {}
 
-    class PausingSource(SourceService):
+    class PausingSource(LocalCorpusSource):
+        def __init__(self, corpus):  # noqa: ANN001
+            super().__init__(corpus, SourceService())
+
         def select(self, **kwargs):  # noqa: ANN003
             artifact = super().select(**kwargs)
             shell.pause(holder["run_id"])
@@ -86,7 +89,9 @@ def test_report_pause_and_resume_from_committed_node(tmp_path: Path) -> None:
     request = RunRequest(topic_id="agents", limit=10, focus_hint="tool use")
     run_id = shell.prepare(request)
     holder["run_id"] = run_id
-    workflow = ReportWorkflow(shell, LocalCorpus(corpus), source=PausingSource())
+    workflow = build_report_workflow(
+        shell, LocalCorpus(corpus), source=PausingSource(LocalCorpus(corpus))
+    )
     import pytest
 
     with pytest.raises(RuntimeError):

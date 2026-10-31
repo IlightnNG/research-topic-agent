@@ -5,8 +5,9 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
+from lit_agent_v2.composition import build_tuner
 from lit_agent_v2.evaluation.dataset import EvalDataset, load_dataset
-from lit_agent_v2.evaluation.runner import TuneConfig, Tuner
+from lit_agent_v2.evaluation.runner import TuneConfig
 from lit_agent_v2.storage.artifacts import ArtifactStore
 from lit_agent_v2.storage.db import Database
 
@@ -84,7 +85,7 @@ def test_direction_f1_and_tuner(tmp_path: Path) -> None:
     dataset, _path = _dataset(tmp_path)
     db = Database(tmp_path / "v2.sqlite")
     db.migrate()
-    tuner = Tuner(db, ArtifactStore(tmp_path / "artifacts"), dataset)
+    tuner = build_tuner(db, ArtifactStore(tmp_path / "artifacts"), dataset)
     result = tuner.evaluate(TuneConfig(threshold=0.35, min_size=2))
     assert result.score > 0
     assert "directions.f1" in result.metrics

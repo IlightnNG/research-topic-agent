@@ -5,10 +5,8 @@ from __future__ import annotations
 import math
 import re
 from collections import Counter
-from dataclasses import dataclass, field
-from typing import Any
 
-from lit_agent_v2.domains.report.contracts import EvidenceArtifact
+from lit_agent_v2.contracts.report import Direction, EvidenceArtifact, MapArtifact
 
 __all__ = ["Direction", "MapArtifact", "MapService"]
 
@@ -39,68 +37,6 @@ def _cos(a: Counter[str], b: Counter[str]) -> float:
 def _terms(text: str) -> list[str]:
     words = [w for w in re.split(r"\W+", text.lower()) if len(w) > 3 and w not in _STOP]
     return [word for word, _count in Counter(words).most_common(3)]
-
-
-@dataclass
-class Direction:
-    direction_id: str
-    name: str
-    paper_ids: list[str]
-    claim_ids: list[str] = field(default_factory=list)
-    coherence: float = 0.0
-    outliers: list[str] = field(default_factory=list)
-
-
-@dataclass
-class MapArtifact:
-    directions: list[Direction] = field(default_factory=list)
-    papers: int = 0
-    outlier_rate: float = 0.0
-    count_quality: str = "complete"
-
-    @property
-    def min_size(self) -> int:
-        return min((len(item.paper_ids) for item in self.directions), default=0)
-
-    def to_dict(self) -> dict[str, Any]:
-        return {
-            "schema_version": 1,
-            "directions": [
-                {
-                    "direction_id": item.direction_id,
-                    "name": item.name,
-                    "paper_ids": item.paper_ids,
-                    "claim_ids": item.claim_ids,
-                    "coherence": item.coherence,
-                    "outliers": item.outliers,
-                }
-                for item in self.directions
-            ],
-            "papers": self.papers,
-            "min_size": self.min_size,
-            "outlier_rate": self.outlier_rate,
-            "count_quality": self.count_quality,
-        }
-
-    @classmethod
-    def from_dict(cls, data: dict[str, Any]) -> MapArtifact:
-        directions = [
-            Direction(
-                direction_id=str(item["direction_id"]),
-                name=str(item["name"]),
-                paper_ids=list(item.get("paper_ids") or []),
-                claim_ids=list(item.get("claim_ids") or []),
-                coherence=float(item.get("coherence") or 0.0),
-                outliers=list(item.get("outliers") or []),
-            )
-            for item in data.get("directions", [])
-        ]
-        return cls(
-            directions=directions,
-            papers=int(data.get("papers") or 0),
-            outlier_rate=float(data.get("outlier_rate") or 0.0),
-            count_quality=str(data.get("count_quality") or "deficit"),
-        )
 
 
 class MapService:

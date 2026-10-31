@@ -1,4 +1,4 @@
-"""Report domain contracts for v2."""
+"""Shared report contracts. Owned by no single domain module."""
 
 from __future__ import annotations
 
@@ -7,9 +7,13 @@ from typing import Any
 
 __all__ = [
     "Claim",
+    "Direction",
     "EvidenceArtifact",
+    "MapArtifact",
     "Paper",
     "QuoteWindow",
+    "ReportDraft",
+    "Section",
     "SourceArtifact",
 ]
 
@@ -149,4 +153,109 @@ class EvidenceArtifact:
             quote_ok=int(stats.get("quote_ok") or 0),
             claims=int(stats.get("claims") or 0),
             research_claims=int(stats.get("research_claims") or 0),
+        )
+
+
+@dataclass
+class Direction:
+    direction_id: str
+    name: str
+    paper_ids: list[str]
+    claim_ids: list[str] = field(default_factory=list)
+    coherence: float = 0.0
+    outliers: list[str] = field(default_factory=list)
+
+
+@dataclass
+class MapArtifact:
+    directions: list[Direction] = field(default_factory=list)
+    papers: int = 0
+    outlier_rate: float = 0.0
+    count_quality: str = "complete"
+
+    @property
+    def min_size(self) -> int:
+        return min((len(item.paper_ids) for item in self.directions), default=0)
+
+    def to_dict(self) -> dict[str, Any]:
+        return {
+            "schema_version": 1,
+            "directions": [
+                {
+                    "direction_id": item.direction_id,
+                    "name": item.name,
+                    "paper_ids": item.paper_ids,
+                    "claim_ids": item.claim_ids,
+                    "coherence": item.coherence,
+                    "outliers": item.outliers,
+                }
+                for item in self.directions
+            ],
+            "papers": self.papers,
+            "min_size": self.min_size,
+            "outlier_rate": self.outlier_rate,
+            "count_quality": self.count_quality,
+        }
+
+    @classmethod
+    def from_dict(cls, data: dict[str, Any]) -> MapArtifact:
+        directions = [
+            Direction(
+                direction_id=str(item["direction_id"]),
+                name=str(item["name"]),
+                paper_ids=list(item.get("paper_ids") or []),
+                claim_ids=list(item.get("claim_ids") or []),
+                coherence=float(item.get("coherence") or 0.0),
+                outliers=list(item.get("outliers") or []),
+            )
+            for item in data.get("directions", [])
+        ]
+        return cls(
+            directions=directions,
+            papers=int(data.get("papers") or 0),
+            outlier_rate=float(data.get("outlier_rate") or 0.0),
+            count_quality=str(data.get("count_quality") or "deficit"),
+        )
+
+
+@dataclass
+class Section:
+    section_id: str
+    kind: str
+    title: str
+    body: str
+    claim_indexes: list[int] = field(default_factory=list)
+
+
+@dataclass
+class ReportDraft:
+    title: str
+    content_md: str
+    content_sha: str
+    sections: list[Section]
+    word_count: int
+    claims: list[dict[str, Any]]
+    state: str = "complete"
+
+    def to_dict(self) -> dict[str, Any]:
+        return {
+            "title": self.title,
+            "content_md": self.content_md,
+            "content_sha": self.content_sha,
+            "sections": [section.__dict__ for section in self.sections],
+            "word_count": self.word_count,
+            "claims": self.claims,
+            "state": self.state,
+        }
+
+    @classmethod
+    def from_dict(cls, data: dict[str, Any]) -> ReportDraft:
+        return cls(
+            title=str(data.get("title") or ""),
+            content_md=str(data.get("content_md") or ""),
+            content_sha=str(data.get("content_sha") or ""),
+            sections=[Section(**section) for section in data.get("sections", [])],
+            word_count=int(data.get("word_count") or 0),
+            claims=list(data.get("claims") or []),
+            state=str(data.get("state") or "degraded"),
         )

@@ -52,3 +52,26 @@ class EventLog:
                 ),
             )
         return event
+
+
+class EventReader:
+    def __init__(self, db: Database) -> None:
+        self.db = db
+
+    def after(self, run_id: str, seq: int) -> list[dict[str, Any]]:
+        with self.db.connect() as conn:
+            rows = conn.execute(
+                "SELECT seq,type,node_id,payload_json,ts FROM run_events"
+                " WHERE run_id=? AND seq>? ORDER BY seq",
+                (run_id, seq),
+            ).fetchall()
+        return [
+            {
+                "seq": row["seq"],
+                "type": row["type"],
+                "node_id": row["node_id"],
+                "payload": json.loads(row["payload_json"]),
+                "ts": row["ts"],
+            }
+            for row in rows
+        ]

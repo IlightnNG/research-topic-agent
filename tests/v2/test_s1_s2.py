@@ -9,7 +9,7 @@ from pathlib import Path
 import pytest
 
 from lit_agent_v2.contracts import NodeSpec, RunRequest, WorkflowDefinition
-from lit_agent_v2.domains.report.contracts import Paper
+from lit_agent_v2.contracts.report import Paper
 from lit_agent_v2.domains.report.evidence import EvidenceService
 from lit_agent_v2.domains.report.ingest import LocalCorpus
 from lit_agent_v2.domains.report.source import SourceService

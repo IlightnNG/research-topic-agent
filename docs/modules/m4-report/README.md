@@ -221,3 +221,11 @@ tests/v2/test_m4_writer_contract.py
 - `docs/ARCHITECTURE.md`
 - `docs/TODO.md`
 - `docs/modules/m3-evidence/README.md`
+
+
+---
+
+## Phase docs
+
+- [M4-P01-direction-and-counting.md](M4-P01-direction-and-counting.md)
+- [M4-P02-modular-llm-writer.md](M4-P02-modular-llm-writer.md)

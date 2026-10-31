@@ -206,3 +206,10 @@ tests/v2/test_m2_*.py
 - `docs/ARCHITECTURE.md`
 - `docs/TODO.md`
 - `docs/ERRORS.md`
+
+
+---
+
+## Phase docs
+
+- [M2-P01-metadata-and-fulltext.md](M2-P01-metadata-and-fulltext.md)

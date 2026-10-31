@@ -6,7 +6,7 @@ from typing import Any
 
 import httpx
 
-from lit_agent_v2.domains.report.contracts import Paper
+from lit_agent_v2.contracts.report import Paper
 
 __all__ = ["OpenAlexAdapter"]
 

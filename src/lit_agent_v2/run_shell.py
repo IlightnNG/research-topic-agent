@@ -110,3 +110,9 @@ class RunShell:
         with self.db.connect() as conn:
             conn.execute("UPDATE runs SET state=?, finished_at=? WHERE id=?",
                          (RunState.ABORTED, _now(), run_id))
+
+
+    def get_run(self, run_id: str) -> dict[str, Any] | None:
+        with self.db.connect() as conn:
+            row = conn.execute("SELECT * FROM runs WHERE id=?", (run_id,)).fetchone()
+        return dict(row) if row else None

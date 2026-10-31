@@ -4,9 +4,18 @@ from __future__ import annotations
 
 import re
 from dataclasses import dataclass, field
+from typing import Protocol
 
-from lit_agent_v2.domains.report.map import MapArtifact
 from lit_agent_v2.evaluation.dataset import EvalCase
+
+
+class DirectionLike(Protocol):
+    paper_ids: list[str]
+
+
+class MapLike(Protocol):
+    directions: list[DirectionLike]
+    min_size: int
 
 __all__ = ["EvalResult", "direction_f1", "evaluate"]
 
@@ -21,7 +30,7 @@ def _ids(groups: list[list[str]]) -> list[set[str]]:
     return [set(group) for group in groups if group]
 
 
-def direction_f1(pred: MapArtifact, gold: list[list[str]]) -> float:
+def direction_f1(pred: MapLike, gold: list[list[str]]) -> float:
     predicted = [set(item.paper_ids) for item in pred.directions]
     expected = _ids(gold)
     if not predicted or not expected:
@@ -44,7 +53,7 @@ def direction_f1(pred: MapArtifact, gold: list[list[str]]) -> float:
     return round(2 * precision * recall / (precision + recall), 4) if precision + recall else 0.0
 
 
-def evaluate(*, case: EvalCase, mapping: MapArtifact, words: int, citations: float) -> EvalResult:
+def evaluate(*, case: EvalCase, mapping: MapLike, words: int, citations: float) -> EvalResult:
     metrics = {
         "directions.f1": direction_f1(mapping, case.gold_directions),
         "report.words": float(words),

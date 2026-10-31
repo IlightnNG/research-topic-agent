@@ -14,11 +14,15 @@ from fastapi import FastAPI, Header, HTTPException
 from fastapi.responses import HTMLResponse, StreamingResponse
 from pydantic import BaseModel, Field
 
+from lit_agent_v2.composition import (
+    build_chat_service,
+    build_event_reader,
+    build_report_reader,
+    build_report_workflow_from_path,
+)
 from lit_agent_v2.contracts import RunRequest
-from lit_agent_v2.domains.chat.answer import ChatService, stream_reply
+from lit_agent_v2.domains.chat.answer import stream_reply
 from lit_agent_v2.domains.chat.store import ChatStore
-from lit_agent_v2.domains.report.ingest import LocalCorpus
-from lit_agent_v2.domains.report.workflow import ReportWorkflow
 from lit_agent_v2.run_shell import RunShell
 from lit_agent_v2.storage.artifacts import ArtifactStore
 from lit_agent_v2.storage.db import Database
@@ -48,7 +52,7 @@ def _execute(
     resume: bool = False,
 ) -> None:
     try:
-        ReportWorkflow(shell, LocalCorpus(corpus_root)).run(
+        build_report_workflow_from_path(shell, corpus_root).run(
             request,
             run_id=run_id,
             resume=resume,
@@ -69,6 +73,8 @@ def create_app(
     artifacts = ArtifactStore(Path(db.path).parent / "artifacts")
     shell = RunShell(db, artifacts)
     corpus = Path(corpus_root or os.environ.get("LIT_V2_CORPUS", "D:/lit-agent-store/v2/corpus"))
+    report_reader = build_report_reader(db)
+    event_reader = build_event_reader(db)
     app = FastAPI(title="lit-agent-v2")
 
     @app.get("/api/v2/health")
@@ -99,33 +105,28 @@ def create_app(
 
     @app.get("/api/v2/runs/{run_id}")
     def get_run(run_id: str) -> dict[str, Any]:
-        with db.connect() as conn:
-            row = conn.execute("SELECT * FROM runs WHERE id=?", (run_id,)).fetchone()
+        row = shell.get_run(run_id)
         if row is None:
             raise HTTPException(status_code=404, detail="E_NOT_FOUND")
-        return dict(row)
+        return row
 
     def _events(run_id: str, last: int = 0) -> Iterator[str]:
         started = time.monotonic()
         while time.monotonic() - started < 120:
-            with db.connect() as conn:
-                rows = conn.execute(
-                    "SELECT seq,type,node_id,payload_json,ts FROM run_events"
-                    " WHERE run_id=? AND seq>? ORDER BY seq",
-                    (run_id, last),
-                ).fetchall()
-                state = conn.execute("SELECT state FROM runs WHERE id=?", (run_id,)).fetchone()
+            rows = event_reader.after(run_id, last)
+            run_row = shell.get_run(run_id)
+            state = run_row["state"] if run_row else None
             for row in rows:
                 last = int(row["seq"])
                 data = {
                     "seq": row["seq"],
                     "type": row["type"],
                     "node_id": row["node_id"],
-                    "payload": json.loads(row["payload_json"]),
+                    "payload": row["payload"],
                     "ts": row["ts"],
                 }
                 yield f"id: {last}\nevent: {row['type']}\ndata: {json.dumps(data, ensure_ascii=False)}\n\n"
-            if state and str(state[0]) in {"succeeded", "failed", "aborted"}:
+            if state in {"succeeded", "failed", "aborted"}:
                 yield "event: stream.end\ndata: {}\n\n"
                 return
             time.sleep(0.1)
@@ -181,7 +182,7 @@ def create_app(
     def chat(body: ChatBody) -> dict[str, Any]:
         session_id = body.session_id or chat_store.create(body.topic_id)
         chat_store.append(session_id, "user", body.message)
-        reply = ChatService(LocalCorpus(corpus), composer=chat_composer).answer(
+        reply = build_chat_service(corpus, composer=chat_composer).answer(
             topic_id=body.topic_id, message=body.message
         )
         chat_store.append(session_id, "assistant", reply.text, reply.citations)
@@ -199,7 +200,7 @@ def create_app(
 
     @app.get("/api/v2/chat/stream")
     def chat_stream(topic_id: str, message: str) -> StreamingResponse:
-        reply = ChatService(LocalCorpus(corpus)).answer(
+        reply = build_chat_service(corpus).answer(
             topic_id=topic_id, message=message
         )
         chunks = stream_reply(reply)
@@ -213,27 +214,17 @@ def create_app(
 
     @app.get("/api/v2/runs/{run_id}/report")
     def get_run_report(run_id: str) -> dict[str, Any]:
-        with db.connect() as conn:
-            row = conn.execute(
-                "SELECT report_id FROM reports WHERE run_id=? ORDER BY created_at DESC LIMIT 1",
-                (run_id,),
-            ).fetchone()
-        if row is None:
+        report_id = report_reader.by_run(run_id)
+        if report_id is None:
             raise HTTPException(status_code=404, detail="E_NOT_FOUND")
-        return {"run_id": run_id, "report_id": str(row[0])}
+        return {"run_id": run_id, "report_id": report_id}
 
     @app.get("/api/v2/reports/{report_id}")
     def get_report(report_id: str) -> dict[str, Any]:
-        with db.connect() as conn:
-            report = conn.execute("SELECT * FROM reports WHERE report_id=?", (report_id,)).fetchone()
-            sections = conn.execute(
-                "SELECT section_id,kind,title,body FROM report_sections"
-                " WHERE report_id=? ORDER BY ord",
-                (report_id,),
-            ).fetchall()
-        if report is None:
+        payload = report_reader.get(report_id)
+        if payload is None:
             raise HTTPException(status_code=404, detail="E_NOT_FOUND")
-        return {"report": dict(report), "sections": [dict(row) for row in sections]}
+        return payload
 
     @app.get("/", response_class=HTMLResponse)
     def timeline() -> str:

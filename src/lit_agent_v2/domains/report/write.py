@@ -4,56 +4,12 @@ from __future__ import annotations
 
 import hashlib
 import re
-from dataclasses import dataclass, field
 from typing import Any
 
-from lit_agent_v2.domains.report.contracts import EvidenceArtifact
+from lit_agent_v2.contracts.report import EvidenceArtifact, ReportDraft, Section
 from lit_agent_v2.domains.report.map import MapArtifact
 
 __all__ = ["ReportDraft", "Section", "WriteService"]
-
-
-@dataclass
-class Section:
-    section_id: str
-    kind: str
-    title: str
-    body: str
-    claim_indexes: list[int] = field(default_factory=list)
-
-
-@dataclass
-class ReportDraft:
-    title: str
-    content_md: str
-    content_sha: str
-    sections: list[Section]
-    word_count: int
-    claims: list[dict[str, Any]]
-    state: str = "complete"
-
-    def to_dict(self) -> dict[str, Any]:
-        return {
-            "title": self.title,
-            "content_md": self.content_md,
-            "content_sha": self.content_sha,
-            "sections": [section.__dict__ for section in self.sections],
-            "word_count": self.word_count,
-            "claims": self.claims,
-            "state": self.state,
-        }
-
-    @classmethod
-    def from_dict(cls, data: dict[str, Any]) -> ReportDraft:
-        return cls(
-            title=str(data.get("title") or ""),
-            content_md=str(data.get("content_md") or ""),
-            content_sha=str(data.get("content_sha") or ""),
-            sections=[Section(**section) for section in data.get("sections", [])],
-            word_count=int(data.get("word_count") or 0),
-            claims=list(data.get("claims") or []),
-            state=str(data.get("state") or "degraded"),
-        )
 
 
 def _words(text: str) -> int:

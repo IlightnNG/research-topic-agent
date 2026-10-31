@@ -226,3 +226,10 @@ tests/v2/test_m6_chat_contract.py
 - `docs/ERRORS.md`
 - `docs/LOGGING.md`
 - `docs/TODO.md`
+
+
+---
+
+## Phase docs
+
+- [M6-P01-report-api-and-ui.md](M6-P01-report-api-and-ui.md)

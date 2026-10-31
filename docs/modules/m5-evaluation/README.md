@@ -246,3 +246,10 @@ tests/v2/test_m5_judge_calibration.py
 - `docs/TODO.md`
 - `docs/TESTING.md`
 - `docs/ERRORS.md`
+
+
+---
+
+## Phase docs
+
+- [M5-P01-scorecards-and-judge.md](M5-P01-scorecards-and-judge.md)
