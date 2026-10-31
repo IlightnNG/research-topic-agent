@@ -43,12 +43,14 @@ class ReportWorkflow:
         *,
         run_id: str,
         topic_id: str,
-        paper_ids: list[str],
+        paper_ids: list[str] | None = None,
+        limit: int = 100,
+        focus_hint: str | None = None,
         title: str,
         period: str | None = None,
     ) -> tuple[Report, ReportContext]:
         language = self.settings.report.language
-        holder: dict[str, Any] = {"context": None, "insights": None, "report": None}
+        holder: dict[str, Any] = {"context": None, "insights": None, "report": None, "paper_ids": list(paper_ids or [])}
 
         def tool_runtime(name: str, fn: Callable[..., Any], description: str) -> KernelTools:
             runtime = ToolRuntime()
@@ -77,10 +79,22 @@ class ReportWorkflow:
             return completer
 
         def load_scope(**_kwargs: Any) -> dict[str, Any]:
-            return {"paper_ids": list(paper_ids), "topic_id": topic_id}
+            from lit_agent.workflow.source import resolve_report_papers
+
+            selected = resolve_report_papers(
+                self.settings,
+                topic_id,
+                limit=limit,
+                focus_hint=focus_hint,
+                paper_ids=paper_ids,
+            )
+            holder["paper_ids"] = selected
+            return {"paper_ids": selected, "count": len(selected), "topic_id": topic_id}
 
         def build_evidence(**_kwargs: Any) -> dict[str, Any]:
-            context = build_context(self.settings, paper_ids, gateway=self.gateway)
+            context = build_context(
+                self.settings, holder.get("paper_ids") or [], gateway=self.gateway
+            )
             holder["context"] = context
             return {"context_id": "ctx", "papers": len(context.cards)}
 

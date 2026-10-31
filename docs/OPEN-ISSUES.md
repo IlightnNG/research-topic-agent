@@ -45,7 +45,7 @@
 
 ## Phase 3.4 收尾遗留（明确未完成）
 
-1. **S15/S20**：API/CLI 仍走 10 节点 graph；删除旧 graph 未做。
+1. **Phase 3.5 S2**：API/CLI 默认 `/run` 仍走 10 节点 graph；旧 graph 未删除；新 `/report-workflow` 已可用。
 2. **Report 主链路 AgentVerifier** 尚未强制启用。
 3. **token 级流式 UI** 未做。
 4. **真实冻结评估集**（20/50/100）未建立。

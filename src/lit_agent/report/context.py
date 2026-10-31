@@ -9,6 +9,8 @@ from lit_agent.config import Settings
 from lit_agent.report.cards import PaperCard, get_or_build_cards
 from lit_agent.report.claims import ClaimSet, build_claims
 from lit_agent.report.clusters import Direction, build_directions, label_directions
+from lit_agent.report.embeddings import build_directions_embedding
+from lit_agent.report.evidence import select_evidence_tiers
 
 __all__ = ["ReportContext", "build_context"]
 
@@ -35,13 +37,21 @@ def build_context(
     )
 
     claim_set = build_claims(cards, max_per_paper=settings.report.max_claims_per_paper)
-    directions = build_directions(
+    directions = build_directions_embedding(
         cards,
         claim_set.claims,
         min_size=settings.report.min_cluster_size,
         max_clusters=settings.report.max_sections,
-        threshold=settings.report.cluster_threshold,
+        threshold=max(0.35, settings.report.cluster_threshold),
     )
+    if not directions:
+        directions = build_directions(
+            cards,
+            claim_set.claims,
+            min_size=settings.report.min_cluster_size,
+            max_clusters=settings.report.max_sections,
+            threshold=settings.report.cluster_threshold,
+        )
     directions = label_directions(
         directions, cards, gateway=gateway, max_tokens=settings.report.max_tokens_cluster
     )
@@ -55,7 +65,7 @@ def build_context(
             "directions": len(directions),
         },
     )
-    return ReportContext(
+    context = ReportContext(
         cards=cards,
         claim_set=claim_set,
         directions=directions,
@@ -67,3 +77,6 @@ def build_context(
             "filtered_claims": claim_set.filtered,
         },
     )
+    tiers = select_evidence_tiers(context, deep_ratio=0.35)
+    context.meta["tiers"] = tiers.to_meta()
+    return context

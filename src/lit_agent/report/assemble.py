@@ -49,6 +49,11 @@ _LABELS = {
         "duplicates": "duplicates",
         "dropped": "dropped_claims",
         "failed": "failed_papers",
+        "comparison": "Comparison Matrix",
+        "themes": "Cross-cutting Themes",
+        "direction": "Direction",
+        "claims_n": "Claims",
+        "representative": "Representative",
     },
     "zh": {
         "overview": "概览",
@@ -65,6 +70,11 @@ _LABELS = {
         "duplicates": "重复",
         "dropped": "丢弃结论",
         "failed": "失败论文",
+        "comparison": "对比矩阵",
+        "themes": "跨方向主题",
+        "direction": "方向",
+        "claims_n": "结论数",
+        "representative": "代表论文",
     },
 }
 
@@ -121,6 +131,48 @@ def _build_sections(
         ReportSection(id="overview", title=labels["overview"], body=overview, kind="overview")
     )
 
+    if insights:
+        rows = [
+            f"| {labels['direction']} | {labels['papers']} | {labels['claims_n']} | {labels['representative']} |",
+            "|---|---|---|---|",
+        ]
+        all_indexes: list[int] = []
+        by_id = {card.paper_id: card for card in cards}
+        for insight in insights:
+            direction = next((item for item in context.directions if item.id == insight.direction_id), None)
+            paper_ids = direction.paper_ids if direction else []
+            claim_ids = [cid for item in (insight.common_ground + insight.differences + insight.open_questions) for cid in item.claim_ids]
+            indexes = sorted({index_of[cid] for cid in claim_ids if cid in index_of})
+            all_indexes.extend(indexes)
+            representative = by_id[paper_ids[0]].title[:60] if paper_ids and paper_ids[0] in by_id else "-"
+            rows.append(
+                f"| {insight.name} | {len(paper_ids)} | {len(indexes)} | {representative} |"
+            )
+        sections.append(
+            ReportSection(
+                id="comparison",
+                title=labels["comparison"],
+                body="\n".join(rows),
+                claim_indexes=sorted(set(all_indexes)),
+                kind="comparison",
+            )
+        )
+
+    themes: list[str] = []
+    for direction in context.directions:
+        for term in direction.top_terms[:2]:
+            if term not in themes:
+                themes.append(term)
+    if themes:
+        sections.append(
+            ReportSection(
+                id="themes",
+                title=labels["themes"],
+                body=", ".join(themes[:12]),
+                kind="themes",
+            )
+        )
+
     for insight in insights:
         body, claim_ids = _section_body(insight, index_of, language)
         indexes = sorted({index_of[cid] for cid in claim_ids if cid in index_of})
@@ -163,7 +215,7 @@ def validate_report(report: Report, *, language: str = "en") -> ValidationResult
     errors: list[str] = []
     seen_claims: set[int] = set()
     for section in report.sections:
-        if section.kind in {"overview", "gaps", "paper_index"}:
+        if section.kind in {"overview", "gaps", "paper_index", "themes"}:
             continue
         if not section.claim_indexes:
             errors.append(f"{section.id}: no claim_indexes")
