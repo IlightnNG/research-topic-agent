@@ -15,8 +15,8 @@
 | TODO-003 | M4 | M4-P01 | P0 | done | 全报告 claim 计数一致 |
 | TODO-004 | M4 | M4-P01 | P0 | done | Paper Index metadata 完整 |
 | TODO-005 | M4 | M4-P01 | P0 | done | 正文真实 claim 覆盖，禁止 ledger 刷分 |
-| TODO-006 | M4 | M4-P01 | P0 | done | 方向质量：5–8 / min 3 / max share |
-| TODO-007 | M4 | M4-P02 | P1 | open | 分方向 LLM writer |
+| TODO-006 | M4 | M4-P01 | P0 | done | 动态方向质量 / min size / max share |
+| TODO-007 | M4 | M4-P02 | P1 | done | 分方向 LLM writer |
 | TODO-008 | M5 | M5-P01 | P1 | open | 模块分 + 方向分评分卡 |
 | TODO-009 | M5 | M5-P02 | P1 | open | 100 篇 gold + LLM judge |
 | TODO-010 | M2 | M2-P01 | P1 | open | 全文率 ≥30%（10 篇 3/10，100 篇待复跑） |
@@ -24,7 +24,7 @@
 | TODO-012 | M6 | M6-P01 | P2 | open | 生产 UI / 错误格式 |
 | TODO-013 | M1 | M1-P02 | P1 | open | 事件单写者与 module/severity |
 | TODO-014 | M5 | M5-P03 | P2 | open | 自动调参闭环 |
-| TODO-015 | M4 | M4-P02 | P1 | open | 分方向实时 section 流 |
+| TODO-015 | M4 | M4-P02 | P1 | done | 分方向实时 section 流 |
 
 ---
 
@@ -103,7 +103,7 @@
 - Priority：P0
 - Evidence：3 方向；max_share 0.86；`Agents / Wang`。
 - Acceptance：
-  - 5–8 方向；
+  - 动态方向数；
   - min size ≥3；
   - max_share ≤0.6；
   - 禁止作者/venue 名；

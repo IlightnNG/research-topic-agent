@@ -575,6 +575,6 @@ C1–C9：完成
 ### 当前门禁
 
 ```text
-pytest tests/v2   53 passed
+pytest tests/v2   57 passed
 ruff              clean
 ```

@@ -22,7 +22,7 @@ Paper Index 只有 ID
 Phase 4：
 
 ```text
-5–8 方向
+动态方向数（见 REPORT-POLICY）
 每方向 ≥3 篇
 max_share ≤0.6
 overview = sections = matrix = ledger
@@ -141,7 +141,7 @@ evidence notes
 - 每方向正文至少 80% claims；
 - 不接受 86 篇只写 6 条；
 - 每个事实句 `[C#]`；
-- 字数 1500–3000 gate。
+- 字数使用动态 policy（见 REPORT-POLICY）。
 
 ---
 
@@ -149,14 +149,14 @@ evidence notes
 
 | 指标 | 目标 |
 |---|---|
-| `cluster.count` | 5–8 |
+| `cluster.count` | policy band |
 | `cluster.min_size` | ≥3 |
 | `direction.max_share` | ≤0.6 |
 | `report.claim_coverage` | ≥0.8 |
 | `report.count_reconciliation` | 1.0 |
 | `report.index_completeness` | 1.0 |
 | `report.uncited_facts` | 0 |
-| `report.words` | 1500–3000 gate |
+| `report.words` | policy range |
 
 ---
 
@@ -198,7 +198,7 @@ fixture：
 | 计数不一致 | verifier fail |
 | 作者名方向 | reject name |
 | index 缺 title | reject paper |
-| words <1500 | degraded |
+| words < policy.min | degraded |
 
 错误码见 `docs/ERRORS.md`。
 
@@ -208,12 +208,12 @@ fixture：
 
 | 项 | 当前 | 目标 |
 |---|---|---|
-| 方向 | 3 | 5–8 |
+| 方向 | 3 | policy band |
 | max_share | 0.86 | ≤0.6 |
 | 每方向 claims | 6 | ≥80% |
 | 计数 | 不一致 | 一致 |
 | index | ID | metadata |
-| 字数 | 2519 | 1500–3000 |
+| 字数 | 2519 | policy range |
 
 ---
 
@@ -230,7 +230,7 @@ fixture：
 
 已完成：
 
-- 5–8 方向 / min size / max share；
+- 动态方向数（见 REPORT-POLICY） / min size / max share；
 - 小方向不再合并成单一 Other；
 - 作者/venue 名过滤；
 - 全报告 claim 计数一致；
@@ -240,7 +240,7 @@ fixture：
 
 未完成：
 
-- 100 篇 words 仍 >3000；
+- 100 篇 words 仍需 LLM writer 压缩；
 - LLM writer / comparison 正文 / 非模板 open questions。
 
 ## 13. Commit

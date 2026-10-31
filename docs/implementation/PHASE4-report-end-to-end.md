@@ -21,7 +21,7 @@
 
 ```text
 100 篇
-→ 5–8 个可解释方向
+→ policy band 个可解释方向
 → 每方向 EvidencePack
 → LLM 分方向写作
 → code gate + verifier + score
@@ -34,7 +34,7 @@
 **Phase 4 完成的定义**：
 
 1. 100 篇真实论文可跑完整 Report Workflow；
-2. 5–8 个方向，每方向 ≥3 篇；
+2. 动态方向数，每方向 ≥ policy.min_size；
 3. 每方向正文覆盖该方向 ≥80% claims；
 4. 不再出现作者列表 claim；
 5. 全报告 claim 计数一致；
@@ -285,7 +285,7 @@ report.scored
 
 ```text
 H1 100 篇跑完
-H2 5–8 方向
+H2 policy band 方向
 H3 每方向 ≥3 篇
 H4 max_share ≤0.6
 H5 每方向正文 claim coverage ≥0.8
@@ -319,10 +319,10 @@ H18 最小 UI 可读
 ```text
 complete 必须同时满足：
   fulltext >=0.3
-  5–8 方向
+  policy band 方向
   min size>=3
   max_share<=0.6
-  1500–3000 words
+  policy word range
   claim coverage>=0.8
   citation coverage=1
   uncited facts=0

@@ -7,7 +7,9 @@ import re
 from typing import Any
 
 from lit_agent_v2.contracts.report import EvidenceArtifact, ReportDraft, Section
+from lit_agent_v2.domains.report.audit import audit_report
 from lit_agent_v2.domains.report.map import MapArtifact
+from lit_agent_v2.domains.report.policy import policy_for
 
 __all__ = ["ReportDraft", "Section", "WriteService"]
 
@@ -31,6 +33,7 @@ class WriteService:
         mapping: MapArtifact,
         on_section=None,
     ) -> ReportDraft:
+        policy = policy_for(len(evidence.papers), evidence.claims)
         claims: list[dict[str, Any]] = []
         for paper in evidence.papers:
             for claim in paper.get("claims", []):
@@ -63,27 +66,32 @@ class WriteService:
                     f"{direction.coherence:.2f}."
                 ),
             ]
+            shown: set[str] = set()
             common = direction_claims[:3]
             if common:
                 lines.append("### Common ground")
                 for claim in common:
                     idx = index_of[str(claim["claim_id"])]
+                    shown.add(str(claim["claim_id"]))
                     lines.append(f"- {claim['text']} [C{idx + 1}]")
             different = direction_claims[3:5]
             if different:
                 lines.append("### Differences")
                 for claim in different:
                     idx = index_of[str(claim["claim_id"])]
+                    shown.add(str(claim["claim_id"]))
                     lines.append(f"- {claim['text']} [C{idx + 1}]")
             lines.append("### Open questions")
             lines.append(
                 "The evidence does not settle how these results generalise beyond the reported "
                 "benchmarks; a controlled comparison with matched datasets is still missing."
             )
-            lines.append("### Evidence notes")
-            for claim in direction_claims:
-                idx = index_of[str(claim["claim_id"])]
-                lines.append(f"- `{claim['paper_id']}`: {claim['text']} [C{idx + 1}]")
+            remaining = [claim for claim in direction_claims if str(claim["claim_id"]) not in shown]
+            if remaining:
+                lines.append("### Evidence notes")
+                for claim in remaining:
+                    idx = index_of[str(claim["claim_id"])]
+                    lines.append(f"- `{claim['paper_id']}`: {claim['text']} [C{idx + 1}]")
             body = "\n".join(lines)
             add(
                 Section(
@@ -181,21 +189,30 @@ class WriteService:
         max_share = max((len(item.paper_ids) for item in mapping.directions), default=0) / max(
             1, mapping.papers
         )
-        state = (
-            "complete"
-            if mapping.count_quality == "complete"
-            and evidence.fulltext_ratio >= 0.3
-            and 1500 <= _words(body) <= 3000
-            and max_share <= 0.6
-            and len(displayed) == len(claims)
-            else "degraded"
-        )
-        return ReportDraft(
+        draft = ReportDraft(
             title=title,
             content_md=body,
             content_sha=digest,
             sections=sections,
-            word_count=_words(body),
+            word_count=0,
             claims=claims,
-            state=state,
+            state="degraded",
         )
+        audit = audit_report(draft)
+        state = (
+            "complete"
+            if mapping.count_quality == "complete"
+            and evidence.fulltext_ratio >= 0.3
+            and policy.min_words <= audit.narrative_words <= policy.max_words
+            and policy.min_directions <= len(mapping.directions) <= policy.max_directions
+            and mapping.min_size >= policy.min_direction_size
+            and max_share <= policy.max_direction_share
+            and len(displayed) == len(claims)
+            and audit.citation_coverage >= 1.0
+            and audit.uncited_facts == 0
+            and audit.duplicate_claim_rate <= 0.1
+            else "degraded"
+        )
+        draft.word_count = audit.narrative_words
+        draft.state = state
+        return draft

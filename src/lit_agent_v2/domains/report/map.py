@@ -7,6 +7,7 @@ import re
 from collections import Counter
 
 from lit_agent_v2.contracts.report import Direction, EvidenceArtifact, MapArtifact
+from lit_agent_v2.domains.report.policy import policy_for
 
 __all__ = ["Direction", "MapArtifact", "MapService", "artifact_min_size"]
 
@@ -40,7 +41,13 @@ def _terms(text: str) -> list[str]:
 
 
 class MapService:
-    def __init__(self, *, threshold: float = 0.35, min_size: int = 3, max_directions: int = 8) -> None:
+    def __init__(
+        self,
+        *,
+        threshold: float = 0.35,
+        min_size: int | None = None,
+        max_directions: int | None = None,
+    ) -> None:
         self.threshold = threshold
         self.min_size = min_size
         self.max_directions = max_directions
@@ -48,6 +55,9 @@ class MapService:
     def build(self, evidence: EvidenceArtifact) -> MapArtifact:
         by_paper = {item["paper_id"]: item for item in evidence.papers}
         ids = sorted(by_paper)
+        policy = policy_for(len(ids), evidence.claims)
+        min_size = self.min_size or policy.min_direction_size
+        max_directions = self.max_directions or policy.max_directions
         vectors = {
             pid: _grams(
                 " ".join(
@@ -62,7 +72,7 @@ class MapService:
             for pid in ids
         }
         groups: list[list[str]] = [[pid] for pid in ids]
-        target = min(8, max(5, math.ceil(len(ids) / 15))) if ids else 0
+        target = policy.target_directions if ids else 0
         while len(groups) > target:
             best_pair: tuple[int, int] | None = None
             best_score = -1.0
@@ -83,18 +93,18 @@ class MapService:
             groups[left] = sorted(groups[left] + groups[right])
             del groups[right]
 
-        major = [sorted(group) for group in groups if len(group) >= self.min_size]
-        small = [sorted(group) for group in groups if len(group) < self.min_size]
+        major = [sorted(group) for group in groups if len(group) >= min_size]
+        small = [sorted(group) for group in groups if len(group) < min_size]
 
         # First combine small groups into valid directions so 5-8 is not lost.
         combined: list[list[str]] = []
         for group in sorted(small, key=len):
-            if combined and len(combined[-1]) < self.min_size:
+            if combined and len(combined[-1]) < min_size:
                 combined[-1] = sorted(combined[-1] + group)
             else:
                 combined.append(sorted(group))
-        major.extend(group for group in combined if len(group) >= self.min_size)
-        leftovers = [group for group in combined if len(group) < self.min_size]
+        major.extend(group for group in combined if len(group) >= min_size)
+        leftovers = [group for group in combined if len(group) < min_size]
 
         # Merge any remainder into the nearest existing direction; never a giant "Other".
         for group in leftovers:
@@ -112,22 +122,22 @@ class MapService:
 
         # Large real-world corpora can collapse into one dominant cluster.
         # Split the largest direction until the 5-8 / max_share gate can hold.
-        while len(major) < 5 or (
+        while len(major) < policy.min_directions or (
             major
-            and max(len(group) for group in major) / max(1, len(ids)) > 0.6
+            and max(len(group) for group in major) / max(1, len(ids)) > policy.max_direction_share
         ):
-            if not major or len(major) >= self.max_directions:
+            if not major or len(major) >= max_directions:
                 break
             largest = max(range(len(major)), key=lambda index: len(major[index]))
-            split = _split_group(major[largest], vectors, self.min_size)
+            split = _split_group(major[largest], vectors, min_size)
             if split is None:
                 break
             major[largest : largest + 1] = split
 
         major.sort(key=lambda group: (-len(group), group[0]))
-        if len(major) > self.max_directions:
-            keep = major[: self.max_directions - 1]
-            keep.append(sorted(item for group in major[self.max_directions - 1 :] for item in group))
+        if len(major) > max_directions:
+            keep = major[: max_directions - 1]
+            keep.append(sorted(item for group in major[max_directions - 1 :] for item in group))
             major = keep
 
         blocked = _blocked_terms(by_paper)
@@ -163,7 +173,11 @@ class MapService:
             outlier_rate=round(sum(len(group) for group in leftovers) / max(1, len(ids)), 4),
             count_quality=(
                 "complete"
-                if 5 <= len(directions) <= 8 and min_size >= self.min_size and max_share <= 0.6
+                if (
+                    policy.min_directions <= len(directions) <= policy.max_directions
+                    and min_size >= policy.min_direction_size
+                    and max_share <= policy.max_direction_share
+                )
                 else "deficit"
             ),
         )

@@ -9,6 +9,7 @@ from lit_agent_v2.contracts.ports import EventPort, MetricPort, SourcePort
 from lit_agent_v2.domains.chat.answer import ChatService
 from lit_agent_v2.domains.report.evidence import EvidenceService
 from lit_agent_v2.domains.report.ingest import LocalCorpus
+from lit_agent_v2.domains.report.llm_writer import LLMReportWriter
 from lit_agent_v2.domains.report.map import MapService
 from lit_agent_v2.domains.report.persist import ReportStore
 from lit_agent_v2.domains.report.source import LocalCorpusSource, SourceService
@@ -53,6 +54,7 @@ def build_report_workflow(
     events: EventPort | None = None,
     writer=None,
     mapper=None,
+    llm=None,
 ) -> ReportWorkflow:
     active_metrics = metrics or MetricStore(shell.db)
     return ReportWorkflow(
@@ -60,7 +62,7 @@ def build_report_workflow(
         source=source or LocalCorpusSource(corpus, SourceService(active_metrics)),
         evidence=EvidenceService(active_metrics),
         mapper=mapper or MapService(),
-        writer=writer or WriteService(),
+        writer=writer or (LLMReportWriter(llm) if llm is not None else WriteService()),
         store=ReportStore(shell.db),
         events=events or EventBridge(shell.db),
         metrics=active_metrics,

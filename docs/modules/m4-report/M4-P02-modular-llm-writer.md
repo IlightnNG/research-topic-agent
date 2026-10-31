@@ -2,7 +2,7 @@
 
 > 模块：M4 Report
 > 版本：1.0（2026-10-31）
-> 状态：planned
+> 状态：done（20 live complete；100 live 待复跑）
 > 依赖：M4-P01
 > 目标：把“一次性模板拼报告”改成“先 Plan，再逐方向 LLM 写作，最后全局组装”。
 
@@ -111,7 +111,7 @@ You are writing one section of a research report.
 Use ONLY the supplied claims and quotes.
 Each factual sentence must end with [C#] referencing a supplied claim.
 Do not introduce new papers, numbers, or claims.
-Write in English, 250–500 words.
+Write in English; target length comes from report policy (not a fixed 250–500).
 Required structure:
 - definition / scope
 - common ground (>=2 claims)
@@ -208,7 +208,7 @@ section.delta
 | `section.claim_coverage` | ≥0.8 |
 | `section.citation_density` | ≥1/2 sentences |
 | `section.boilerplate_rate` | 0 |
-| `section.word_count` | 250–500 |
+| `section.word_count` | 由 policy 分配 |
 | `section.repair_count` | 记录 |
 | `report.count_reconciliation` | 1.0 |
 | `report.comparison_completeness` | 1.0 |
@@ -260,7 +260,26 @@ tests/v2/test_m4_live_writer.py
 
 ---
 
-## 13. Commit
+## 13. 实施记录（2026-10-31）
+
+已完成：
+
+- ReportPlan / EvidencePack；
+- per-direction LLM section；
+- structured JSON schema；
+- claim refs 校验、去重、coverage、uncited；
+- retry + deterministic fallback；
+- section streaming callback；
+- 20 篇 live complete；
+- 57 tests。
+
+未完成：
+
+- 100 篇 live LLM writer 复跑；
+- overview/comparison 在部分模型上会回退 deterministic；
+- LLM 成本/延迟预算。
+
+## 14. Commit
 
 ```text
 feat(M4-P02): add per-direction llm report writer

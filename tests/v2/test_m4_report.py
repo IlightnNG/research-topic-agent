@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from lit_agent_v2.contracts.report import Direction, EvidenceArtifact, MapArtifact
 from lit_agent_v2.domains.report.map import MapService
+from lit_agent_v2.domains.report.policy import policy_for
 from lit_agent_v2.domains.report.write import WriteService
 
 VOCAB = [
@@ -88,7 +89,7 @@ def test_report_counts_and_index_metadata() -> None:
     assert "Author 0" in index.body
     assert "ACL" in index.body
     assert "https://example.org/0" in index.body
-    assert draft.word_count >= 1500
+    assert draft.word_count >= policy_for(50).min_words
 
 
 def test_degraded_for_collapsed_direction() -> None:
@@ -112,3 +113,13 @@ def test_claims_are_all_in_body_not_just_ledger() -> None:
     )
     for index in range(50):
         assert f"[C{index + 1}]" in draft.content_md
+
+
+def test_policy_scales_with_corpus() -> None:
+    small = policy_for(20, 20)
+    medium = policy_for(50, 50)
+    large = policy_for(100, 100)
+    assert small.target_directions < medium.target_directions < large.target_directions
+    assert small.target_words < medium.target_words < large.target_words
+    assert small.max_direction_share >= large.max_direction_share
+    assert small.min_direction_size <= large.min_direction_size

@@ -16,6 +16,7 @@ from lit_agent_v2.contracts.ports import (
     WriterPort,
 )
 from lit_agent_v2.contracts.report import EvidenceArtifact, SourceArtifact
+from lit_agent_v2.domains.report.audit import audit_report
 from lit_agent_v2.domains.report.map import MapArtifact
 from lit_agent_v2.domains.report.write import ReportDraft
 
@@ -167,15 +168,22 @@ class ReportWorkflow:
                 run_id=active_run_id,
                 node_id="map",
             )
+            audit = audit_report(draft)
             self.metrics.point(
                 "report.citation_coverage",
-                1.0 if draft.sections else 0.0,
+                audit.citation_coverage,
                 run_id=active_run_id,
                 node_id="write",
             )
             self.metrics.point(
                 "report.uncited_facts",
-                0.0,
+                float(audit.uncited_facts),
+                run_id=active_run_id,
+                node_id="write",
+            )
+            self.metrics.point(
+                "report.duplicate_claim_rate",
+                audit.duplicate_claim_rate,
                 run_id=active_run_id,
                 node_id="write",
             )

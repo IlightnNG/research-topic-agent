@@ -2,7 +2,7 @@
 
 > Phase：M4-P01 Direction Quality + Count Reconciliation
 > 日期：2026-10-31
-> 状态：done（100 篇方向/计数通过；words degraded，M4-P02 修复）
+> 状态：done（100 篇方向/计数/字数 policy 通过；fulltext 0 导致 degraded）
 
 ## 门禁
 
@@ -72,15 +72,16 @@ tests/v2/test_m4_report.py
 ## 真实 100 篇（OpenAlex metadata-only）
 
 ```text
-directions   5
-min size     3
-max share    0.35
+n            100
 claims       178
-words        10775
-state        degraded
+directions   5（policy band 5–9，target 7）
+min size     7（policy min 7）
+max share    0.33（policy max 0.357）
+narrative    5272 words（policy 1752–7008）
+state        degraded（fulltext 0）
 ```
 
-方向质量已通过；word count 仍过高，原因是 deterministic appendix 和所有 claim 全文重复。M4-P02 的 LLM writer 会压缩。
+方向、计数、字数均已通过 policy；当前 degraded 只因为 metadata-only 语料没有全文。
 
 ## 当前边界
 

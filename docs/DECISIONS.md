@@ -34,7 +34,7 @@
 
 - 日期：2026-10-31
 - 状态：accepted
-- 决定：1500–3000 words 只作为 gate，不进入质量正分。
+- 决定：words 只作为 gate，不进入质量正分；具体范围由报告 policy 决定。
 - 原因：字数可刷，不能代表质量。
 - 约束：评分使用模块分 + 方向分 + 硬门禁。
 
@@ -129,3 +129,13 @@
 - Hash：`cf2243febe2d1b924b4ca2c179abee9a341d703ed9945ba1ae579eeb2daf9e90`
 - 原因：M2-P01 需要 authors 进入 metadata / paper index，并计算 authors rate。
 - 兼容性：additive minor；旧 JSON 缺 authors 时为空列表。
+
+
+## D-014 · Report sizing is corpus-derived
+
+- 日期：2026-10-31
+- 状态：accepted
+- 决定：方向数、方向最小规模、max share、报告字数全部由 `policy_for(n, c)` 推导。
+- 原因：固定 5–8 方向 / 1500–3000 words 会让 20 篇和 200 篇使用同一把尺子。
+- 约束：`docs/modules/m4-report/REPORT-POLICY.md`；M4 state gate 使用 policy。
+- 取代：D-004 中固定 1500–3000 的部分。

@@ -40,7 +40,7 @@ hard_fail → final = min(final, 0.5)
 字数：
 
 ```text
-1500–3000 = gate
+policy word range = gate
 不是 score
 ```
 

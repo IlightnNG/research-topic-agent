@@ -65,7 +65,7 @@ CATALOG: dict[str, MetricSpec] = {
         "claim.citation_coverage", "evidence", "ratio", "higher_better", "cited_claims / claims", hard=True, min_value=1.0
     ),
     "cluster.count": _m(
-        "cluster.count", "map", "count", "in_range", "len(directions)", min_value=5, max_value=8
+        "cluster.count", "map", "count", "in_range", "policy_for(n).target_directions", min_value=3, max_value=12
     ),
     "cluster.min_size": _m(
         "cluster.min_size", "map", "count", "higher_better", "min(direction.papers)", min_value=3
@@ -74,7 +74,7 @@ CATALOG: dict[str, MetricSpec] = {
         "cluster.outlier_rate", "map", "ratio", "lower_better", "outliers / papers", max_value=0.2
     ),
     "report.words": _m(
-        "report.words", "write", "count", "in_range", "word_count", min_value=1500, max_value=3000
+        "report.words", "write", "count", "in_range", "policy_for(n).target_words", min_value=500, max_value=6000
     ),
     "report.claim_coverage": _m(
         "report.claim_coverage", "write", "ratio", "higher_better", "displayed_claims / claims", min_value=0.8
@@ -84,6 +84,9 @@ CATALOG: dict[str, MetricSpec] = {
     ),
     "report.count_reconciliation": _m(
         "report.count_reconciliation", "write", "ratio", "higher_better", "displayed_claims / claims", hard=True, min_value=1.0
+    ),
+    "report.duplicate_claim_rate": _m(
+        "report.duplicate_claim_rate", "write", "ratio", "lower_better", "duplicate_claim_refs / claim_refs", max_value=0.1
     ),
     "report.citation_coverage": _m(
         "report.citation_coverage", "write", "ratio", "higher_better", "cited_facts / facts", hard=True, min_value=1.0

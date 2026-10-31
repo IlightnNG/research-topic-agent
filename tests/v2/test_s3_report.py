@@ -8,6 +8,7 @@ from pathlib import Path
 from lit_agent_v2.composition import build_report_workflow
 from lit_agent_v2.contracts import RunRequest
 from lit_agent_v2.domains.report.ingest import LocalCorpus
+from lit_agent_v2.domains.report.policy import policy_for
 from lit_agent_v2.run_shell import RunShell
 from lit_agent_v2.storage.artifacts import ArtifactStore
 from lit_agent_v2.storage.db import Database
@@ -60,7 +61,7 @@ def test_s3_full_report_50(tmp_path: Path) -> None:
     assert outcome.report_id
     assert len(outcome.mapping.directions) >= 5
     assert outcome.evidence.with_claims == 50
-    assert outcome.draft.word_count >= 1500
+    assert outcome.draft.word_count >= policy_for(50).min_words
     assert any(section.kind == "comparison" and "|" in section.body for section in outcome.draft.sections)
 
     with db.connect() as conn:

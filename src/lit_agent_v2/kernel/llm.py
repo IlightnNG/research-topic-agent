@@ -7,6 +7,7 @@ from __future__ import annotations
 
 import json
 import os
+import re
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Protocol
@@ -118,7 +119,8 @@ class DeepSeekChatClient:
             )
         payload = response.json()
         choice = (payload.get("choices") or [{}])[0]
-        content = (choice.get("message") or {}).get("content") or ""
+        message = choice.get("message") or {}
+        content = message.get("content") or message.get("reasoning_content") or ""
         if not content:
             raise ModuleError(
                 "E_LLM_EMPTY",
@@ -126,11 +128,23 @@ class DeepSeekChatClient:
                 "M1",
                 retryable=True,
             )
+        text = content.strip()
+        if text.startswith("```"):
+            text = re.sub(r"^```[a-zA-Z0-9_-]*\s*", "", text)
+            text = re.sub(r"\s*```$", "", text)
+        if not text.startswith("{"):
+            start, end = text.find("{"), text.rfind("}")
+            if start >= 0 and end > start:
+                text = text[start : end + 1]
         try:
-            parsed = json.loads(content)
+            parsed = json.loads(text)
         except json.JSONDecodeError as exc:
             raise ModuleError(
-                "E_LLM_JSON", "LLM returned non-JSON content", "M1", retryable=True
+                "E_LLM_JSON",
+                "LLM returned non-JSON content",
+                "M1",
+                retryable=True,
+                details={"preview": text[:300]},
             ) from exc
         if not isinstance(parsed, dict):
             raise ModuleError("E_LLM_JSON", "LLM returned non-object", "M1", retryable=True)

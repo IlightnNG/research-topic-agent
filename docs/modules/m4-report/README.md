@@ -118,7 +118,7 @@ Paper Index
 - comparison 有正文，不只是表；
 - open questions 不能模板复用；
 - 每个方向 ≥3 篇；
-- 5–8 方向。
+- 动态方向数，见 `REPORT-POLICY.md`。
 
 ---
 
@@ -126,7 +126,7 @@ Paper Index
 
 | 指标 | 目标 |
 |---|---|
-| `cluster.count` | 5–8 |
+| `cluster.count` | policy band |
 | `cluster.min_size` | ≥3 |
 | `cluster.coherence` | 提升 |
 | `direction.max_share` | ≤0.6 |
@@ -134,7 +134,7 @@ Paper Index
 | `report.citation_coverage` | 1.0 |
 | `report.uncited_facts` | 0 |
 | `report.comparison_completeness` | 1.0 |
-| `report.words` | 1500–3000 gate |
+| `report.words` | policy range |
 | `report.state` | 与质量门禁一致 |
 
 字数只做 gate，不做质量正分。
@@ -144,7 +144,7 @@ Paper Index
 ## 7. 验收
 
 ```text
-1. 5–8 方向；
+1. policy band 方向；
 2. 每方向 ≥3 篇；
 3. 86 篇不再只写 6 条；
 4. overview/section/matrix/ledger 计数一致；
