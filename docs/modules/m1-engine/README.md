@@ -222,7 +222,7 @@ tests/v2/test_m1_*.py
 | Node resume | ✅ |
 | pause/resume | ✅ 边界 |
 | Kernel minimal loop | ✅ |
-| 完整 ReAct | ❌ |
+| 完整 ReAct | ✅ M1-P01 |
 | step checkpoint | ❌ |
 | 单写者事件 | ❌ |
 | 旧系统 | 已移出 |

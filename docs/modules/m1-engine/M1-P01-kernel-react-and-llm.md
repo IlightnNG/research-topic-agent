@@ -2,7 +2,7 @@
 
 > 模块：M1 Engine
 > 版本：1.0（2026-10-31）
-> 状态：planned
+> 状态：done（metric handoff 待接入 M4）
 > 依赖：无
 > 目标：让 Node 内的 LLM agent loop 可运行、可观测、可恢复，而不是只有 action/final 的最小循环。
 
@@ -319,7 +319,23 @@ DeepSeek 小请求 + 1 个工具
 
 ---
 
-## 12. Commit
+## 12. 实施记录（2026-10-31）
+
+已完成：
+
+- `kernel/llm.py`：LLMConfig / DeepSeekChatClient / LLMUsage / LLMClient；
+- `kernel/tools.py`：ToolSpec / ToolBox / schema / timeout；
+- `kernel/checkpoint.py`：KernelCheckpoint / KernelCheckpointStore；
+- `kernel/loop.py`：LLM ReAct、tool loop、no-progress、budget、cancel、step events；
+- fake LLM 单测 + 真实 DeepSeek 测试通过；
+- `tests/v2/test_m1_kernel.py` 7 tests。
+
+未接入：
+
+- M4 report 仍用 deterministic handler；
+- Kernel 结果尚未写入 M5 metric_points（通过 event/usage 交给 M4/M5）。
+
+## 13. Commit
 
 ```text
 feat(M1-P01): add llm react kernel with step checkpoints

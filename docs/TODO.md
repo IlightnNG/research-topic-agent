@@ -20,7 +20,7 @@
 | TODO-008 | M5 | M5-P01 | P1 | open | 模块分 + 方向分评分卡 |
 | TODO-009 | M5 | M5-P02 | P1 | open | 100 篇 gold + LLM judge |
 | TODO-010 | M2 | M2-P01 | P1 | open | 全文率 ≥30% |
-| TODO-011 | M1 | M1-P01 | P1 | open | Kernel ReAct + step checkpoint |
+| TODO-011 | M1 | M1-P01 | P1 | done | Kernel ReAct + step checkpoint |
 | TODO-012 | M6 | M6-P01 | P2 | open | 生产 UI / 错误格式 |
 | TODO-013 | M1 | M1-P02 | P1 | open | 事件单写者与 module/severity |
 | TODO-014 | M5 | M5-P03 | P2 | open | 自动调参闭环 |
