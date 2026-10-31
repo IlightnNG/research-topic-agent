@@ -1,6 +1,6 @@
 ﻿# Phase 3.5 · 全量新架构切换与科研级 Report
 
-> **版本**：1.2.0（2026-10-31，S4–S6 基础落地）
+> **版本**：1.3.0（2026-10-31，S7–S10 基础设施）
 > **目标**：完成 Workflow + Kernel 全量切换；让 Report 能基于约 100 篇论文生成**详细、准确、可引用、可用于研究**的报告；评估体系完整可优化
 > **前置**：Phase 3.4 收尾（640 pytest / 18 e2e；Report 4 节点已 Kernel 化；指标基础表已建）
 > **非目标**：多用户权限、云端部署、PDF 批注（保持 OPEN-ISSUES）
@@ -511,6 +511,7 @@ baseline → run → evaluate → diagnose
 
 | 版本 | 日期 | 内容 |
 |---|---|---|
+| 1.3.0 | 2026-10-31 | S7 ReportVerifier、S8 section 事件、S10 search/cluster 指标；S9 checkpoint 仍未接 API；648 pytest / 18 e2e |
 | 1.2.0 | 2026-10-31 | S4 分层选择、S5 向量聚类、S6 对比矩阵/主题；647 pytest / 18 e2e |
 | 1.1.0 | 2026-10-30 | S1 部分（新增 RunShell/API/CLI，默认 `/run` 仍走 graph）；S3 source 已完成；644 pytest / 18 e2e |
 | 1.0.0 | 2026-10-30 | Phase 3.5：全量架构切换、100 篇科研报告、完整评估体系、S1–S16、H1–H20 |
@@ -567,3 +568,39 @@ python scripts/run_report_workflow.py --topic ai-agents --limit 100
 - 对比矩阵的 LLM 对比文字（目前表格结构）；
 - 1500–3000 字深度写作；
 - 100 篇真实评估。
+
+
+---
+
+## 13. S7–S10 实施状态（2026-10-31）
+
+| 步 | 状态 | 说明 |
+|---|---|---|
+| S7 | ✅ | ReportVerifier 强制每个 Node；有 gateway 时追加 AgentVerifier |
+| S8 | ◐ | 已发 `section.delta` 事件；UI 尚未消费，未做 token 级 |
+| S9 | ◐ | Kernel/Workflow checkpoint 已有；直连 API 的 pause/resume 未接 |
+| S10 | ✅ | search.coverage / cluster.* / comparison 指标已落库 |
+
+### S7 细节
+
+- Node postconditions：source count、evidence context、map directions、write report；
+- `ReportVerifier` 规则拒绝空 source/空方向/无报告；
+- AgentVerifier 只在有 gateway 时启用，失败即拒绝。
+
+### S8 细节
+
+- `section.delta` 带 section_id/title/chars；
+- RunShell 转成 `phase_change(phase=section)`；
+- 前端仍只显示阶段，不显示 section 流。
+
+### S9 细节
+
+- Kernel checkpoint/resume 单测通过；
+- WorkflowRunner checkpoint 可用；
+- Report 直连 API 尚不能 pause/resume。
+
+### S10 细节
+
+- 指标：search.coverage、cluster.count/min_size/outlier_rate/coherence、report.comparison_completeness；
+- `collect_workflow_points` 在 ReportWorkflow 内执行；
+- 测试检查值域。

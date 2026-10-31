@@ -18,6 +18,7 @@ from lit_agent.eval.metric_catalog import CATALOG, MetricDef
 
 __all__ = [
     "collect_report_points",
+    "collect_workflow_points",
     "load_points",
     "record_point",
     "record_span",
@@ -280,4 +281,56 @@ def collect_report_points(settings: Settings, run_id: str) -> None:
         run_id=run_id,
         numerator=float(sum(1 for claim in claims if claim.get("citations"))),
         denominator=float(max(1, len(claims))),
+    )
+
+
+def collect_workflow_points(settings: Settings, run_id: str, *, context: Any, report: Any) -> None:
+    """Search/cluster/report points derived from one ReportContext."""
+    cards = list(getattr(context, "cards", []) or [])
+    directions = list(getattr(context, "directions", []) or [])
+    if not cards:
+        return
+    covered = {paper_id for direction in directions for paper_id in getattr(direction, "paper_ids", [])}
+    outliers = len(cards) - len(covered)
+    slots = sum(len(getattr(direction, "paper_ids", [])) * 2 for direction in directions)
+    links = sum(len(getattr(direction, "claim_ids", [])) for direction in directions)
+    record_point(settings, "search.coverage", float(len(cards)), scope="run", scope_id=run_id, run_id=run_id)
+    record_point(settings, "cluster.count", float(len(directions)), scope="run", scope_id=run_id, run_id=run_id)
+    record_point(
+        settings,
+        "cluster.min_size",
+        float(min((len(getattr(d, "paper_ids", [])) for d in directions), default=0)),
+        scope="run",
+        scope_id=run_id,
+        run_id=run_id,
+    )
+    record_point(
+        settings,
+        "cluster.outlier_rate",
+        float(outliers) / len(cards),
+        scope="run",
+        scope_id=run_id,
+        run_id=run_id,
+        numerator=float(outliers),
+        denominator=float(len(cards)),
+    )
+    record_point(
+        settings,
+        "cluster.coherence",
+        float(links) / slots if slots else None,
+        scope="run",
+        scope_id=run_id,
+        run_id=run_id,
+        numerator=float(links),
+        denominator=float(slots),
+    )
+    sections = list(getattr(report, "sections", []) or [])
+    comparison = sum(1 for section in sections if getattr(section, "kind", "") == "comparison")
+    record_point(
+        settings,
+        "report.comparison_completeness",
+        1.0 if comparison else 0.0,
+        scope="run",
+        scope_id=run_id,
+        run_id=run_id,
     )

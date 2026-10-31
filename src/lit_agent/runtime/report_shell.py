@@ -35,6 +35,18 @@ def run_direct_report(
     log = SqliteEventLog(event_engine, rid)
 
     def event_sink(event: dict[str, Any]) -> None:
+        if event.get("event") == "section.delta":
+            log.emit(
+                EventType.PHASE_CHANGE,
+                stage="report",
+                payload={
+                    "phase": "section",
+                    "section": str(event.get("section_id") or ""),
+                    "title": str(event.get("title") or ""),
+                    "chars": int(event.get("chars") or 0),
+                },
+            )
+            return
         if event.get("event") in {"node.started", "node.finished", "node.failed"}:
             log.emit(
                 EventType.PHASE_CHANGE,

@@ -6,8 +6,8 @@
 ## 门禁
 
 ```text
-pytest        647 例，exit 0
-playwright    18 passed（28.4s）
+pytest        648 例，exit 0
+playwright    18 passed（26.1s）
 ruff          clean
 ```
 
@@ -50,3 +50,12 @@ ruff          clean
 - 测试：647 pytest / 18 e2e。
 
 边界：不是全文精读，也不是真实 embedding；报告仍偏结构化摘要。
+
+
+## S7–S10（2026-10-31）
+
+- S7：ReportVerifier 强制 Node，AgentVerifier 可选；
+- S8：section.delta 事件已发，UI 未消费；
+- S9：checkpoint 基础已有，API resume 未接；
+- S10：search/cluster/comparison 指标落库并测试；
+- 648 pytest / 18 e2e。

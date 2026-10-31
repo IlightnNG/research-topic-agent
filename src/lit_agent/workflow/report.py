@@ -12,7 +12,7 @@ from collections.abc import Callable
 from typing import Any
 
 from lit_agent.config import Settings
-from lit_agent.kernel.events import EventSink
+from lit_agent.kernel.events import EventSink, emit
 from lit_agent.kernel.runtime import Kernel
 from lit_agent.kernel.tools import KernelTools
 from lit_agent.models.report import Report
@@ -20,8 +20,10 @@ from lit_agent.report.assemble import assemble_report, validate_report
 from lit_agent.report.context import ReportContext, build_context
 from lit_agent.report.synthesis import synthesize_all
 from lit_agent.tools.spec import ToolRuntime, ToolSpec
+from lit_agent.workflow.report_verifier import ReportVerifier
 from lit_agent.workflow.runner import WorkflowRunner
 from lit_agent.workflow.spec import NodeSpec, WorkflowSpec
+from lit_agent.workflow.verifier import AgentVerifier
 
 __all__ = ["ReportWorkflow"]
 
@@ -156,6 +158,12 @@ class ReportWorkflow:
                 )
                 report = report.model_copy(update={"fallback_reason": "; ".join(check.errors[:3])})
             holder["report"] = report
+            from contextlib import suppress
+
+            from lit_agent.eval.metric_store import collect_workflow_points
+
+            with suppress(Exception):
+                collect_workflow_points(self.settings, run_id, context=context, report=report)
             return {"report_id": report.report_id, "sections": len(report.sections)}
 
         def node_kernel(tool: str, fn: Callable[..., Any], description: str, node_id: str) -> Kernel:
@@ -164,14 +172,47 @@ class ReportWorkflow:
         spec = WorkflowSpec(
             name="report",
             nodes=(
-                NodeSpec(id="source", kind="agent", goal="load the paper scope", output_key="scope", allowed_tools=("load_scope",)),
-                NodeSpec(id="evidence", kind="agent", goal="build evidence context", input_keys=("scope",), output_key="evidence", allowed_tools=("build_context",)),
-                NodeSpec(id="map", kind="agent", goal="cluster and synthesize directions", input_keys=("evidence",), output_key="mapped", allowed_tools=("synthesize",)),
-                NodeSpec(id="write", kind="agent", goal="assemble and validate the report", input_keys=("mapped",), output_key="bundle", allowed_tools=("assemble",)),
+                NodeSpec(
+                    id="source",
+                    kind="agent",
+                    goal="load the paper scope",
+                    output_key="scope",
+                    allowed_tools=("load_scope",),
+                    postconditions=("count",),
+                ),
+                NodeSpec(
+                    id="evidence",
+                    kind="agent",
+                    goal="build evidence context",
+                    input_keys=("scope",),
+                    output_key="evidence",
+                    allowed_tools=("build_context",),
+                    postconditions=("context_id",),
+                ),
+                NodeSpec(
+                    id="map",
+                    kind="agent",
+                    goal="cluster and synthesize directions",
+                    input_keys=("evidence",),
+                    output_key="mapped",
+                    allowed_tools=("synthesize",),
+                    postconditions=("directions",),
+                ),
+                NodeSpec(
+                    id="write",
+                    kind="agent",
+                    goal="assemble and validate the report",
+                    input_keys=("mapped",),
+                    output_key="bundle",
+                    allowed_tools=("assemble",),
+                    postconditions=("report_id",),
+                ),
             ),
         )
+        agent = AgentVerifier(self.gateway) if self.gateway is not None else None
         runner = WorkflowRunner(
             spec,
+            verifier=ReportVerifier(agent=agent),
             kernels={
                 "source": node_kernel("load_scope", load_scope, "load paper scope", "source"),
                 "evidence": node_kernel("build_context", build_evidence, "build evidence context", "evidence"),
@@ -191,4 +232,13 @@ class ReportWorkflow:
         context = holder.get("context")
         if result.failed_node or not isinstance(report, Report) or not isinstance(context, ReportContext):
             raise RuntimeError(f"report workflow failed: {result.error}")
+        for section in report.sections:
+            emit(
+                self.event_sink,
+                "section.delta",
+                node_id="write",
+                section_id=section.id,
+                title=section.title,
+                chars=len(section.body),
+            )
         return report, context
