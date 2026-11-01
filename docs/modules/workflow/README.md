@@ -89,7 +89,18 @@ Node 失败可重试
 事件完整
 ```
 
-## 7. Phase docs
+## 7. 当前实现
+
+```text
+workflow/node/definition.py
+workflow/node/runner.py
+workflow/node/state.py
+workflow/node/ports.py
+```
+
+状态：4.1.2 done；旧 workflow/runner.py 仍在迁移期保留。
+
+## 8. Phase docs
 
 ```text
 W-P01-node-chain.md

@@ -4,7 +4,7 @@
 > 类型：详细迁移方案
 > 范围：平台层 + Research 工具包 + Report Node
 > 目标：删除旧 M1–M6 流程骨架，按 Node/Tool/Verifier 重写
-> 状态：execution；4.1.0 / 4.1.1 done；下一 4.1.2
+> 状态：execution；4.1.0 / 4.1.1 / 4.1.2 done；下一 4.1.3
 > 依据：`docs/ARCHITECTURE.md` 2.0、`docs/CONTRACTS.md` 2.0 DRAFT
 
 ---
@@ -1243,8 +1243,48 @@ ruff              clean
 
 旧 1.2 freeze test 已限制为 legacy 文件，不把 2.0 draft 混入冻结 hash。
 
+### 4.1.2 Workflow
+
+新增：
+
+```text
+workflow/node/__init__.py
+workflow/node/definition.py
+workflow/node/runner.py
+workflow/node/state.py
+workflow/node/ports.py
+tests/v2/test_workflow_node_runner.py
+```
+
+能力：
+
+```text
+Node 链
+enabled/skipped
+optional/degraded
+required failure
+resume committed
+pause boundary
+report workflow with classification disabled
+```
+
+说明：
+
+```text
+新实现暂放 workflow/node/
+旧 workflow/runner.py 仍被旧 ReportWorkflow 使用
+4.1.9 清理旧文件后合并到 workflow/
+```
+
+当前总门禁：
+
+```text
+pytest tests/v2   91 passed
+ruff              clean
+```
+
 下一 step：
 
 ```text
-4.1.2 Workflow
+4.1.3 Kernel
 ```

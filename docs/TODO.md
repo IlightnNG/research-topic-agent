@@ -16,7 +16,7 @@
 | TODO-104 | R | P0 | open | report.generate 改为 agent node |
 | TODO-105 | R | P0 | open | report.plan 工具产出可选 sections |
 | TODO-106 | V | P0 | open | code + audit 双 Verifier |
-| TODO-107 | W | P1 | open | Workflow optional/skip 节点 |
+| TODO-107 | W | P1 | done | Workflow optional/skip 节点 |
 | TODO-108 | R | P1 | open | demo profile 100 篇报告 |
 | TODO-109 | E | P2 | open | scorecard 作为可选 Node |
 
