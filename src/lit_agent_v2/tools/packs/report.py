@@ -112,6 +112,8 @@ def write_section(
     section: dict[str, Any],
     claims: list[dict[str, Any]],
     llm: SectionLLMPort,
+    *,
+    language: str = "en",
 ) -> dict[str, Any]:
     kind = str(section.get("kind") or "paper_analysis")
     title = str(section.get("title") or kind)
@@ -138,6 +140,7 @@ def write_section(
         "Write one report section. Use only the supplied claims.\n"
         "Every factual sentence must cite [C#] where # is the claim index in the supplied list.\n"
         "Do not invent papers, claims, numbers, or citations.\n"
+        f"Write the section in {'Chinese' if language == 'zh' else 'English'}.\n"
         "Return JSON only: {\"body\":\"markdown\"}\n"
         f"Section kind: {kind}\nTitle: {title}\nPaper ids: {paper_ids}\n"
         f"Rules: {rules}\nClaims: {claim_lines}"
@@ -204,7 +207,9 @@ def persist_report(
     }
 
 
-def build_report_tools(llm: SectionLLMPort | None = None) -> list[ToolSpec]:
+def build_report_tools(
+    llm: SectionLLMPort | None = None, *, language: str = "en"
+) -> list[ToolSpec]:
     tools = [
         ToolSpec(
             "report.plan",
@@ -284,7 +289,9 @@ def build_report_tools(llm: SectionLLMPort | None = None) -> list[ToolSpec]:
                     "required": ["section", "claims"],
                 },
                 {"type": "object"},
-                handler=lambda args: write_section(args["section"], args["claims"], llm),
+                handler=lambda args: write_section(
+                    args["section"], args["claims"], llm, language=language
+                ),
             )
         )
     return tools

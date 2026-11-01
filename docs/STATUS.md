@@ -9,10 +9,13 @@
 ## 当前状态
 
 ```text
-阶段：Phase 4.1.0–4.1.6 done；下一 4.1.7 Composition / Interface
-最后测试：134 passed / ruff clean
+阶段：Phase 4.1.0–4.1.8 done；下一 4.1.9 清理旧代码
+前端：Vue F1–F6 done；real API mode 已联调
+最后测试：136 passed / ruff clean
+前端构建：web npm run build passed
+联调：topics → run → trace → report → paper；chat 基础链路
 当前契约：代码仍为 1.2；目标契约 CONTRACTS 2.0 DRAFT
-真实联调：100 篇 OpenAlex，fulltext 0/100，report degraded
+真实联调：100 篇本地 corpus，fulltext 0/100，174 claims，13 sections，report degraded
 ```
 
 ---
@@ -38,41 +41,38 @@ M6 Interface:
 
 | 模块 | 目标状态 | 当前代码 |
 |---|---|---|
-| W Workflow | Node 链、可选节点、commit/resume | 旧 ReportWorkflow 固定 5 节点 |
-| K Kernel | 每 Node ReAct、tools、checkpoint | 已有 Kernel；report 未使用 |
-| T Tools | 全量 ToolRegistry | 仅 Kernel ToolBox，未全量工具化 |
-| V Verification | code + audit | CodeVerifier + 独立 judge；未合并 |
+| W Workflow | Node 链、可选节点、commit/resume | 4 Node full chain 已跑通；旧 ReportWorkflow 仍在 |
+| K Kernel | 每 Node ReAct、tools、checkpoint | 新 Kernel 已有；旧 Kernel 仍给 Chat |
+| T Tools | 全量 ToolRegistry | core registry + source/corpus/claims/report + demo packs |
+| V Verification | code + audit | dual Verifier 已接入 runner |
 | S Storage | artifact/state/report | 已有 |
-| I Interface | API/UI | 已有，deterministic writer |
-| R Research | source/evidence/report tools | 旧 M2/M3/M4 服务 |
+| I Interface | API/UI | Vue F1–F6 real API；支持 full-chain 模式 |
+| R Research | source/evidence/report tools | report demo tools 已有 |
 | E Evaluation | scorecard/judge tools | 已有，未接入 |
 
 ---
 
 ## 当前阻塞
 
-1. `report.generate` 不是 agent node；
-2. `write.py` 章节写死；
-3. 默认 API/CLI 使用 deterministic writer；
-4. fulltext 0/100，report state degraded；
-5. classification 方向质量不稳定；
-6. 双 Verifier 未接入 Node；
-7. M5-P02 AI gold 不可用；
-8. 平台模块还未从 M1–M6 重排。
+1. 旧 `ReportWorkflow` / `write.py` 仍在仓库，尚未删；
+2. 默认 API 是单 Node report demo；`LIT_V2_DEMO_CHAIN=full` 才走 4 Node 链；
+3. 100 篇本地 corpus fulltext 0/100，report 明确 degraded；
+4. demo.report 目前是确定性 composer，不是 LLM 逐节写作；
+5. 前端默认仍用 mock adapter；real mode 已接 topics/trace/report/paper/chat；
+6. M5-P02 AI gold 不可用；
+7. 旧 M1–M6 模块代码还未清理。
 
 ---
 
 ## 下一步
 
 ```text
-1. 抽 workflow / kernel / tools / verify 目录
-2. NodeSpec 增加 goal/tools/verifier/optional
-3. ToolRegistry 包装 source/evidence/report
-4. report.generate 改为 agent node
-5. report.plan 产出 sections
-6. 双 Verifier
-7. demo profile 跑 100 篇
-8. 章节拆分 / classification / scorecard
+1. 4.1.9 删除旧 ReportWorkflow / write.py / run_shell / 旧 kernel
+2. 清理旧 contracts/ports 与 domains/report 依赖
+3. 加 test_no_legacy_imports
+4. 决定 full-chain 是否成为默认 API
+5. demo.report 升级为 LLM 逐节写作（可选）
+6. 章节拆分 / classification / scorecard
 ```
 
 Demo 目标：
@@ -95,6 +95,9 @@ API/UI 可读
 2026-11-01  模块地图改为 W/K/T/V/S/I + R/E + C
 2026-11-01  M6-P01 API/UI 完成
 2026-11-01  M5-P02 AI gold 抽样分析：不可用
+2026-11-01  Phase 4.1.8：100 篇 4 Node 全链路跑通（174 claims / 13 sections / degraded）
+2026-11-01  Pause/Resume：线程去重 + Kernel checkpoint 恢复
+2026-11-01  Frontend：Trajectory UX / 菜单 / 文档索引收尾
 ```
 
 ---

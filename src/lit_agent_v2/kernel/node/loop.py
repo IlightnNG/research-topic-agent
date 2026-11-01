@@ -43,6 +43,7 @@ class Kernel:
         max_tool_chars: int = 4000,
         max_history_chars: int = 12000,
         inbox: KernelInbox | None = None,
+        should_stop: Callable[[], bool] | None = None,
     ) -> None:
         self.llm = llm
         self.tools = tools
@@ -54,6 +55,7 @@ class Kernel:
         self.max_tool_chars = max(256, max_tool_chars)
         self.max_history_chars = max(4096, max_history_chars)
         self.inbox = inbox or KernelInbox()
+        self.should_stop = should_stop
         self._run_id = ""
         self._journal: list[dict[str, Any]] = []
 
@@ -71,6 +73,11 @@ class Kernel:
         on_delta: Callable[[str], None] | None = None,
     ) -> NodeResult:
         self._run_id = context.run_id
+        stop_check = should_stop or self.should_stop
+        if checkpoint is None and self.checkpoint_store is not None:
+            raw = self.checkpoint_store.load(context.run_id, node.id)
+            if raw:
+                checkpoint = KernelCheckpoint.from_dict(raw)
         state = checkpoint or KernelCheckpoint(node_id=node.id)
         history = list(state.history)
         state.history = history
@@ -85,7 +92,7 @@ class Kernel:
         invalid = 0
 
         for step in range(state.step + 1, node.max_steps + 1):
-            if should_stop is not None and should_stop():
+            if stop_check is not None and stop_check():
                 return self._finish(node, state, {}, trace, cost, usage, "cancelled")
             if self.clock() - started > node.timeout_s:
                 return self._finish(node, state, {}, trace, cost, usage, "timeout")
@@ -109,6 +116,11 @@ class Kernel:
                     )
                     usage = self._merge_usage(usage, step_usage)
                     cost += float(getattr(step_usage, "cost_usd", 0.0) or 0.0)
+                    reasoning = str(getattr(step_usage, "reasoning", "") or "").strip()
+                    if reasoning:
+                        summary = reasoning[:1200]
+                        self._append("thinking.summary", step, text=summary)
+                        self._emit("thinking.summary", node, step=step, text=summary)
                     break
                 except Exception as exc:  # noqa: BLE001
                     retryable = bool(getattr(exc, "retryable", False))
@@ -187,6 +199,8 @@ class Kernel:
                     call_id=call["id"],
                     ok=result.ok,
                     error=result.error_code,
+                    summary=self._summary(result),
+                    duration_ms=result.duration_ms,
                 )
                 history.append(
                     {
@@ -278,6 +292,14 @@ class Kernel:
         except Exception as exc:  # noqa: BLE001
             return ToolResult(False, error_code=f"E_TOOL_EXCEPTION:{type(exc).__name__}")
 
+    def _summary(self, result: ToolResult) -> str:
+        if not result.ok:
+            return result.error_code or "Tool failed"
+        if not result.output:
+            return "Completed"
+        keys = ", ".join(list(result.output)[:4])
+        return f"Completed: {keys}"[:240]
+
     def _messages(
         self,
         node: NodeSpec,
@@ -308,7 +330,7 @@ class Kernel:
             f"Output schema: {json.dumps(node.output_schema, ensure_ascii=False)}\n"
             f"Allowed tools: {json.dumps(tools, ensure_ascii=False)}"
         )
-        compacted = self._compact_history(history, step)
+        compacted = self._compact_history(history, step, node)
         user = {
             "run_id": context.run_id,
             "features": context.features.__dict__,
@@ -321,7 +343,9 @@ class Kernel:
             {"role": "user", "content": json.dumps(user, ensure_ascii=False, default=str)},
         ]
 
-    def _compact_history(self, history: list[dict[str, Any]], step: int) -> list[dict[str, Any]]:
+    def _compact_history(
+        self, history: list[dict[str, Any]], step: int, node: NodeSpec
+    ) -> list[dict[str, Any]]:
         text = json.dumps(history, ensure_ascii=False, default=str)
         if len(text) <= self.max_history_chars:
             return history
@@ -337,7 +361,7 @@ class Kernel:
                 compacted.append(item)
         after = len(json.dumps(compacted, ensure_ascii=False, default=str))
         self._append("context.compacted", step, before=before, after=after)
-        self._emit("context.compacted", node=None, step=step, before=before, after=after)
+        self._emit("context.compacted", node, step=step, before=before, after=after)
         return compacted
 
     def _compact(self, value: Any) -> Any:

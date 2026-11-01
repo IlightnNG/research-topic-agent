@@ -75,6 +75,8 @@ class WorkflowRunner:
             )
             self._emit("node.started", node.id)
             result = self.kernel.run(node, context)
+            if result.stop_reason == "cancelled":
+                raise WorkflowInterrupted("paused")
             self._emit("node.verifying", node.id)
             verdict = self.verifier.verify(node, context, result)
             if verdict.accept:

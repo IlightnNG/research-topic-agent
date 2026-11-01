@@ -51,6 +51,7 @@ src/lit_agent_v2/
   evaluation/     dataset, evaluators, tuner
   storage/        SQLite + content-addressed artifacts
 tests/v2/         v2 tests only
+web/              Vue 3 frontend (F1/F2)
 docs/             current docs only
 ```
 
@@ -63,6 +64,21 @@ uv run uvicorn lit_agent_v2.api.app:create_app --factory --port 8001
 ```
 
 The v2 API is independent of the removed legacy app.
+
+## Web
+
+The Vue frontend lives in `web/`.
+
+```powershell
+cd web
+npm install
+npm run dev
+```
+
+Current scope: F1–F6 (Topics, Report shell, Run list, New Run modal, per-run tabs, Run delete, trajectory + pause/resume, report + paper tabs, Chat, Inspector).
+All frontend data currently uses the mock adapter.
+
+See [`web/README.md`](web/README.md), [`docs/design/FRONTEND.md`](docs/design/FRONTEND.md), and the [local dev runbook](docs/design/DEV-RUNBOOK.md).
 
 ## Report from local corpus
 

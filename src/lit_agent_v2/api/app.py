@@ -25,6 +25,7 @@ from lit_agent_v2.composition import (
 from lit_agent_v2.contracts import RunRequest
 from lit_agent_v2.domains.chat.answer import stream_reply
 from lit_agent_v2.domains.chat.store import ChatStore
+from lit_agent_v2.interface.router import build_platform_router
 from lit_agent_v2.run_shell import RunShell
 from lit_agent_v2.storage.artifacts import ArtifactStore
 from lit_agent_v2.storage.db import Database
@@ -69,6 +70,7 @@ def create_app(
     db_path: str | Path | None = None,
     corpus_root: str | Path | None = None,
     chat_composer=None,
+    platform_llm=None,
 ) -> FastAPI:
     db = Database(db_path or os.environ.get("LIT_V2_DB", "D:/lit-agent-store/v2/v2.sqlite"))
     db.migrate()
@@ -78,6 +80,9 @@ def create_app(
     report_reader = build_report_reader(db)
     event_reader = build_event_reader(db)
     app = FastAPI(title="lit-agent-v2")
+    app.include_router(
+        build_platform_router(db, corpus_root=corpus, llm=platform_llm)
+    )
 
     def error_response(status: int, code: str, message: str, **details: Any) -> JSONResponse:
         return JSONResponse(

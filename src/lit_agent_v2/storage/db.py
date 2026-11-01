@@ -8,6 +8,17 @@ from pathlib import Path
 __all__ = ["Database"]
 
 SCHEMA = """
+CREATE TABLE IF NOT EXISTS topics (
+  id TEXT PRIMARY KEY,
+  direction TEXT NOT NULL,
+  description TEXT,
+  keywords_json TEXT,
+  exclusions_json TEXT,
+  constraints_json TEXT,
+  brief_json TEXT,
+  created_at TEXT NOT NULL
+);
+
 CREATE TABLE IF NOT EXISTS runs (
   id TEXT PRIMARY KEY,
   topic_id TEXT NOT NULL,

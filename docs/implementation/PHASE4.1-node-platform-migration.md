@@ -4,7 +4,7 @@
 > 类型：详细迁移方案
 > 范围：平台层 + Research 工具包 + Report Node
 > 目标：删除旧 M1–M6 流程骨架，按 Node/Tool/Verifier 重写
-> 状态：execution；4.1.0–4.1.6 done；下一 4.1.7
+> 状态：execution；4.1.0–4.1.8 done；下一 4.1.9
 > 依据：`docs/ARCHITECTURE.md` 2.0、`docs/CONTRACTS.md` 2.0 DRAFT
 
 ---
@@ -1046,6 +1046,8 @@ feat(I-P01): wire demo profile through new workflow
 
 ## 14. Step 4.1.8 · Demo 100
 
+> Result: [`RESULTS-P4.1.8.md`](RESULTS-P4.1.8.md)
+
 ### 目标
 
 完整跑通 100 篇。
@@ -1547,15 +1549,87 @@ Report Node 契约平等
 瓶颈在工具状态与幂等，不在 Kernel
 ```
 
+### 4.1.7 Composition / Interface
+
+新增：
+
+```text
+interface/topics.py
+interface/runs.py
+interface/router.py
+tests/v2/test_platform_api.py
+```
+
+接口：
+
+```text
+GET/POST /api/v2/topics
+GET      /api/v2/topics/{id}
+GET      /api/v2/topics/{id}/brief
+GET/POST /api/v2/topics/{id}/runs
+GET      /api/v2/runs/{id}
+GET      /api/v2/runs/{id}/trace
+GET      /api/v2/runs/{id}/events
+POST     /api/v2/runs/{id}/pause
+POST     /api/v2/runs/{id}/resume
+DELETE   /api/v2/runs/{id}
+GET      /api/v2/runs/{id}/report
+GET      /api/v2/reports/{id}
+GET      /api/v2/papers/{id}
+GET/POST /api/v2/topics/{id}/conversations
+GET      /api/v2/conversations/{id}
+POST     /api/v2/conversations/{id}/messages
+DELETE   /api/v2/conversations/{id}
+```
+
+运行链路：
+
+```text
+POST topic run
+  → PlatformRunService
+  → build_report_demo_workflow(topic scope)
+  → Kernel + ToolRegistry + Verifier
+  → WorkflowRunner
+  → run_events / run_nodes
+  → reports / report_sections / citations
+```
+
+前端联调：
+
+```text
+VITE_USE_MOCK=false
+Vite proxy /api → http://127.0.0.1:8000
+```
+
+真实验证：
+
+```text
+topics 3
+run succeeded
+report 247 words
+5 claims
+report tab + paper tab
+chat backend works
+```
+
+已知限制：
+
+```text
+pause 只在 Node boundary 生效；单 Node demo 很难暂停
+topic normalize 目前是确定性 brief，不是 LLM
+report 目前只有一个 section
+chat 真实接口无 streaming（mock 有）
+```
+
 当前总门禁：
 
 ```text
-pytest tests/v2   134 passed
+pytest tests/v2   135 passed
 ruff              clean
 ```
 
 下一 step：
 
 ```text
-4.1.7 Composition / Interface
+4.1.8 Demo 100
 ```

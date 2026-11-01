@@ -6,7 +6,11 @@ from lit_agent_v2.contracts.features import FeatureProfile, ReportRequirements
 from lit_agent_v2.contracts.node import NodeSpec, WorkflowDefinition
 from lit_agent_v2.contracts.verdict import VerifierProfile
 
-__all__ = ["build_report_demo_workflow", "build_report_workflow"]
+__all__ = [
+    "build_demo100_workflow",
+    "build_report_demo_workflow",
+    "build_report_workflow",
+]
 
 SOURCE_GOAL = (
     "Collect at least 100 unique, relevant papers. Prefer full text, but "
@@ -162,7 +166,7 @@ def build_report_demo_workflow(
             code=("schema", "claim", "citation", "word_limit", "file_exists"),
             audit=None,
         ),
-        max_steps=12,
+        max_steps=24,
         max_usd=0.80,
         max_tokens=12000,
     )
@@ -172,6 +176,81 @@ def build_report_demo_workflow(
         nodes=(node,),
         features=features,
     )
+    problems = definition.validate()
+    if problems:
+        raise ValueError("; ".join(problems))
+    return definition
+
+
+def build_demo100_workflow(
+    features: FeatureProfile | None = None,
+) -> WorkflowDefinition:
+    """Full 4-Node chain for the 100-paper local-corpus demo."""
+    features = features or FeatureProfile()
+    nodes = (
+        NodeSpec(
+            id="source.collect",
+            goal=(
+                "Call demo.source exactly once with root from request and out_dir from request. "
+                "Then return final JSON with source_path, papers, fulltext, fulltext_ratio, state. "
+                "Do not call any other tool."
+            ),
+            tools=("demo.source",),
+            inputs=("request",),
+            output_schema={
+                "type": "object",
+                "required": ["source_path", "papers", "fulltext_ratio", "state"],
+            },
+            verifier=VerifierProfile(code=("schema",), audit=None),
+            max_steps=4,
+        ),
+        NodeSpec(
+            id="evidence.extract",
+            goal=(
+                "Use source_path from the source.collect input. Call demo.evidence exactly once "
+                "with source_path and out_dir from request. Return final JSON with evidence_path, "
+                "papers, claims. Do not call any other tool."
+            ),
+            tools=("demo.evidence",),
+            inputs=("source.collect", "request"),
+            output_schema={"type": "object", "required": ["evidence_path", "papers", "claims"]},
+            verifier=VerifierProfile(code=("schema",), audit=None),
+            max_steps=4,
+        ),
+        NodeSpec(
+            id="report.generate",
+            goal=(
+                "Use source_path and evidence_path from input. Call demo.report exactly once with "
+                "source_path, evidence_path, out_dir from request, and language from request. "
+                "Return final JSON with report_path, papers, claims, sections, word_count, state."
+            ),
+            tools=("demo.report",),
+            inputs=("source.collect", "evidence.extract", "request"),
+            output_schema={
+                "type": "object",
+                "required": ["report_path", "papers", "claims", "sections"],
+            },
+            verifier=VerifierProfile(code=("schema",), audit=None),
+            max_steps=4,
+        ),
+        NodeSpec(
+            id="finalize",
+            goal=(
+                "Use report_path from report.generate. Call demo.finalize exactly once with "
+                "report_path and out_dir from request. Return final JSON with report_path, "
+                "content_sha, papers, claims, state."
+            ),
+            tools=("demo.finalize",),
+            inputs=("report.generate", "request"),
+            output_schema={
+                "type": "object",
+                "required": ["report_path", "content_sha", "papers", "claims"],
+            },
+            verifier=VerifierProfile(code=("schema",), audit=None),
+            max_steps=4,
+        ),
+    )
+    definition = WorkflowDefinition("demo100", "2", nodes, features)
     problems = definition.validate()
     if problems:
         raise ValueError("; ".join(problems))

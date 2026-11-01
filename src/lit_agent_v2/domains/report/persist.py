@@ -99,9 +99,28 @@ class ReportStore:
                 " WHERE report_id=? ORDER BY ord",
                 (report_id,),
             ).fetchall()
+            citations = conn.execute(
+                "SELECT section_id,claim_id,paper_id FROM citations"
+                " WHERE report_id=? ORDER BY rowid",
+                (report_id,),
+            ).fetchall()
         if report is None:
             return None
-        return {"report": dict(report), "sections": [dict(row) for row in sections]}
+        links_by_section: dict[str, list[dict[str, str]]] = {}
+        for row in citations:
+            links_by_section.setdefault(str(row["section_id"]), []).append(
+                {
+                    "token": str(row["claim_id"]),
+                    "paper_id": str(row["paper_id"]),
+                    "label": str(row["claim_id"]),
+                }
+            )
+        payload_sections = []
+        for row in sections:
+            section = dict(row)
+            section["paper_links"] = links_by_section.get(str(row["section_id"]), [])
+            payload_sections.append(section)
+        return {"report": dict(report), "sections": payload_sections}
 
     def by_run(self, run_id: str) -> str | None:
         with self.db.connect() as conn:

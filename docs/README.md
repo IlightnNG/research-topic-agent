@@ -16,6 +16,11 @@ Current documents only.
 | [`ERRORS.md`](ERRORS.md) | error code registry |
 | [`LOGGING.md`](LOGGING.md) | event/log contract |
 | [`TESTING.md`](TESTING.md) | test levels/fixtures/gates |
+| [`design/README.md`](design/README.md) | design docs index and frontend status |
+| [`design/FRONTEND.md`](design/FRONTEND.md) | Vue report/chat frontend design |
+| [`design/DEV-RUNBOOK.md`](design/DEV-RUNBOOK.md) | local frontend/backend startup and manual test |
+| [`design/TRAJECTORY-UX.md`](design/TRAJECTORY-UX.md) | trajectory UX rules and failure visibility |
+| [`../web/README.md`](../web/README.md) | Vue frontend F1–F6 implementation |
 | [`implementation/PHASE4-report-end-to-end.md`](implementation/PHASE4-report-end-to-end.md) | historical Phase 4 plan |
 | [`implementation/PHASE4.1-node-platform-migration.md`](implementation/PHASE4.1-node-platform-migration.md) | Node platform migration plan |
 | [`implementation/BASELINE-P4.1.md`](implementation/BASELINE-P4.1.md) | pre-migration baseline |
@@ -25,6 +30,8 @@ Current documents only.
 | [`implementation/RESULTS-VERIFY-TEST.md`](implementation/RESULTS-VERIFY-TEST.md) | code + audit verifier test matrix |
 | [`implementation/RESULTS-REPORT-KERNEL.md`](implementation/RESULTS-REPORT-KERNEL.md) | kernel-only report feasibility experiment |
 | [`implementation/RESULTS-S6-REPORT-NODE.md`](implementation/RESULTS-S6-REPORT-NODE.md) | S6 report node E2E and live run |
+| [`implementation/RESULTS-P4.1.7.md`](implementation/RESULTS-P4.1.7.md) | frontend/backend integration results |
+| [`implementation/RESULTS-P4.1.8.md`](implementation/RESULTS-P4.1.8.md) | 100-paper full-chain demo results |
 | [`modules/README.md`](modules/README.md) | platform module map + legacy M1–M6 mapping |
 | [`implementation/RESULTS-P3.6-LIVE.md`](implementation/RESULTS-P3.6-LIVE.md) | real OpenAlex run + audit |
 | [`implementation/RESULTS-M1-P01.md`](implementation/RESULTS-M1-P01.md) | M1-P01 result |

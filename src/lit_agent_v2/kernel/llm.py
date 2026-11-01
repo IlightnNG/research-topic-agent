@@ -27,6 +27,7 @@ class LLMUsage:
     cost_usd: float = 0.0
     model: str = ""
     prompt_version: str = ""
+    reasoning: str = ""
 
 
 @dataclass(frozen=True)
@@ -155,6 +156,7 @@ class DeepSeekChatClient:
             completion_tokens=int(usage_raw.get("completion_tokens") or 0),
             model=self.config.model,
             prompt_version=prompt_version,
+            reasoning=str(message.get("reasoning_content") or ""),
         )
         return parsed, usage
 
