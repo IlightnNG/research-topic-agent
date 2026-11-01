@@ -10,7 +10,7 @@
 
 | ID | Module | Priority | Status | Title |
 |---|---|---|---|---|
-| TODO-101 | W | P0 | open | NodeSpec 增加 goal/tools/verifier/optional |
+| TODO-101 | W | P0 | done | NodeSpec 增加 goal/tools/verifier/optional |
 | TODO-102 | T | P0 | open | ToolRegistry 包装所有外部交互 |
 | TODO-103 | K | P0 | open | Kernel 接收 NodeContext/tool allowlist |
 | TODO-104 | R | P0 | open | report.generate 改为 agent node |

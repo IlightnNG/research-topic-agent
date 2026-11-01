@@ -18,6 +18,7 @@ Current documents only.
 | [`TESTING.md`](TESTING.md) | test levels/fixtures/gates |
 | [`implementation/PHASE4-report-end-to-end.md`](implementation/PHASE4-report-end-to-end.md) | historical Phase 4 plan |
 | [`implementation/PHASE4.1-node-platform-migration.md`](implementation/PHASE4.1-node-platform-migration.md) | Node platform migration plan |
+| [`implementation/BASELINE-P4.1.md`](implementation/BASELINE-P4.1.md) | pre-migration baseline |
 | [`modules/README.md`](modules/README.md) | platform module map + legacy M1–M6 mapping |
 | [`implementation/RESULTS-P3.6-LIVE.md`](implementation/RESULTS-P3.6-LIVE.md) | real OpenAlex run + audit |
 | [`implementation/RESULTS-M1-P01.md`](implementation/RESULTS-M1-P01.md) | M1-P01 result |

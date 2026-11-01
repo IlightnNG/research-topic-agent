@@ -4,7 +4,7 @@
 > 类型：详细迁移方案
 > 范围：平台层 + Research 工具包 + Report Node
 > 目标：删除旧 M1–M6 流程骨架，按 Node/Tool/Verifier 重写
-> 状态：planning；只改文档，不改代码
+> 状态：execution；4.1.0 / 4.1.1 done；下一 4.1.2
 > 依据：`docs/ARCHITECTURE.md` 2.0、`docs/CONTRACTS.md` 2.0 DRAFT
 
 ---
@@ -1202,4 +1202,49 @@ feat(R-P01): generate reports through a single agent node
 feat(I-P01): wire demo profile through new workflow
 feat(R-P02): add 100-paper demo profile
 refactor(W-P03): delete legacy report workflow
+```
+
+
+---
+
+## 21. 执行记录
+
+### 4.1.0 baseline
+
+```text
+docs/implementation/BASELINE-P4.1.md
+```
+
+### 4.1.1 contracts
+
+新增：
+
+```text
+contracts/node.py
+contracts/tool.py
+contracts/verdict.py
+contracts/features.py
+contracts/artifacts.py
+```
+
+测试：
+
+```text
+tests/v2/test_contracts_node.py
+7 passed
+```
+
+当前总门禁：
+
+```text
+pytest tests/v2   84 passed
+ruff              clean
+```
+
+旧 1.2 freeze test 已限制为 legacy 文件，不把 2.0 draft 混入冻结 hash。
+
+下一 step：
+
+```text
+4.1.2 Workflow
 ```
