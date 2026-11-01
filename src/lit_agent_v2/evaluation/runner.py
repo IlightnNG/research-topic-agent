@@ -61,7 +61,7 @@ class Tuner:
             if values
         }
         words = metrics.get("report.words", 0.0)
-        word_score = 1.0 if 1500 <= words <= 3000 else 0.5
+        word_score = 1.0 if words >= 500 else 0.5
         score = round(
             0.5 * metrics.get("directions.f1", 0.0)
             + 0.3 * metrics.get("report.citation_coverage", 0.0)

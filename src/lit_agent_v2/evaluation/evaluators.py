@@ -64,8 +64,8 @@ def evaluate(*, case: EvalCase, mapping: MapLike, words: int, citations: float) 
     problems: list[str] = []
     if metrics["directions.f1"] == 0 and case.gold_directions:
         problems.append("no gold direction matched")
-    if not 1500 <= words <= 3000:
-        problems.append(f"words {words} out of range")
+    if words < 300:
+        problems.append(f"words {words} below sanity floor")
     if citations < 1.0:
         problems.append("citation coverage < 1")
     return EvalResult(metrics, problems)

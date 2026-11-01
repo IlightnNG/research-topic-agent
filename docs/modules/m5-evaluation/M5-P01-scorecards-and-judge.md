@@ -2,7 +2,7 @@
 
 > 模块：M5 Evaluation
 > 版本：1.0（2026-10-31）
-> 状态：planned
+> 状态：done（100 gold 未接）
 > 依赖：M3-P01、M4-P02
 > 目标：把“一个总分”改成模块分 + 方向分 + 硬门禁 + confidence，并用 LLM judge 评估质量。
 
@@ -281,7 +281,24 @@ tests/v2/test_m5_judge_calibration.py
 
 ---
 
-## 12. Commit
+## 12. 实施记录（2026-11-01）
+
+已完成：
+
+- `metrics/scorecard.py`；
+- `evaluation/judge.py`；
+- 模块分 / 方向分 / hard gate / confidence；
+- 真实 DeepSeek judge；
+- 64 tests。
+
+未完成：
+
+- 100 篇 gold；
+- judge-human calibration；
+- scorecard API；
+- Tuner 仍使用旧公式。
+
+## 13. Commit
 
 ```text
 feat(M5-P01): add module scorecards and llm judge

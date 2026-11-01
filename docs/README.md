@@ -21,6 +21,7 @@ Current documents only.
 | [`implementation/RESULTS-M2-P01.md`](implementation/RESULTS-M2-P01.md) | M2-P01 result |
 | [`implementation/RESULTS-M4-P01.md`](implementation/RESULTS-M4-P01.md) | M4-P01 result |
 | [`implementation/RESULTS-M4-P02.md`](implementation/RESULTS-M4-P02.md) | M4-P02 result |
+| [`implementation/RESULTS-M5-P01.md`](implementation/RESULTS-M5-P01.md) | M5-P01 result |
 
 Module docs:
 

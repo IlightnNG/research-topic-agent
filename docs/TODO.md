@@ -17,7 +17,7 @@
 | TODO-005 | M4 | M4-P01 | P0 | done | 正文真实 claim 覆盖，禁止 ledger 刷分 |
 | TODO-006 | M4 | M4-P01 | P0 | done | 动态方向质量 / min size / max share |
 | TODO-007 | M4 | M4-P02 | P1 | done | 分方向 LLM writer |
-| TODO-008 | M5 | M5-P01 | P1 | open | 模块分 + 方向分评分卡 |
+| TODO-008 | M5 | M5-P01 | P1 | done | 模块分 + 方向分评分卡 |
 | TODO-009 | M5 | M5-P02 | P1 | open | 100 篇 gold + LLM judge |
 | TODO-010 | M2 | M2-P01 | P1 | open | 全文率 ≥30%（10 篇 3/10，100 篇待复跑） |
 | TODO-011 | M1 | M1-P01 | P1 | done | Kernel ReAct + step checkpoint |
