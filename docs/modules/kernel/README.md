@@ -83,7 +83,17 @@ no-progress stops
 checkpoint/resume
 ```
 
-## 7. Phase docs
+## 7. 当前实现
+
+```text
+kernel/node/loop.py
+kernel/node/checkpoint.py
+kernel/node/ports.py
+```
+
+状态：4.1.3 done + DSH-informed optimization；旧 kernel/loop.py 仍在迁移期保留给 Chat。
+
+## 8. Phase docs
 
 ```text
 K-P01-node-context.md

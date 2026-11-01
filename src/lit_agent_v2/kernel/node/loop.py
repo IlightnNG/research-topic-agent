@@ -1,0 +1,336 @@
+"""Node Platform kernel: bounded ReAct loop over a ToolRegistry.
+
+Design notes borrowed from DSH agent-loop:
+- one model step can contain multiple tool calls;
+- tool calls carry ids and result pairs;
+- read-only calls may run concurrently, side-effecting calls are ordered;
+- retries are bounded and explicit;
+- tool outputs are pruned before entering model history;
+- checkpoints are written at step boundaries.
+
+This is intentionally smaller than DSH: no session store, no streaming
+protocol, no subagents, no hook/waterfall system.
+"""
+
+from __future__ import annotations
+
+import json
+import time
+from collections.abc import Callable
+from concurrent.futures import ThreadPoolExecutor
+from typing import Any
+
+from lit_agent_v2.contracts.node import NodeContext, NodeResult, NodeSpec
+from lit_agent_v2.contracts.tool import ToolResult
+from lit_agent_v2.kernel.node.checkpoint import KernelCheckpoint
+from lit_agent_v2.kernel.node.ports import CheckpointPort, EventPort, LLMPort, ToolRegistryPort
+
+__all__ = ["Kernel"]
+
+
+class Kernel:
+    def __init__(
+        self,
+        llm: LLMPort,
+        tools: ToolRegistryPort,
+        *,
+        checkpoint_store: CheckpointPort | None = None,
+        events: EventPort | None = None,
+        clock: Callable[[], float] | None = None,
+        max_retries: int = 2,
+        max_parallel_tools: int = 4,
+        max_tool_chars: int = 4000,
+    ) -> None:
+        self.llm = llm
+        self.tools = tools
+        self.checkpoint_store = checkpoint_store
+        self.events = events
+        self.clock = clock or time.monotonic
+        self.max_retries = max(0, max_retries)
+        self.max_parallel_tools = max(1, max_parallel_tools)
+        self.max_tool_chars = max(256, max_tool_chars)
+        self._run_id = ""
+
+    def run(
+        self,
+        node: NodeSpec,
+        context: NodeContext,
+        *,
+        checkpoint: KernelCheckpoint | None = None,
+        should_stop: Callable[[], bool] | None = None,
+    ) -> NodeResult:
+        self._run_id = context.run_id
+        state = checkpoint or KernelCheckpoint(node_id=node.id)
+        history = list(state.history)
+        state.history = history
+        trace = list(state.trace)
+        cost = state.cost_usd
+        usage = dict(state.usage)
+        started = self.clock()
+        last_key = ""
+        repeats = 0
+        invalid = 0
+
+        for step in range(state.step + 1, node.max_steps + 1):
+            if should_stop is not None and should_stop():
+                return self._finish(node, state, {}, trace, cost, usage, "cancelled")
+            if self.clock() - started > node.timeout_s:
+                return self._finish(node, state, {}, trace, cost, usage, "timeout")
+            if node.max_usd > 0 and cost >= node.max_usd:
+                return self._finish(node, state, {}, trace, cost, usage, "budget")
+            self._emit("step.started", node, step=step)
+
+            action = None
+            for attempt in range(self.max_retries + 1):
+                try:
+                    action, step_usage = self.llm.chat_json(
+                        self._messages(node, context, history),
+                        prompt_version=f"{node.id}-v1",
+                        max_tokens=4000,
+                        temperature=0.1,
+                    )
+                    usage = self._merge_usage(usage, step_usage)
+                    cost += float(getattr(step_usage, "cost_usd", 0.0) or 0.0)
+                    break
+                except Exception as exc:  # noqa: BLE001
+                    retryable = bool(getattr(exc, "retryable", False))
+                    if not retryable or attempt >= self.max_retries:
+                        self._emit("node.failed", node, step=step, error=type(exc).__name__)
+                        return self._finish(node, state, {}, trace, cost, usage, "failed")
+                    self._emit(
+                        "kernel.retry",
+                        node,
+                        step=step,
+                        attempt=attempt + 1,
+                        error=type(exc).__name__,
+                    )
+
+            if not isinstance(action, dict):
+                invalid += 1
+                if invalid >= 2:
+                    return self._finish(node, state, {}, trace, cost, usage, "failed")
+                history.append({"role": "system", "content": "invalid action: expected JSON object"})
+                continue
+            if action.get("action") == "final":
+                outputs = action.get("outputs")
+                if not isinstance(outputs, dict):
+                    invalid += 1
+                    if invalid >= 2:
+                        return self._finish(node, state, {}, trace, cost, usage, "failed")
+                    continue
+                return self._finish(node, state, outputs, trace, cost, usage, "final")
+
+            calls = self._normalize_calls(action, step)
+            if not calls:
+                invalid += 1
+                if invalid >= 2:
+                    return self._finish(node, state, {}, trace, cost, usage, "failed")
+                history.append({"role": "system", "content": "invalid action: no tool calls"})
+                continue
+
+            signature = json.dumps(
+                [{"name": call["name"], "args": call["args"]} for call in calls],
+                sort_keys=True,
+                ensure_ascii=False,
+                default=str,
+            )
+            repeats = repeats + 1 if signature == last_key else 0
+            last_key = signature
+            if repeats >= 1:
+                return self._finish(node, state, {}, trace, cost, usage, "no_progress")
+
+            for call in calls:
+                if call["name"] not in node.tools or self.tools.spec(call["name"]) is None:
+                    self._emit("node.failed", node, step=step, error="tool_not_allowed")
+                    return self._finish(node, state, {}, trace, cost, usage, "failed")
+            history.append({"role": "assistant", "tool_calls": calls})
+            results = self._execute_calls(node, calls)
+            for call, result in zip(calls, results, strict=True):
+                cost += result.cost_usd
+                trace.append(
+                    {
+                        "step": step,
+                        "call_id": call["id"],
+                        "tool": call["name"],
+                        "ok": result.ok,
+                        "error": result.error_code,
+                    }
+                )
+                self._emit(
+                    "tool.result",
+                    node,
+                    step=step,
+                    tool=call["name"],
+                    call_id=call["id"],
+                    ok=result.ok,
+                    error=result.error_code,
+                )
+                history.append(
+                    {
+                        "role": "tool",
+                        "call_id": call["id"],
+                        "name": call["name"],
+                        "ok": result.ok,
+                        "output": self._compact(result.output),
+                        "error": result.error_code,
+                    }
+                )
+                if node.max_usd > 0 and cost >= node.max_usd:
+                    self._save(node, context, state, step, history, trace, cost, usage, "budget")
+                    return self._finish(node, state, {}, trace, cost, usage, "budget")
+
+            self._save(node, context, state, step, history, trace, cost, usage, None)
+
+        return self._finish(node, state, {}, trace, cost, usage, "max_steps")
+
+    def _normalize_calls(self, action: dict[str, Any], step: int) -> list[dict[str, Any]]:
+        raw = action.get("calls")
+        if raw is None and action.get("tool"):
+            raw = [{"id": f"call_{step}_1", "name": action.get("tool"), "args": action.get("args")}]
+        if not isinstance(raw, list):
+            return []
+        calls: list[dict[str, Any]] = []
+        for index, item in enumerate(raw[:16]):
+            if not isinstance(item, dict):
+                continue
+            name = str(item.get("name") or item.get("tool") or "")
+            args = item.get("args")
+            if not name or not isinstance(args, dict):
+                continue
+            calls.append(
+                {
+                    "id": str(item.get("id") or f"call_{step}_{index + 1}"),
+                    "name": name,
+                    "args": args,
+                }
+            )
+        return calls
+
+    def _execute_calls(
+        self, node: NodeSpec, calls: list[dict[str, Any]]
+    ) -> list[ToolResult]:
+        specs = [self.tools.spec(call["name"]) for call in calls]
+        parallel = all(spec is not None and not spec.side_effect for spec in specs)
+        for call in calls:
+            self._emit("tool.called", node, tool=call["name"], call_id=call["id"])
+        if parallel and len(calls) > 1:
+            with ThreadPoolExecutor(max_workers=min(self.max_parallel_tools, len(calls))) as pool:
+                futures = [pool.submit(self._call_one, call) for call in calls]
+                return [future.result() for future in futures]
+        return [self._call_one(call) for call in calls]
+
+    def _call_one(self, call: dict[str, Any]) -> ToolResult:
+        try:
+            return self.tools.call(call["name"], call["args"])
+        except Exception as exc:  # noqa: BLE001
+            return ToolResult(False, error_code=f"E_TOOL_EXCEPTION:{type(exc).__name__}")
+
+    def _messages(
+        self, node: NodeSpec, context: NodeContext, history: list[dict[str, Any]]
+    ) -> list[dict[str, str]]:
+        tools = []
+        for name in node.tools:
+            spec = self.tools.spec(name)
+            if spec is not None:
+                tools.append(
+                    {
+                        "name": name,
+                        "description": spec.description,
+                        "input_schema": spec.input_schema,
+                    }
+                )
+        system = (
+            "You are a Node worker inside a fixed workflow.\n"
+            "Use only the listed tools. Do not invent evidence.\n"
+            "One assistant step may contain multiple tool calls.\n"
+            "Return JSON only, one of:\n"
+            '{"action":"tool","calls":[{"id":"call_1","name":"name","args":{}}]}\n'
+            '{"action":"final","outputs":{}}\n'
+            f"Node: {node.id}\nGoal: {node.goal}\n"
+            f"Output schema: {json.dumps(node.output_schema, ensure_ascii=False)}\n"
+            f"Allowed tools: {json.dumps(tools, ensure_ascii=False)}"
+        )
+        user = {
+            "run_id": context.run_id,
+            "features": context.features.__dict__,
+            "inputs": context.inputs,
+            "history": history[-8:],
+        }
+        return [
+            {"role": "system", "content": system},
+            {"role": "user", "content": json.dumps(user, ensure_ascii=False, default=str)},
+        ]
+
+    def _compact(self, value: Any) -> Any:
+        text = json.dumps(value, ensure_ascii=False, default=str)
+        if len(text) <= self.max_tool_chars:
+            return value
+        head = text[: self.max_tool_chars // 2]
+        tail = text[-self.max_tool_chars // 4 :]
+        return {
+            "truncated": True,
+            "chars": len(text),
+            "preview": f"{head}\n\n[... tool output pruned ...]\n\n{tail}",
+        }
+
+    def _merge_usage(self, current: dict[str, Any], step_usage: Any) -> dict[str, Any]:
+        merged = dict(current)
+        merged["prompt_tokens"] = int(merged.get("prompt_tokens", 0)) + int(
+            getattr(step_usage, "prompt_tokens", 0) or 0
+        )
+        merged["completion_tokens"] = int(merged.get("completion_tokens", 0)) + int(
+            getattr(step_usage, "completion_tokens", 0) or 0
+        )
+        merged["model"] = getattr(step_usage, "model", merged.get("model", ""))
+        return merged
+
+    def _save(
+        self,
+        node: NodeSpec,
+        context: NodeContext,
+        state: KernelCheckpoint,
+        step: int,
+        history: list[dict[str, Any]],
+        trace: list[dict[str, Any]],
+        cost: float,
+        usage: dict[str, Any],
+        stop_reason: str | None,
+    ) -> None:
+        state.step = step
+        state.history = history
+        state.trace = trace
+        state.cost_usd = cost
+        state.usage = usage
+        state.stop_reason = stop_reason
+        if self.checkpoint_store is not None:
+            self.checkpoint_store.save(context.run_id, node.id, state.to_dict())
+
+    def _finish(
+        self,
+        node: NodeSpec,
+        state: KernelCheckpoint,
+        output: dict[str, Any],
+        trace: list[dict[str, Any]],
+        cost: float,
+        usage: dict[str, Any],
+        reason: str,
+    ) -> NodeResult:
+        state.trace = trace
+        state.cost_usd = cost
+        state.usage = usage
+        state.stop_reason = reason
+        if self.checkpoint_store is not None:
+            self.checkpoint_store.save(self._run_id, state.node_id, state.to_dict())
+        self._emit("node.finished", node, stop_reason=reason, cost_usd=cost)
+        return NodeResult(
+            output=output,
+            trace=trace,
+            usage=usage,
+            cost_usd=cost,
+            stop_reason=reason,
+            checkpoint=state.to_dict(),
+        )
+
+    def _emit(self, event_type: str, node: NodeSpec, **payload: Any) -> None:
+        if self.events is not None:
+            self.events.emit(event_type, node_id=node.id, **payload)

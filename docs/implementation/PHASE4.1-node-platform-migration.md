@@ -4,7 +4,7 @@
 > 类型：详细迁移方案
 > 范围：平台层 + Research 工具包 + Report Node
 > 目标：删除旧 M1–M6 流程骨架，按 Node/Tool/Verifier 重写
-> 状态：execution；4.1.0 / 4.1.1 / 4.1.2 done；下一 4.1.3
+> 状态：execution；4.1.0–4.1.3 done（Kernel optimized）；下一 4.1.4
 > 依据：`docs/ARCHITECTURE.md` 2.0、`docs/CONTRACTS.md` 2.0 DRAFT
 
 ---
@@ -1283,8 +1283,62 @@ pytest tests/v2   91 passed
 ruff              clean
 ```
 
+### 4.1.3 Kernel
+
+新增：
+
+```text
+kernel/node/__init__.py
+kernel/node/loop.py
+kernel/node/checkpoint.py
+kernel/node/ports.py
+tests/v2/test_kernel_node_loop.py
+```
+
+能力：
+
+```text
+NodeContext
+tool allowlist
+tool call / observation
+max_steps
+max_usd
+timeout
+no-progress
+cancel
+step checkpoint
+```
+
+说明：
+
+```text
+新实现暂放 kernel/node/
+旧 kernel/loop.py 仍被 Chat 使用
+4.1.9 清理旧代码后合并
+```
+
+Kernel 优化参考 DSH：
+
+```text
+多 tool calls
+call id
+read-only 并行
+tool result pruning
+bounded retry
+step checkpoint
+```
+
+详见 `docs/implementation/KERNEL-OPTIMIZATION.md`。
+
+当前总门禁：
+
+```text
+pytest tests/v2   99 passed
+ruff              clean
+```
+
 下一 step：
 
 ```text
-4.1.3 Kernel
+4.1.4 Tools
 ```

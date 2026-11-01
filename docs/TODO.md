@@ -12,7 +12,7 @@
 |---|---|---|---|---|
 | TODO-101 | W | P0 | done | NodeSpec 增加 goal/tools/verifier/optional |
 | TODO-102 | T | P0 | open | ToolRegistry 包装所有外部交互 |
-| TODO-103 | K | P0 | open | Kernel 接收 NodeContext/tool allowlist |
+| TODO-103 | K | P0 | done | Kernel 接收 NodeContext/tool allowlist |
 | TODO-104 | R | P0 | open | report.generate 改为 agent node |
 | TODO-105 | R | P0 | open | report.plan 工具产出可选 sections |
 | TODO-106 | V | P0 | open | code + audit 双 Verifier |
