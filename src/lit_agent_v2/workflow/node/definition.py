@@ -6,7 +6,7 @@ from lit_agent_v2.contracts.features import FeatureProfile, ReportRequirements
 from lit_agent_v2.contracts.node import NodeSpec, WorkflowDefinition
 from lit_agent_v2.contracts.verdict import VerifierProfile
 
-__all__ = ["build_report_workflow"]
+__all__ = ["build_report_demo_workflow", "build_report_workflow"]
 
 SOURCE_GOAL = (
     "Collect at least 100 unique, relevant papers. Prefer full text, but "
@@ -25,6 +25,16 @@ REPORT_GOAL = (
     "write each planned section, check it, and assemble. The plan must satisfy "
     "the supplied requirements."
 )
+REPORT_DEMO_GOAL = """You are report.generate for a local corpus.
+1. Call corpus.papers with the request root.
+2. Call claims.extract once per paper using its abstract.
+3. Call report.plan with the papers.
+4. For each planned section, call report.write_section with that section and the claims.
+5. Call report.assemble with the written sections.
+6. Call report.persist with the assembled title/content and claims.
+7. Return final with the persisted path and the assembled report.
+Use only extracted claims. Every factual sentence needs [C#]. Do not invent papers or claims.
+If a claim is missing, say so instead of filling the gap."""
 FINALIZE_GOAL = "Persist the verified report and publish the final artifact."
 
 
@@ -87,6 +97,7 @@ def build_report_workflow(
             ),
             max_steps=12,
             max_usd=0.50,
+            max_tokens=12000,
         )
     )
     if features.scorecard:
@@ -115,6 +126,50 @@ def build_report_workflow(
         name="report",
         version="2",
         nodes=tuple(nodes),
+        features=features,
+    )
+    problems = definition.validate()
+    if problems:
+        raise ValueError("; ".join(problems))
+    return definition
+
+
+def build_report_demo_workflow(
+    features: FeatureProfile | None = None,
+    requirements: ReportRequirements | None = None,
+) -> WorkflowDefinition:
+    """One-node local-corpus report workflow used for S6 acceptance."""
+    features = features or FeatureProfile()
+    requirements = requirements or ReportRequirements()
+    node = NodeSpec(
+        id="report.generate",
+        goal=REPORT_DEMO_GOAL,
+        tools=(
+            "corpus.papers",
+            "claims.extract",
+            "report.plan",
+            "report.write_section",
+            "report.check_section",
+            "report.assemble",
+            "report.persist",
+        ),
+        inputs=("request",),
+        output_schema={
+            "type": "object",
+            "required": ["title", "content_md", "claims", "path"],
+        },
+        verifier=VerifierProfile(
+            code=("schema", "claim", "citation", "word_limit", "file_exists"),
+            audit=None,
+        ),
+        max_steps=12,
+        max_usd=0.80,
+        max_tokens=12000,
+    )
+    definition = WorkflowDefinition(
+        name="report-demo",
+        version="2",
+        nodes=(node,),
         features=features,
     )
     problems = definition.validate()

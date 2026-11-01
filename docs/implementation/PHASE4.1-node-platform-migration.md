@@ -4,7 +4,7 @@
 > 类型：详细迁移方案
 > 范围：平台层 + Research 工具包 + Report Node
 > 目标：删除旧 M1–M6 流程骨架，按 Node/Tool/Verifier 重写
-> 状态：execution；4.1.0–4.1.4 done；下一 4.1.5
+> 状态：execution；4.1.0–4.1.6 done；下一 4.1.7
 > 依据：`docs/ARCHITECTURE.md` 2.0、`docs/CONTRACTS.md` 2.0 DRAFT
 
 ---
@@ -352,6 +352,7 @@ NodeSpec(
     verifier,
     max_steps,
     max_usd,
+    max_tokens,
     timeout_s,
     optional,
     enabled,
@@ -595,7 +596,7 @@ Context：
 - tool args schema 校验
 - tool result 记录 trace
 - no-progress 停止
-- max_steps / max_usd / timeout
+- max_steps / max_usd / max_tokens / timeout
 - step checkpoint
 - final 输出必须 output_schema
 ```
@@ -800,6 +801,36 @@ feat(V-P01): add code and audit verifier
 
 删除旧 report workflow/writer，改为一个 agent Node。
 
+### 可行性实验
+
+已用当前 Kernel 做过一次 3 篇 abstract 的真实 LLM 报告实验：
+
+```text
+成功：1 次 corpus.papers + final
+报告 168 words
+6 claims
+6/6 quote 原文命中
+18 个引用 / 6 个唯一 claim
+code verifier pass
+```
+
+失败路径：
+
+```text
+复杂 prompt + 多工具 + 18 steps
+→ 反复调用工具，没有 final
+
+单工具 + 4000 max_tokens
+→ completion 被截断，JSON 解析失败
+```
+
+结论：
+
+> Report Node 不需要特殊类型，但需要足够的 max_tokens，
+> 以及把 planning/writing 放进工具，而不是全部塞进一个 prompt。
+
+详见 `docs/implementation/RESULTS-REPORT-KERNEL.md`。
+
 ### 新增
 
 ```text
@@ -814,6 +845,7 @@ tools/packs/report.py
 NodeSpec(
     id="report.generate",
     goal=REPORT_GOAL,
+    max_tokens=12000,
     tools=(
         "report.plan",
         "report.write_section",
@@ -895,7 +927,39 @@ test_demo_workflow.py
 - classification=false 可跑；
 - 少 section 合法；
 - 报告有 citations；
-- old ReportWorkflow 不再被 import。
+- old ReportWorkflow 不再被 import；
+- final 不是被截断的 JSON；
+- report.write_section 把写作移出主 prompt。
+```
+
+### Report Node 的特殊性
+
+和其他 Node 平等：
+
+```text
+NodeSpec
+Kernel
+ToolRegistry
+Verifier
+```
+
+特殊的是复杂度，不是架构：
+
+```text
+goal 更长
+tools 更多
+output 更大
+max_tokens 更高
+verifier 更严格
+更容易进入工具循环
+```
+
+因此：
+
+```text
+不要把检索/claim/planning/writing 全塞进 report Node 的 prompt
+把程序性步骤放进 report.plan / report.write_section
+report Node 只做 orchestration
 ```
 
 ### Commit
@@ -1370,15 +1434,128 @@ eval/audit tools
 
 这些在 4.1.5/4.1.6 接入。
 
+### 4.1.5 Verify
+
+新增：
+
+```text
+verify/__init__.py
+verify/code.py
+verify/audit.py
+verify/verdict.py
+verify/ports.py
+tests/v2/test_verify_dual.py
+```
+
+能力：
+
+```text
+CodeVerifier
+AuditVerifier
+Verifier
+Verdict
+code checks:
+  schema papers dedupe claim quote citation count word_limit file_exists directions
+audit:
+  relevance coverage readability grounding
+```
+
+规则：
+
+```text
+code hard fail 不可被 audit 覆盖
+audit 缺失但 required → reject
+audit=None → code only
+```
+
+集成：
+
+```text
+Verifier 满足 WorkflowRunner VerifierPort
+→ committed / NodeFailed
+```
+
+### 4.1.6 Report Node
+
+新增：
+
+```text
+report.write_section
+report.persist
+build_report_demo_workflow
+tests/v2/test_report_node_e2e.py
+```
+
+`report.write_section`：
+
+```text
+section + claims + LLM
+→ body with [C#]
+→ section artifact
+```
+
+`report.persist`：
+
+```text
+report.md
+report.json
+path + word_count
+```
+
+Fake E2E：
+
+```text
+corpus.papers
+claims.extract
+report.plan
+report.write_section
+report.assemble
+report.persist
+final
+→ committed
+```
+
+Live mini report：
+
+```text
+3 papers
+17 steps
+301 words
+5 claims
+verifier accept
+```
+
+记录：
+
+```text
+docs/implementation/RESULTS-S6-REPORT-NODE.md
+```
+
+发现：
+
+```text
+report.write_section 被重复调用
+corpus.papers 被重复调用
+report.persist 被重复调用
+report.check_section 未调用
+```
+
+结论：
+
+```text
+Report Node 契约平等
+瓶颈在工具状态与幂等，不在 Kernel
+```
+
 当前总门禁：
 
 ```text
-pytest tests/v2   123 passed
+pytest tests/v2   134 passed
 ruff              clean
 ```
 
 下一 step：
 
 ```text
-4.1.5 Verify
+4.1.7 Composition / Interface
 ```

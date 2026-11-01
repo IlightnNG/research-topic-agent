@@ -226,13 +226,13 @@ class Kernel:
                 messages,
                 on_delta=forward,
                 prompt_version=f"{node.id}-v1",
-                max_tokens=4000,
+                max_tokens=node.max_tokens,
                 temperature=0.1,
             )
         return self.llm.chat_json(
             messages,
             prompt_version=f"{node.id}-v1",
-            max_tokens=4000,
+            max_tokens=node.max_tokens,
             temperature=0.1,
         )
 

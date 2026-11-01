@@ -9,8 +9,8 @@
 ## 当前状态
 
 ```text
-阶段：Phase 4.1.0–4.1.4 done；下一 4.1.5 Verify
-最后测试：123 passed / ruff clean
+阶段：Phase 4.1.0–4.1.6 done；下一 4.1.7 Composition / Interface
+最后测试：134 passed / ruff clean
 当前契约：代码仍为 1.2；目标契约 CONTRACTS 2.0 DRAFT
 真实联调：100 篇 OpenAlex，fulltext 0/100，report degraded
 ```

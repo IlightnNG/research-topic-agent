@@ -22,6 +22,9 @@ Current documents only.
 | [`implementation/KERNEL-OPTIMIZATION.md`](implementation/KERNEL-OPTIMIZATION.md) | DSH-informed kernel optimization |
 | [`implementation/TOOLS-DSH-DESIGN.md`](implementation/TOOLS-DSH-DESIGN.md) | DSH-informed tool registry design |
 | [`implementation/RESULTS-KERNEL-TEST.md`](implementation/RESULTS-KERNEL-TEST.md) | kernel + tools test matrix and live smoke |
+| [`implementation/RESULTS-VERIFY-TEST.md`](implementation/RESULTS-VERIFY-TEST.md) | code + audit verifier test matrix |
+| [`implementation/RESULTS-REPORT-KERNEL.md`](implementation/RESULTS-REPORT-KERNEL.md) | kernel-only report feasibility experiment |
+| [`implementation/RESULTS-S6-REPORT-NODE.md`](implementation/RESULTS-S6-REPORT-NODE.md) | S6 report node E2E and live run |
 | [`modules/README.md`](modules/README.md) | platform module map + legacy M1–M6 mapping |
 | [`implementation/RESULTS-P3.6-LIVE.md`](implementation/RESULTS-P3.6-LIVE.md) | real OpenAlex run + audit |
 | [`implementation/RESULTS-M1-P01.md`](implementation/RESULTS-M1-P01.md) | M1-P01 result |

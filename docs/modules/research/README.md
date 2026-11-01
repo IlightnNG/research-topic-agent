@@ -88,7 +88,24 @@ quote exact
 report plan optional sections
 ```
 
-## 7. Phase docs
+## 7. 当前实现
+
+```text
+tools/packs/report.py
+  report.plan
+  report.write_section
+  report.check_section
+  report.assemble
+  report.persist
+
+workflow/node/definition.py
+  build_report_workflow
+  build_report_demo_workflow
+```
+
+状态：4.1.6 done；report node 已可完成 3 篇 mini report。
+
+## 8. Phase docs
 
 ```text
 R-P01-source-tools.md

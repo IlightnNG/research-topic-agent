@@ -65,6 +65,8 @@ def test_corpus_tools(tmp_path: Path) -> None:
     assert deduped.output["kept"] == 2
     stats = registry.call("corpus.stats", {"root": str(tmp_path / "corpus")})
     assert stats.output["papers"] == 3
+    read = registry.call("corpus.papers", {"root": str(tmp_path / "corpus"), "limit": 2})
+    assert read.output["count"] == 2
 
 
 def test_claim_and_quote_tools() -> None:
@@ -107,3 +109,33 @@ def test_report_tools() -> None:
         {"title": "T", "sections": [section]},
     )
     assert assembled.output["word_count"] == 2
+
+
+class SectionLLM:
+    def chat_json(self, messages, **kwargs):  # noqa: ANN001
+        return {"body": "The corpus studies tool use [C1]. It also studies citations [C2]."}, None
+
+
+def test_write_section_and_persist(tmp_path: Path) -> None:
+    registry = ToolRegistry(build_report_tools(SectionLLM()))
+    section = {"section_id": "s1", "kind": "overview", "title": "Overview"}
+    claims = [
+        {"claim_id": "C1", "paper_id": "P1", "quote": "q1"},
+        {"claim_id": "C2", "paper_id": "P2", "quote": "q2"},
+    ]
+    written = registry.call("report.write_section", {"section": section, "claims": claims})
+    assert written.output["ok"] is True
+    assert written.output["section"]["body"].startswith("The corpus")
+
+    persisted = registry.call(
+        "report.persist",
+        {
+            "root": str(tmp_path / "out"),
+            "title": "T",
+            "content_md": "Body [C1].",
+            "claims": claims,
+        },
+    )
+    assert persisted.ok
+    assert Path(persisted.output["markdown_path"]).exists()
+    assert Path(persisted.output["path"]).exists()

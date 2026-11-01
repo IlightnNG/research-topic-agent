@@ -8,7 +8,13 @@ from typing import Any
 
 from lit_agent_v2.contracts.tool import ToolSpec
 
-__all__ = ["build_corpus_tools", "corpus_dedupe", "corpus_stats", "corpus_store"]
+__all__ = [
+    "build_corpus_tools",
+    "corpus_dedupe",
+    "corpus_papers",
+    "corpus_stats",
+    "corpus_store",
+]
 
 
 def _papers(root: str | Path) -> list[dict[str, Any]]:
@@ -44,6 +50,11 @@ def corpus_dedupe(papers: list[dict[str, Any]]) -> dict[str, Any]:
     return {"papers": unique, "kept": len(unique), "removed": len(papers) - len(unique)}
 
 
+def corpus_papers(root: str | Path, limit: int = 20) -> dict[str, Any]:
+    papers = _papers(root)[: max(1, limit)]
+    return {"papers": papers, "count": len(papers)}
+
+
 def corpus_store(root: str | Path, papers: list[dict[str, Any]]) -> dict[str, Any]:
     path = Path(root)
     path.mkdir(parents=True, exist_ok=True)
@@ -61,6 +72,20 @@ def build_corpus_tools() -> list[ToolSpec]:
             {"type": "object", "properties": {"root": {"type": "string"}}, "required": ["root"]},
             {"type": "object"},
             handler=lambda args: corpus_stats(args["root"]),
+        ),
+        ToolSpec(
+            "corpus.papers",
+            "Read papers (metadata and abstracts) from a local corpus.",
+            {
+                "type": "object",
+                "properties": {
+                    "root": {"type": "string"},
+                    "limit": {"type": "integer"},
+                },
+                "required": ["root"],
+            },
+            {"type": "object"},
+            handler=lambda args: corpus_papers(args["root"], int(args.get("limit", 20))),
         ),
         ToolSpec(
             "corpus.dedupe",

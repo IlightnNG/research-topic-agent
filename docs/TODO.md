@@ -13,9 +13,9 @@
 | TODO-101 | W | P0 | done | NodeSpec 增加 goal/tools/verifier/optional |
 | TODO-102 | T | P0 | done | ToolRegistry 包装所有外部交互（core） |
 | TODO-103 | K | P0 | done | Kernel 接收 NodeContext/tool allowlist |
-| TODO-104 | R | P0 | open | report.generate 改为 agent node |
-| TODO-105 | R | P0 | open | report.plan 工具产出可选 sections |
-| TODO-106 | V | P0 | open | code + audit 双 Verifier |
+| TODO-104 | R | P0 | done | report.generate 改为 agent node |
+| TODO-105 | R | P0 | done | report.plan 工具产出可选 sections |
+| TODO-106 | V | P0 | done | code + audit 双 Verifier |
 | TODO-107 | W | P1 | done | Workflow optional/skip 节点 |
 | TODO-108 | R | P1 | open | demo profile 100 篇报告 |
 | TODO-109 | E | P2 | open | scorecard 作为可选 Node |

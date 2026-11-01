@@ -77,6 +77,7 @@ class NodeSpec:
     verifier: VerifierProfile
     max_steps: int = 8
     max_usd: float = 0.20
+    max_tokens: int = 4000
     timeout_s: float = 600.0
     optional: bool = False
     enabled: bool = True

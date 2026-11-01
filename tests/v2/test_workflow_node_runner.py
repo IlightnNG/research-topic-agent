@@ -7,7 +7,7 @@ import pytest
 from lit_agent_v2.contracts.features import FeatureProfile
 from lit_agent_v2.contracts.node import NodeContext, NodeResult, NodeSpec, WorkflowDefinition
 from lit_agent_v2.contracts.verdict import Verdict
-from lit_agent_v2.workflow.node.definition import build_report_workflow
+from lit_agent_v2.workflow.node.definition import build_report_demo_workflow, build_report_workflow
 from lit_agent_v2.workflow.node.runner import NodeFailed, WorkflowRunner
 from lit_agent_v2.workflow.node.state import WorkflowInterrupted
 
@@ -143,3 +143,13 @@ def test_report_workflow_disables_classification() -> None:
 def test_report_workflow_validation() -> None:
     workflow = build_report_workflow(FeatureProfile(classification=False))
     assert workflow.validate() == []
+
+
+def test_report_demo_workflow_shape() -> None:
+    workflow = build_report_demo_workflow()
+    assert workflow.validate() == []
+    assert [node.id for node in workflow.nodes] == ["report.generate"]
+    node = workflow.nodes[0]
+    assert "report.write_section" in node.tools
+    assert "report.persist" in node.tools
+    assert node.max_tokens == 12000

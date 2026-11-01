@@ -38,6 +38,7 @@ class NodeSpec:
     verifier: VerifierProfile = field(default_factory=VerifierProfile)
     max_steps: int = 8
     max_usd: float = 0.20
+    max_tokens: int = 4000
     timeout_s: float = 600.0
     optional: bool = False
     enabled: bool = True
@@ -54,6 +55,8 @@ class NodeSpec:
             problems.append(f"{self.id}: max_steps must be >= 1")
         if self.max_usd < 0:
             problems.append(f"{self.id}: max_usd must be >= 0")
+        if self.max_tokens < 1:
+            problems.append(f"{self.id}: max_tokens must be >= 1")
         return problems
 
 

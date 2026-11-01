@@ -82,7 +82,19 @@ code pass + audit fail → repair
 code fail → reject
 ```
 
-## 7. Phase docs
+## 7. 当前实现
+
+```text
+verify/code.py
+verify/audit.py
+verify/verdict.py
+verify/ports.py
+```
+
+状态：4.1.5 done；已接入 WorkflowRunner。
+CodeVerifier 支持 schema/papers/dedupe/claim/quote/citation/count/word_limit/file_exists/directions。
+
+## 8. Phase docs
 
 ```text
 V-P01-code-verifier.md
