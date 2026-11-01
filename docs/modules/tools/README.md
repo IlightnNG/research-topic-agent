@@ -80,7 +80,21 @@ side-effect failure
 idempotency
 ```
 
-## 7. Phase docs
+## 7. 当前实现
+
+```text
+tools/schema.py
+tools/registry.py
+tools/packs/corpus.py
+tools/packs/claims.py
+tools/packs/source.py
+tools/packs/report.py
+```
+
+状态：4.1.4 done（registry + source/corpus/claims/report plan）。
+`report.write_section`、`report.persist` 在 4.1.6 接入。
+
+## 8. Phase docs
 
 ```text
 T-P01-registry.md

@@ -23,6 +23,7 @@ from typing import Any
 from lit_agent_v2.contracts.node import NodeContext, NodeResult, NodeSpec
 from lit_agent_v2.contracts.tool import ToolResult
 from lit_agent_v2.kernel.node.checkpoint import KernelCheckpoint
+from lit_agent_v2.kernel.node.inbox import KernelInbox
 from lit_agent_v2.kernel.node.ports import CheckpointPort, EventPort, LLMPort, ToolRegistryPort
 
 __all__ = ["Kernel"]
@@ -40,6 +41,8 @@ class Kernel:
         max_retries: int = 2,
         max_parallel_tools: int = 4,
         max_tool_chars: int = 4000,
+        max_history_chars: int = 12000,
+        inbox: KernelInbox | None = None,
     ) -> None:
         self.llm = llm
         self.tools = tools
@@ -49,7 +52,14 @@ class Kernel:
         self.max_retries = max(0, max_retries)
         self.max_parallel_tools = max(1, max_parallel_tools)
         self.max_tool_chars = max(256, max_tool_chars)
+        self.max_history_chars = max(4096, max_history_chars)
+        self.inbox = inbox or KernelInbox()
         self._run_id = ""
+        self._journal: list[dict[str, Any]] = []
+
+    def steer(self, text: str) -> None:
+        """Queue a message for the next step boundary."""
+        self.inbox.push(text)
 
     def run(
         self,
@@ -58,12 +68,15 @@ class Kernel:
         *,
         checkpoint: KernelCheckpoint | None = None,
         should_stop: Callable[[], bool] | None = None,
+        on_delta: Callable[[str], None] | None = None,
     ) -> NodeResult:
         self._run_id = context.run_id
         state = checkpoint or KernelCheckpoint(node_id=node.id)
         history = list(state.history)
         state.history = history
         trace = list(state.trace)
+        self._journal = list(state.journal)
+        self._append("turn.started", 0, node_id=node.id)
         cost = state.cost_usd
         usage = dict(state.usage)
         started = self.clock()
@@ -79,15 +92,20 @@ class Kernel:
             if node.max_usd > 0 and cost >= node.max_usd:
                 return self._finish(node, state, {}, trace, cost, usage, "budget")
             self._emit("step.started", node, step=step)
+            self._append("step.started", step)
+            steering = self.inbox.drain()
+            if steering:
+                self._append("steering.consumed", step, messages=[item.text for item in steering])
+                self._emit("steering.consumed", node, step=step, messages=[item.text for item in steering])
 
             action = None
             for attempt in range(self.max_retries + 1):
                 try:
-                    action, step_usage = self.llm.chat_json(
-                        self._messages(node, context, history),
-                        prompt_version=f"{node.id}-v1",
-                        max_tokens=4000,
-                        temperature=0.1,
+                    action, step_usage = self._ask(
+                        node,
+                        self._messages(node, context, history, steering, step),
+                        step=step,
+                        on_delta=on_delta,
                     )
                     usage = self._merge_usage(usage, step_usage)
                     cost += float(getattr(step_usage, "cost_usd", 0.0) or 0.0)
@@ -96,7 +114,9 @@ class Kernel:
                     retryable = bool(getattr(exc, "retryable", False))
                     if not retryable or attempt >= self.max_retries:
                         self._emit("node.failed", node, step=step, error=type(exc).__name__)
+                        self._append("kernel.failed", step, error=type(exc).__name__)
                         return self._finish(node, state, {}, trace, cost, usage, "failed")
+                    self._append("kernel.retry", step, attempt=attempt + 1)
                     self._emit(
                         "kernel.retry",
                         node,
@@ -112,6 +132,7 @@ class Kernel:
                 history.append({"role": "system", "content": "invalid action: expected JSON object"})
                 continue
             if action.get("action") == "final":
+                self._append("assistant.final", step)
                 outputs = action.get("outputs")
                 if not isinstance(outputs, dict):
                     invalid += 1
@@ -143,6 +164,7 @@ class Kernel:
                 if call["name"] not in node.tools or self.tools.spec(call["name"]) is None:
                     self._emit("node.failed", node, step=step, error="tool_not_allowed")
                     return self._finish(node, state, {}, trace, cost, usage, "failed")
+            self._append("assistant.tool_calls", step, calls=calls)
             history.append({"role": "assistant", "tool_calls": calls})
             results = self._execute_calls(node, calls)
             for call, result in zip(calls, results, strict=True):
@@ -156,6 +178,7 @@ class Kernel:
                         "error": result.error_code,
                     }
                 )
+                self._append("tool.result", step, call_id=call["id"], tool=call["name"], ok=result.ok, error=result.error_code)
                 self._emit(
                     "tool.result",
                     node,
@@ -175,13 +198,43 @@ class Kernel:
                         "error": result.error_code,
                     }
                 )
+                self._save(node, context, state, step, history, trace, cost, usage, None)
                 if node.max_usd > 0 and cost >= node.max_usd:
-                    self._save(node, context, state, step, history, trace, cost, usage, "budget")
+                    self._append("kernel.budget", step, cost_usd=cost)
                     return self._finish(node, state, {}, trace, cost, usage, "budget")
 
+            self._append("step.finished", step)
             self._save(node, context, state, step, history, trace, cost, usage, None)
 
         return self._finish(node, state, {}, trace, cost, usage, "max_steps")
+
+    def _ask(
+        self,
+        node: NodeSpec,
+        messages: list[dict[str, str]],
+        *,
+        step: int,
+        on_delta: Callable[[str], None] | None,
+    ) -> tuple[dict, Any]:
+        streamer = getattr(self.llm, "stream_json", None)
+        if on_delta is not None and callable(streamer):
+            def forward(piece: str) -> None:
+                self._emit("assistant.delta", node, step=step, text=piece)
+                on_delta(piece)
+
+            return streamer(
+                messages,
+                on_delta=forward,
+                prompt_version=f"{node.id}-v1",
+                max_tokens=4000,
+                temperature=0.1,
+            )
+        return self.llm.chat_json(
+            messages,
+            prompt_version=f"{node.id}-v1",
+            max_tokens=4000,
+            temperature=0.1,
+        )
 
     def _normalize_calls(self, action: dict[str, Any], step: int) -> list[dict[str, Any]]:
         raw = action.get("calls")
@@ -226,7 +279,12 @@ class Kernel:
             return ToolResult(False, error_code=f"E_TOOL_EXCEPTION:{type(exc).__name__}")
 
     def _messages(
-        self, node: NodeSpec, context: NodeContext, history: list[dict[str, Any]]
+        self,
+        node: NodeSpec,
+        context: NodeContext,
+        history: list[dict[str, Any]],
+        steering: list[Any],
+        step: int,
     ) -> list[dict[str, str]]:
         tools = []
         for name in node.tools:
@@ -250,16 +308,37 @@ class Kernel:
             f"Output schema: {json.dumps(node.output_schema, ensure_ascii=False)}\n"
             f"Allowed tools: {json.dumps(tools, ensure_ascii=False)}"
         )
+        compacted = self._compact_history(history, step)
         user = {
             "run_id": context.run_id,
             "features": context.features.__dict__,
             "inputs": context.inputs,
-            "history": history[-8:],
+            "steering": [item.text for item in steering],
+            "history": compacted[-8:],
         }
         return [
             {"role": "system", "content": system},
             {"role": "user", "content": json.dumps(user, ensure_ascii=False, default=str)},
         ]
+
+    def _compact_history(self, history: list[dict[str, Any]], step: int) -> list[dict[str, Any]]:
+        text = json.dumps(history, ensure_ascii=False, default=str)
+        if len(text) <= self.max_history_chars:
+            return history
+        keep = 6
+        compacted: list[dict[str, Any]] = []
+        before = len(text)
+        for index, item in enumerate(history):
+            if index < len(history) - keep and item.get("role") == "tool":
+                pruned = dict(item)
+                pruned["output"] = {"truncated": True, "reason": "history_compacted"}
+                compacted.append(pruned)
+            else:
+                compacted.append(item)
+        after = len(json.dumps(compacted, ensure_ascii=False, default=str))
+        self._append("context.compacted", step, before=before, after=after)
+        self._emit("context.compacted", node=None, step=step, before=before, after=after)
+        return compacted
 
     def _compact(self, value: Any) -> Any:
         text = json.dumps(value, ensure_ascii=False, default=str)
@@ -301,6 +380,7 @@ class Kernel:
         state.trace = trace
         state.cost_usd = cost
         state.usage = usage
+        state.journal = self._journal
         state.stop_reason = stop_reason
         if self.checkpoint_store is not None:
             self.checkpoint_store.save(context.run_id, node.id, state.to_dict())
@@ -318,6 +398,8 @@ class Kernel:
         state.trace = trace
         state.cost_usd = cost
         state.usage = usage
+        self._append("kernel.finished", state.step, reason=reason, cost_usd=cost)
+        state.journal = self._journal
         state.stop_reason = reason
         if self.checkpoint_store is not None:
             self.checkpoint_store.save(self._run_id, state.node_id, state.to_dict())
@@ -331,6 +413,9 @@ class Kernel:
             checkpoint=state.to_dict(),
         )
 
-    def _emit(self, event_type: str, node: NodeSpec, **payload: Any) -> None:
+    def _append(self, kind: str, step: int, **detail: Any) -> None:
+        self._journal.append({"step": step, "kind": kind, "detail": detail})
+
+    def _emit(self, event_type: str, node: NodeSpec | None, **payload: Any) -> None:
         if self.events is not None:
-            self.events.emit(event_type, node_id=node.id, **payload)
+            self.events.emit(event_type, node_id=node.id if node is not None else None, **payload)

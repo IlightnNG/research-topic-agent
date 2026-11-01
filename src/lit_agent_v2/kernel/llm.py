@@ -8,6 +8,7 @@ from __future__ import annotations
 import json
 import os
 import re
+from collections.abc import Callable
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Protocol
@@ -156,6 +157,105 @@ class DeepSeekChatClient:
             prompt_version=prompt_version,
         )
         return parsed, usage
+
+
+    def stream_json(
+        self,
+        messages: list[dict[str, str]],
+        *,
+        on_delta: Callable[[str], None] | None = None,
+        prompt_version: str = "m1-p01",
+        max_tokens: int = 1200,
+        temperature: float = 0.1,
+    ) -> tuple[dict, LLMUsage]:
+        body = {
+            "model": self.config.model,
+            "messages": messages,
+            "temperature": temperature,
+            "max_tokens": max_tokens,
+            "response_format": {"type": "json_object"},
+            "stream": True,
+        }
+        content: list[str] = []
+        usage_raw: dict = {}
+        try:
+            with self.client.stream(
+                "POST",
+                f"{self.config.base_url}/chat/completions",
+                headers={"Authorization": f"Bearer {self.config.api_key}"},
+                json=body,
+            ) as response:
+                if response.status_code != 200:
+                    raise ModuleError(
+                        "E_LLM_HTTP",
+                        f"LLM HTTP {response.status_code}",
+                        "M1",
+                        retryable=response.status_code >= 500 or response.status_code == 429,
+                    )
+                for line in response.iter_lines():
+                    if not line:
+                        continue
+                    data = line[5:].strip() if line.startswith("data:") else line.strip()
+                    if data == "[DONE]":
+                        break
+                    try:
+                        payload = json.loads(data)
+                    except json.JSONDecodeError:
+                        continue
+                    usage_raw = payload.get("usage") or usage_raw
+                    choice = (payload.get("choices") or [{}])[0]
+                    delta = choice.get("delta") or {}
+                    piece = delta.get("content") or ""
+                    if piece:
+                        content.append(piece)
+                        if on_delta is not None:
+                            on_delta(piece)
+        except ModuleError:
+            raise
+        except Exception as exc:  # noqa: BLE001
+            raise ModuleError(
+                "E_LLM_HTTP",
+                f"LLM stream failed: {type(exc).__name__}",
+                "M1",
+                retryable=True,
+            ) from exc
+        text = "".join(content).strip()
+        if not text:
+            raise ModuleError("E_LLM_EMPTY", "LLM returned empty stream", "M1", retryable=True)
+        parsed = self._parse_text(text)
+        usage = self._usage(usage_raw, prompt_version)
+        return parsed, usage
+
+    def _parse_text(self, text: str) -> dict:
+        text = text.strip()
+        if text.startswith("```"):
+            text = re.sub(r"^```[a-zA-Z0-9_-]*\s*", "", text)
+            text = re.sub(r"\s*```$", "", text)
+        if not text.startswith("{"):
+            start, end = text.find("{"), text.rfind("}")
+            if start >= 0 and end > start:
+                text = text[start : end + 1]
+        try:
+            parsed = json.loads(text)
+        except json.JSONDecodeError as exc:
+            raise ModuleError(
+                "E_LLM_JSON",
+                "LLM returned non-JSON content",
+                "M1",
+                retryable=True,
+                details={"preview": text[:300]},
+            ) from exc
+        if not isinstance(parsed, dict):
+            raise ModuleError("E_LLM_JSON", "LLM returned non-object", "M1", retryable=True)
+        return parsed
+
+    def _usage(self, usage_raw: dict, prompt_version: str) -> LLMUsage:
+        return LLMUsage(
+            prompt_tokens=int(usage_raw.get("prompt_tokens") or 0),
+            completion_tokens=int(usage_raw.get("completion_tokens") or 0),
+            model=self.config.model,
+            prompt_version=prompt_version,
+        )
 
 
 def load_llm_config(dotenv_path: str | Path = ".env") -> LLMConfig:

@@ -184,9 +184,23 @@ LLM exception.retryable == True
 
 非 retryable 或耗尽 → failed。
 
-### 3.6 step checkpoint
+### 3.6 per-call checkpoint + journal
 
-每完成一个 assistant step + tool results：
+每次 tool result 后写 checkpoint，并在 journal 中记录：
+
+```text
+turn.started
+step.started
+steering.consumed
+assistant.tool_calls
+assistant.final
+tool.result
+context.compacted
+step.finished
+kernel.finished
+```
+
+checkpoint 包含：
 
 ```text
 step
@@ -194,27 +208,81 @@ history
 trace
 cost_usd
 usage
+journal
 stop_reason
 ```
 
-写入 `CheckpointPort`。
+### 3.7 streaming
+
+Kernel 支持：
+
+```python
+kernel.run(..., on_delta=callback)
+```
+
+如果 LLM 实现 `stream_json`：
+
+```text
+DeepSeek SSE delta
+  → on_delta
+  → assistant.delta event
+  → final JSON
+```
+
+没有 `stream_json` 时回退 `chat_json`。
+
+### 3.8 inbox / steering
+
+```python
+kernel.steer("use the stricter quote")
+```
+
+steering 在下一个 step boundary 注入：
+
+```text
+steering.consumed
+steering: [...]
+```
+
+不会打断正在进行的 tool call。
+
+### 3.9 context compaction
+
+当 history 超过 `max_history_chars`：
+
+```text
+旧 tool outputs → {"truncated": true, "reason": "history_compacted"}
+保留最近 6 条消息
+journal: context.compacted
+```
+
+这是确定性 compaction，不是 LLM summary。
+
+### 3.10 event log
+
+Kernel 同时维护：
+
+```text
+journal（durable，进入 checkpoint）
+EventPort（运行时可订阅）
+```
+
+journal 是 per-node 的会话日志雏形，不引入 DSH session projection。
 
 ---
 
-## 4. 未采纳
-
-以下 DSH 机制暂不引入，避免 Kernel 再次过度复杂：
+## 4. 仍未采纳
 
 ```text
-session event log / projections
-inbox / steering / wake
-turn + step durable protocol
-streaming assistant chunks
 hook / waterfall / plugin pipeline
 LLM compaction summary
 subagent spawning
-session persistence handle
+session projection / replay store
+PTC / run_code
+inbox wake / turn driver
 ```
+
+这些不影响当前 Node 的 tool loop。
 
 当前 Node Kernel 只需要：
 
@@ -230,15 +298,13 @@ Checkpoint
 ## 5. 当前限制
 
 ```text
-无 streaming
-无 token-level context compaction
-无 steering / interactive input
+streaming 依赖 LLM 实现 stream_json
+context compaction 是确定性裁剪，不是 token 计量
+steering 只在 step boundary 生效
 无跨 step tool-call recovery
-无并行 side-effect 调度
-无 per-call durable log（只有 step checkpoint）
+并行 side-effect 仍被禁止
+无独立 session store/projection
 ```
-
-这些可以在 4.1.4 Tools 或后续 Kernel v2 再做。
 
 ---
 
@@ -246,6 +312,9 @@ Checkpoint
 
 ```text
 tests/v2/test_kernel_node_loop.py
+tests/v2/test_kernel_invariants.py
+tests/v2/test_kernel_tool_integration.py
+tests/v2/test_llm_stream.py
 ```
 
 覆盖：
@@ -260,11 +329,17 @@ tests/v2/test_kernel_node_loop.py
 - resume checkpoint
 - tool output pruning
 - retryable LLM error
+- journal / per-call checkpoint
+- steering inbox
+- history compaction
+- streaming callback
+- SSE transport
+- trace / call-id invariants
 
 当前总门禁：
 
 ```text
-pytest tests/v2   99 passed
+pytest tests/v2   123 passed
 ruff              clean
 ```
 
@@ -280,13 +355,20 @@ call id
 并行/串行区分
 tool result pruning
 bounded retry
-step checkpoint
+streaming callback
+inbox/steering
+deterministic compaction
+journal / per-call checkpoint
 ```
 
 但没有复制 DSH 的：
 
 ```text
-session / inbox / streaming / plugin / compaction
+session projections
+hook/waterfall/plugin
+LLM summary compaction
+subagents
+PTC
 ```
 
-目标是让当前 Kernel 在 demo 规模下更稳，而不是重新实现 DSH。
+目标是让 Kernel 能独立完成一个 Node 的工具任务，而不是重新实现 DSH 全栈。

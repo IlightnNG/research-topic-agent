@@ -4,7 +4,7 @@
 > 类型：详细迁移方案
 > 范围：平台层 + Research 工具包 + Report Node
 > 目标：删除旧 M1–M6 流程骨架，按 Node/Tool/Verifier 重写
-> 状态：execution；4.1.0–4.1.3 done（Kernel optimized）；下一 4.1.4
+> 状态：execution；4.1.0–4.1.4 done；下一 4.1.5
 > 依据：`docs/ARCHITECTURE.md` 2.0、`docs/CONTRACTS.md` 2.0 DRAFT
 
 ---
@@ -1330,15 +1330,55 @@ step checkpoint
 
 详见 `docs/implementation/KERNEL-OPTIMIZATION.md`。
 
+### 4.1.4 Tools
+
+新增：
+
+```text
+tools/__init__.py
+tools/schema.py
+tools/registry.py
+tools/packs/corpus.py
+tools/packs/claims.py
+tools/packs/source.py
+tools/packs/report.py
+tests/v2/test_tools_registry.py
+```
+
+能力：
+
+```text
+ToolSpec
+ToolRegistry
+schema validation
+timeout
+retry_on
+allowlist subset
+corpus tools
+claims/quote tools
+source tools
+report plan/check/assemble tools
+```
+
+暂缓：
+
+```text
+report.write_section
+report.persist
+eval/audit tools
+```
+
+这些在 4.1.5/4.1.6 接入。
+
 当前总门禁：
 
 ```text
-pytest tests/v2   99 passed
+pytest tests/v2   123 passed
 ruff              clean
 ```
 
 下一 step：
 
 ```text
-4.1.4 Tools
+4.1.5 Verify
 ```

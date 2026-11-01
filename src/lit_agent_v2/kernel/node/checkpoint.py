@@ -5,7 +5,17 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from typing import Any
 
-__all__ = ["KernelCheckpoint"]
+__all__ = ["JournalEntry", "KernelCheckpoint"]
+
+
+@dataclass
+class JournalEntry:
+    step: int
+    kind: str
+    detail: dict[str, Any] = field(default_factory=dict)
+
+    def to_dict(self) -> dict[str, Any]:
+        return {"step": self.step, "kind": self.kind, "detail": self.detail}
 
 
 @dataclass
@@ -16,6 +26,7 @@ class KernelCheckpoint:
     trace: list[dict[str, Any]] = field(default_factory=list)
     cost_usd: float = 0.0
     usage: dict[str, Any] = field(default_factory=dict)
+    journal: list[dict[str, Any]] = field(default_factory=list)
     stop_reason: str | None = None
 
     def to_dict(self) -> dict[str, Any]:
@@ -27,6 +38,7 @@ class KernelCheckpoint:
             "trace": self.trace,
             "cost_usd": self.cost_usd,
             "usage": self.usage,
+            "journal": self.journal,
             "stop_reason": self.stop_reason,
         }
 
@@ -39,5 +51,6 @@ class KernelCheckpoint:
             trace=list(data.get("trace") or []),
             cost_usd=float(data.get("cost_usd") or 0.0),
             usage=dict(data.get("usage") or {}),
+            journal=list(data.get("journal") or []),
             stop_reason=data.get("stop_reason"),
         )

@@ -20,6 +20,8 @@ Current documents only.
 | [`implementation/PHASE4.1-node-platform-migration.md`](implementation/PHASE4.1-node-platform-migration.md) | Node platform migration plan |
 | [`implementation/BASELINE-P4.1.md`](implementation/BASELINE-P4.1.md) | pre-migration baseline |
 | [`implementation/KERNEL-OPTIMIZATION.md`](implementation/KERNEL-OPTIMIZATION.md) | DSH-informed kernel optimization |
+| [`implementation/TOOLS-DSH-DESIGN.md`](implementation/TOOLS-DSH-DESIGN.md) | DSH-informed tool registry design |
+| [`implementation/RESULTS-KERNEL-TEST.md`](implementation/RESULTS-KERNEL-TEST.md) | kernel + tools test matrix and live smoke |
 | [`modules/README.md`](modules/README.md) | platform module map + legacy M1–M6 mapping |
 | [`implementation/RESULTS-P3.6-LIVE.md`](implementation/RESULTS-P3.6-LIVE.md) | real OpenAlex run + audit |
 | [`implementation/RESULTS-M1-P01.md`](implementation/RESULTS-M1-P01.md) | M1-P01 result |

@@ -242,6 +242,8 @@ class ToolSpec:
     idempotent: bool
     timeout_s: float
     cost_usd: float
+    max_retries: int
+    retry_on: tuple[str, ...]
     handler: Callable[[dict], dict]
 ```
 

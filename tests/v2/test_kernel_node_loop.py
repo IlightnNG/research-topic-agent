@@ -209,3 +209,77 @@ def test_resume_checkpoint() -> None:
     assert result.stop_reason == "final"
     assert result.output["resumed"] is True
     assert result.usage["prompt_tokens"] == 20
+
+
+class CapturingLLM(LLM):
+    def __init__(self, actions: list[dict]) -> None:
+        super().__init__(actions)
+        self.messages: list[list[dict]] = []
+
+    def chat_json(self, messages, **kwargs):  # noqa: ANN001
+        self.messages.append(messages)
+        return super().chat_json(messages, **kwargs)
+
+
+def test_steering_reaches_next_prompt_and_journal() -> None:
+    llm = CapturingLLM([{"action": "final", "outputs": {"ok": True}}])
+    kernel = Kernel(llm, Registry())
+    kernel.steer("use the stricter quote")
+    result = kernel.run(_node(), _context())
+    assert result.stop_reason == "final"
+    assert "use the stricter quote" in llm.messages[0][1]["content"]
+    kinds = [entry["kind"] for entry in result.checkpoint["journal"]]
+    assert "steering.consumed" in kinds
+    assert "assistant.final" in kinds
+
+
+def test_journal_records_per_call_results() -> None:
+    kernel = Kernel(
+        LLM(
+            [
+                {"action": "tool", "tool": "echo", "args": {"q": "x"}},
+                {"action": "final", "outputs": {"ok": True}},
+            ]
+        ),
+        Registry(),
+    )
+    result = kernel.run(_node(), _context())
+    kinds = [entry["kind"] for entry in result.checkpoint["journal"]]
+    assert kinds.count("tool.result") == 1
+    assert kinds[-1] == "kernel.finished"
+
+
+def test_long_history_is_compacted() -> None:
+    actions = [
+        {"action": "tool", "calls": [{"id": f"b{i}", "name": "big", "args": {"i": i}}]}
+        for i in range(8)
+    ]
+    actions.append({"action": "final", "outputs": {"ok": True}})
+    kernel = Kernel(LLM(actions), Registry(), max_history_chars=4096)
+    result = kernel.run(_node(tools=("big",), max_steps=12), _context())
+    assert result.stop_reason == "final"
+    journal = [entry for entry in result.checkpoint["journal"] if entry["kind"] == "context.compacted"]
+    assert journal
+
+
+class StreamingLLM:
+    def __init__(self) -> None:
+        self.pieces = ['{"action":"final",', '"outputs":{"ok":true}}']
+
+    def chat_json(self, messages, **kwargs):  # noqa: ANN001
+        raise AssertionError("chat_json should not be used")
+
+    def stream_json(self, messages, *, on_delta, **kwargs):  # noqa: ANN001
+        for piece in self.pieces:
+            on_delta(piece)
+        return {"action": "final", "outputs": {"ok": True}}, Usage()
+
+
+def test_streaming_callback() -> None:
+    deltas: list[str] = []
+    result = Kernel(StreamingLLM(), Registry()).run(
+        _node(), _context(), on_delta=deltas.append
+    )
+    assert result.stop_reason == "final"
+    assert deltas == ['{"action":"final",', '"outputs":{"ok":true}}']
+    assert result.output == {"ok": True}
