@@ -4,6 +4,8 @@
 > 目标：统一错误码、HTTP 映射、重试语义、日志字段。
 > 当前 v2 仍以 `RuntimeError` 为主；本文件是目标注册表，实施时逐步落地。
 
+> 架构 2.0 备注：文中旧 M1–M6 为历史模块 ID；新平台模块为 W/K/T/V/S/I，领域工具包为 R/E。
+
 ---
 
 ## 1. 错误码格式
@@ -166,3 +168,21 @@ error.by_module
 6. M6：API 映射。
 
 当前状态全部是 `planned`；代码尚未统一使用。
+
+
+---
+
+## 架构 2.0 新错误码
+
+| Code | Module | 说明 |
+|---|---|---|
+| `E_NODE_GOAL` | W | Node goal 缺失/非法 |
+| `E_NODE_TOOL` | W | Node 调用了未授权工具 |
+| `E_NODE_SCHEMA` | V | Node 输出不符合 schema |
+| `E_NODE_VERIFY_CODE` | V | 代码 Verifier hard fail |
+| `E_NODE_VERIFY_AUDIT` | V | LLM audit fail |
+| `E_TOOL_SCHEMA` | T | Tool 参数/输出 schema 失败 |
+| `E_TOOL_TIMEOUT` | T | Tool 超时 |
+| `E_TOOL_SIDE_EFFECT` | T | 有副作用工具失败/不可回滚 |
+| `E_REPORT_PLAN` | R | ReportPlan 非法/缺少必需 section |
+| `E_REPORT_SECTION` | R | section 生成失败且不可修复 |

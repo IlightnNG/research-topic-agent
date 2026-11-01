@@ -7,6 +7,9 @@
 > 依据：`docs/ARCHITECTURE.md`、`docs/TODO.md`、真实 100 篇审计
 > 原则：一个 phase 只改一个模块；接口先冻结；LLM 只做适合 LLM 的事。
 
+> **2026-11-01 更新**：本文是历史 Phase 4 计划，模块 ID M1–M6 已改为历史映射。
+> 目标架构、Node/Tool/Verifier 与 Demo Profile 以 `docs/ARCHITECTURE.md` 2.0 为准。
+
 ---
 
 ## 1. 目标

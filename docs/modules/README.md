@@ -1,107 +1,141 @@
 # Modules · 模块地图
 
-> 版本：1.0（2026-10-31）
-> 目的：把系统拆成 **6 个可独立优化的模块**。后续每个模块单独写 phase，不同时改多个模块。
-> 旧代码已移出仓库；旧模块名不再使用。
+> 版本：2.0（2026-11-01）
+> 目的：按**平台职责**拆分，不再按业务阶段 M1–M6 拆分。
+> 旧 M1–M6 文档保留为历史 phase 记录；目标架构见 `docs/ARCHITECTURE.md`。
 
 ---
 
-## 1. 模块列表
+## 1. 平台模块
 
-| ID | 模块 | 文件夹 | 代码路径 | 一句话职责 |
-|---|---|---|---|---|
-| **M1** | Engine | `docs/modules/m1-engine/` | `src/lit_agent_v2/{contracts,run_shell,workflow,kernel,storage}` | 运行生命周期、Workflow、Kernel、状态、事件、存储 |
-| **M2** | Source | `docs/modules/m2-source/` | `src/lit_agent_v2/domains/report/{openalex,ingest,pdf,source}` | 检索、ingest、PDF、语料与 metadata |
-| **M3** | Evidence | `docs/modules/m3-evidence/` | `src/lit_agent_v2/domains/report/{evidence,claim_extractor,contracts}` | 卡片、全文、claim、quote 校验 |
-| **M4** | Report | `docs/modules/m4-report/` | `src/lit_agent_v2/domains/report/{map,write,persist,workflow}` | 方向、写作、组装、报告落库 |
-| **M5** | Evaluation | `docs/modules/m5-evaluation/` | `src/lit_agent_v2/{metrics,evaluation}` | 指标、评分、数据集、judge、调参 |
-| **M6** | Interface | `docs/modules/m6-interface/` | `src/lit_agent_v2/{api,cli,domains/chat}` | API、SSE、CLI、Chat、UI 契约 |
+| ID | 模块 | 目录（目标） | 职责 |
+|---|---|---|---|
+| **W** | Workflow | [docs/modules/workflow/](workflow/README.md) | Node 链、运行状态、commit/resume、optional nodes |
+| **K** | Kernel | [docs/modules/kernel/](kernel/README.md) | Node 内 ReAct、context、tool loop、budget、checkpoint |
+| **T** | Tools | [docs/modules/tools/](tools/README.md) | ToolSpec、registry、参数校验、工具适配 |
+| **V** | Verification | [docs/modules/verify/](verify/README.md) | CodeVerifier + LLM AuditVerifier + Verdict |
+| **S** | Storage | [docs/modules/storage/](storage/README.md) | artifacts、SQLite、events、metrics、report repository |
+| **I** | Interface | [docs/modules/interface/](interface/README.md) | API、SSE、CLI、UI |
+
+## 2. 领域工具包
+
+| ID | 模块 | 目录（目标） | 职责 |
+|---|---|---|---|
+| **R** | Research | [docs/modules/research/](research/README.md) | source/evidence/report 工具包 |
+| **E** | Evaluation | [docs/modules/evaluation/](evaluation/README.md) | dataset、scorecard、judge、calibration |
+
+## 3. 组合层
+
+| ID | 模块 | 目录 | 职责 |
+|---|---|---|---|
+| **C** | Composition | [docs/modules/composition/](composition/README.md) | 唯一装配点；可 import 所有 concrete |
 
 ---
 
-## 2. 依赖方向
+## 4. 依赖方向
 
 ```text
-M1 Engine
-  ↑ used by all
+Interface
+  ↓
+Workflow
+  ↓
+Kernel
+  ↓
+Tools
+  ↓
+Storage
 
-M2 Source
-  ↓ SourceArtifact
+Verification 横向作用于 Node 输出
 
-M3 Evidence
-  ↓ EvidenceArtifact
-
-M4 Report
-  ↓ ReportDraft / VerifiedReport
-
-M5 Evaluation
-  reads artifacts/metrics; never mutates report
-
-M6 Interface
-  calls M1 + M4 + M5 + M3 (read-only)
+Domains → Tools contracts
+Composition → all concrete
 ```
 
 规则：
 
-- 依赖只能向下，不能反向 import；
-- M5 只读，不修改报告；
-- M6 不直接写 DB，不绕过 M1；
-- M4 不重新抓论文；
-- M3 不做聚类/写作；
-- M2 不抽 claim；
-- M1 不 import domain 实现，只通过注册的 handler/workflow 调用。
+- Workflow 不 import domain service；
+- Kernel 不 import domain service；
+- 所有外部 I/O 只能通过 Tool；
+- Domains 之间不互相调用 service；
+- Interface 不绕过 Workflow 直接写 DB；
+- Composition 是唯一允许 import 所有模块的地方。
 
 ---
 
-## 3. 共享契约
-
-共享契约放在 M1：
+## 5. Workflow 与 Node
 
 ```text
-contracts.py
-  RunRequest / RunState / NodeSpec / WorkflowDefinition
-
-domains/report/contracts.py
-  SourceArtifact / EvidenceArtifact / MapArtifact / ReportDraft
+Workflow = 有序 Node 链
+Node     = 目标 + 工具 + 输入 + 输出 + Verifier
 ```
 
-修改契约：
+Node 不是“另一个层级”，而是 Workflow 的元素。
 
-1. 必须同时改 producer/consumer；
-2. 必须升 `schema_version`；
-3. 必须加 contract test；
-4. 必须更新本文件；
-5. 不允许“某个模块先改，其他以后适配”。
+一个 Node：
+
+```text
+goal
+tools allowlist
+input artifacts
+output schema
+code verifier + audit verifier
+budget
+optional / enabled
+```
 
 ---
 
-## 4. 模块 phase 命名
+## 6. 旧 M1–M6 映射
 
-每个模块一个文件夹，phase 文档直接放在模块目录：
+| 旧 | 新归属 |
+|---|---|
+| M1 Engine | W + K + S（部分 V） |
+| M2 Source | R：source tools |
+| M3 Evidence | R：evidence tools |
+| M4 Report | R：report tools；一个 `report.generate` node |
+| M5 Evaluation | E：eval tools；可选 scorecard node |
+| M6 Interface | I |
+
+旧模块文档：
 
 ```text
-docs/modules/m1-engine/M1-P01-run-shell.md
-docs/modules/m1-engine/M1-P02-kernel-react.md
-docs/modules/m3-evidence/M3-P01-claim-types.md
+D:\lit-agent-store\legacy-archive-20261101\docs-modules\m1-engine\
+D:\lit-agent-store\legacy-archive-20261101\docs-modules\m2-source\
+D:\lit-agent-store\legacy-archive-20261101\docs-modules\m3-evidence\
+D:\lit-agent-store\legacy-archive-20261101\docs-modules\m4-report\
+D:\lit-agent-store\legacy-archive-20261101\docs-modules\m5-evaluation\
+D:\lit-agent-store\legacy-archive-20261101\docs-modules\m6-interface\
+```
+
+状态：**历史阶段记录**，不是目标模块划分。
+
+---
+
+## 7. Phase 命名
+
+目标模块使用新 ID：
+
+```text
+W-P01-workflow-optional-nodes.md
+K-P02-kernel-tool-checkpoint.md
+T-P01-tool-registry.md
+V-P01-dual-verifier.md
+R-P01-report-node-agent.md
+E-P01-scorecard-node.md
+I-P01-report-api.md
 ```
 
 格式：
 
 ```text
-^M[1-6]-P\d{2}-[a-z0-9-]+\.md$
+^(W|K|T|V|S|I|R|E|C)-P\d{2}-[a-z0-9-]+\.md$
 ```
 
-- `M1`–`M6`：模块 ID；
-- `P01`：两位 phase 序号，只增不改；
-- slug：小写英文短横线，不超过 5 个词；
-- 一个 phase 只改一个模块；
-- phase 文档必须写：目标、边界、接口、指标、测试、验收、回滚。
+旧 `M1-P01` 文件保留，不再新增。
 
 ---
 
-## 5. Commit 标准
-
-每个 phase 收尾只生成 **一句话英文 commit**：
+## 8. Commit 标准
 
 ```text
 <type>(<module>-P<nn>): <summary>
@@ -110,54 +144,20 @@ docs/modules/m3-evidence/M3-P01-claim-types.md
 示例：
 
 ```text
-feat(M3-P01): add claim type validation and author-list rejection
-fix(M4-P02): enforce claim-count reconciliation before publish
-refactor(M1-P03): isolate checkpoint writer from workflow runner
-test(M5-P01): add direction f1 fixture gate
-docs(M2-P02): define openalex metadata contract
+feat(W-P01): add optional node execution
+feat(K-P01): add node goal and tool registry context
+feat(T-P01): wrap source adapters as tools
+feat(V-P01): add code and audit verdict
+feat(R-P01): add report generate agent node
 ```
-
-规则：
-
-- 一行，不超过 72 字符；
-- 英文，祈使句；
-- 不以句号结尾；
-- type：`feat|fix|refactor|test|docs|chore`；
-- 必须带模块和 phase；
-- 一个 commit 只对应一个 phase。
-
-完整规范见 `docs/CONVENTIONS.md`。
 
 ---
 
-## 6. 模块完成定义
+## 9. 迁移原则
 
-一个模块 phase 只有同时满足以下条件才算完成：
-
-```text
-1. 只改本模块边界内的代码；
-2. 接口契约有测试；
-3. 模块指标有 gate；
-4. 独立测试通过；
-5. 至少一个集成测试通过；
-6. 文档/STATUS/TODO 更新；
-7. 没有 legacy import；
-8. 生成一句话 commit。
-```
-
-不满足 → 不允许进入下一个 phase。
-
----
-
-## 7. 当前模块状态
-
-| 模块 | 状态 | 主要缺口 |
-|---|---|---|
-| M1 | 原型 | Workflow 有；Kernel 非完整 ReAct；pause 仅 Node 边界 |
-| M2 | 原型 | OpenAlex/PDF 有；全文率 5%；无 arXiv 多源 |
-| M3 | 原型 | claim 抽取不过滤作者；purity 恒 1 |
-| M4 | 原型 | 确定性 writer；方向塌缩；计数不一致 |
-| M5 | 原型 | 无 gold；无 LLM judge；评分简陋 |
-| M6 | 原型 | API/Chat 可用；无生产 UI；旧前端已移出 |
-
-TODO 见 `docs/TODO.md`。
+- 一次只迁一个平台模块；
+- 先工具化，再 agent 化；
+- 不删除旧代码，先加新入口；
+- 旧 M1–M6 phase 文档只读；
+- 新 phase 文档写在新模块目录；
+- 契约变更走 `docs/CONTRACTS.md`。

@@ -1,6 +1,6 @@
 # Conventions
 
-> 版本：1.0（2026-10-31）
+> 版本：2.0（2026-11-01）
 > 适用：模块、phase、commit、TODO、错误、日志、状态文档。
 > 所有新文档必须遵守；旧文档已移出仓库。
 
@@ -8,26 +8,43 @@
 
 ## 1. 模块 ID
 
-固定 6 个：
+平台模块：
 
 ```text
-M1 Engine
-M2 Source
-M3 Evidence
-M4 Report
-M5 Evaluation
-M6 Interface
+W Workflow
+K Kernel
+T Tools
+V Verification
+S Storage
+I Interface
 ```
 
-文件夹：
+领域工具包：
 
 ```text
-docs/modules/m1-engine/
-docs/modules/m2-source/
-docs/modules/m3-evidence/
-docs/modules/m4-report/
-docs/modules/m5-evaluation/
-docs/modules/m6-interface/
+R Research
+E Evaluation
+C Composition
+```
+
+目录（目标）：
+
+```text
+src/lit_agent_v2/workflow/
+src/lit_agent_v2/kernel/
+src/lit_agent_v2/tools/
+src/lit_agent_v2/verify/
+src/lit_agent_v2/storage/
+src/lit_agent_v2/interface/
+src/lit_agent_v2/domains/research/
+src/lit_agent_v2/domains/evaluation/
+```
+
+旧 M1–M6：
+
+```text
+历史 phase 记录，不再新增
+映射见 docs/modules/README.md
 ```
 
 ---
@@ -37,13 +54,13 @@ docs/modules/m6-interface/
 phase 文档直接放在模块文件夹：
 
 ```text
-docs/modules/m3-evidence/M3-P01-claim-types.md
+docs/modules/research/R-P01-report-node.md
 ```
 
 正则：
 
 ```regex
-^M[1-6]-P\d{2}-[a-z0-9-]+\.md$
+^(W|K|T|V|S|I|R|E|C)-P\d{2}-[a-z0-9-]+\.md$
 ```
 
 规则：
@@ -79,12 +96,12 @@ phase 文档必须包含：
 示例：
 
 ```text
-feat(M3-P01): add claim type validation and author-list rejection
-fix(M4-P02): enforce claim-count reconciliation before publish
-refactor(M1-P03): isolate checkpoint writer from workflow runner
-test(M5-P01): add direction f1 fixture gate
-docs(M2-P02): define openalex metadata contract
-chore(M6-P01): remove legacy route scaffold
+feat(R-P01): add report generate agent node
+feat(V-P01): add code and audit verdict
+refactor(W-P01): isolate node runner from workflow definition
+test(E-P01): add scorecard fixture
+docs(T-P02): define source tool schemas
+chore(I-P01): remove legacy route scaffold
 ```
 
 规则：

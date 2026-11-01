@@ -1,641 +1,723 @@
 # Architecture · lit-agent v2
 
-> 版本：1.0（2026-10-31）
-> 范围：仅描述当前仓库中的 `src/lit_agent_v2/`。
-> 旧 `lit_agent`、graph、report、chat、Vue 已移出仓库，不在本文范围。
-> 本文同时标注“目标设计”和“当前实现”，避免把规划当成已完成。
+> 版本：2.0（2026-11-01）
+> 状态：目标架构；当前代码仍在迁移中
+> 范围：`src/lit_agent_v2/`
+> 旧 M1–M6 文档是历史阶段记录，不再作为目标模块划分。
 
 ---
 
 ## 0. 一句话架构
 
 ```text
-RunShell（外层生命周期）
-  → Workflow（固定节点）
-  → Node（输入 artifact / 输出 artifact）
-  → Kernel（节点内 ReAct 工具循环）
-  → Domain Services（source/evidence/map/write/chat）
-  → SQLite + Artifact Store + Metrics + Events
-```
-
-**外层 Workflow 固定，不做运行时改图。**
-**内层 Kernel 是单节点的 ReAct/tool loop，不能改变 Workflow 拓扑。**
-
----
-
-## 1. 设计原则
-
-1. **固定 Workflow**
-   - 节点和边在代码中声明；
-   - 运行时不增加、删除、重排节点；
-   - Kernel 只能拆当前节点的任务。
-
-2. **Artifact 契约**
-   - Node 之间只传 JSON artifact；
-   - 不传完整对话、不传隐式全局 state；
-   - artifact 内容寻址，DB 存 sha。
-
-3. **Producer / Verifier 分离**
-   - 目标：Producer 生成，独立 Verifier 审核；
-   - 当前 v2 只有 CodeVerifier；AgentVerifier 尚未迁入。
-
-4. **可恢复**
-   - 每个 Node commit 后写 `run_nodes`；
-   - resume 跳过 committed Node；
-   - pause 在 Node 边界生效。
-
-5. **单一入口**
-   - API / CLI 只调用 `RunShell`；
-   - 不允许旁路直接改 DB 或直接调 domain service 生成正式报告。
-
-6. **无 legacy import**
-   - `lit_agent_v2` 不得 import `lit_agent`；
-   - 测试有 import guard。
-
----
-
-## 2. 系统分层
-
-```text
-┌──────────────────────────────────────────────┐
-│ API / CLI                                    │
-│  api/app.py, cli.py                          │
-└──────────────────────┬───────────────────────┘
-                       │
-┌──────────────────────▼───────────────────────┐
-│ RunShell                                     │
-│  prepare / run / pause / resume / abort      │
-└──────────────────────┬───────────────────────┘
-                       │
-┌──────────────────────▼───────────────────────┐
-│ WorkflowRunner                               │
-│  固定 Node 顺序执行                           │
-│  input artifact → handler → output artifact  │
-│  CodeVerifier → commit → checkpoint          │
-└──────────────────────┬───────────────────────┘
-                       │
-        ┌──────────────┴──────────────┐
-        │                             │
-┌───────▼────────┐          ┌─────────▼────────┐
-│ Agent Node      │          │ Deterministic    │
-│ Kernel + tools  │          │ handler          │
-└───────┬────────┘          └─────────┬────────┘
-        │                             │
-┌───────▼─────────────────────────────▼────────┐
-│ Domain Services                              │
-│ source / evidence / map / write / persist    │
-│ chat / claim extraction / openalex / pdf     │
-└──────────────────────┬───────────────────────┘
-                       │
-┌──────────────────────▼───────────────────────┐
-│ Storage / Observability                      │
-│ SQLite, ArtifactStore, EventLog, MetricStore │
-└──────────────────────────────────────────────┘
+Workflow = 一条 Node 链
+Node     = 目标 + 工具白名单 + 输入 artifact + 输出 schema + Verifier
+Kernel   = Node 内部的 LLM ReAct 执行器
+Tools    = 所有外部交互的唯一入口
+Verifier = 代码校验 + LLM 审计，共同决定是否 commit
 ```
 
 ---
 
-## 3. 外层 Workflow
+## 1. 先统一概念
 
-### 3.1 Report Workflow（当前）
-
-```text
-source → evidence → map → write → finalize
-```
-
-| Node | kind（当前） | 输入 | 输出 | 说明 |
-|---|---|---|---|---|
-| `source` | deterministic | RunRequest | SourceArtifact | 选论文 |
-| `evidence` | deterministic | SourceArtifact | EvidenceArtifact | 卡片/claim/quote |
-| `map` | deterministic | EvidenceArtifact | MapArtifact | 方向聚类 |
-| `write` | deterministic | Map + Evidence | ReportDraft | 章节组装 |
-| `finalize` | deterministic | ReportDraft | VerifiedReport | 落库 |
-
-**目标**：
+### 1.1 Workflow 和 Node 不是两层
 
 ```text
-source(agent) → evidence(agent) → map(agent) → write(agent) → finalize(deterministic)
+Workflow 不是 Node 外面的另一个对象
+Workflow 就是按顺序组织起来的 Node 链
 ```
-
-当前只有 Chat 真正使用 Kernel；Report 节点还是 deterministic handler。  
-这是架构缺口，不是“已经完成”。
-
-### 3.2 Chat Workflow（目标）
-
-```text
-answer → finalize
-```
-
-当前 `ChatService` 内部用 Kernel 做：
-
-```text
-search_topic → verify_claim → final
-```
-
-### 3.3 Node 契约
 
 ```python
-NodeSpec(
-    id: str,
-    kind: "agent" | "deterministic",
-    input_keys: tuple[str, ...],
-    output_key: str,
-    postconditions: tuple[str, ...],
-    budget_usd: float,
-    timeout_s: float,
-    verifier: str | None,
+WorkflowDefinition(
+    name="report",
+    nodes=[
+        NodeSpec(...),
+        NodeSpec(...),
+        NodeSpec(...),
+    ],
+)
+```
+
+所以：
+
+```text
+Workflow 负责：节点顺序、依赖、可选性、运行状态、commit/resume
+Node  负责：目标、工具、输入、输出、验收、预算
+```
+
+不再有“Workflow 契约”和“Node 契约”两套东西。
+
+### 1.2 每个 Node 都调用 Kernel
+
+```text
+WorkflowRunner
+  → NodeSpec
+  → Kernel.run(goal, tools, inputs, verifier)
+      → LLM 思考
+      → ToolCall
+      → Observation
+      → 继续 / Final
+  → Verifier
+  → commit artifact
+  → next Node
+```
+
+没有 `deterministic node` 作为独立类型。
+
+纯确定性操作，例如：
+
+```text
+PDF 解析
+quote 校验
+计数
+写 DB
+```
+
+不是“另一种 Node”，而是 **Tool**。
+
+Node 本身始终是：
+
+```text
+LLM 决定策略 + 调用工具
+```
+
+---
+
+## 2. 设计原则
+
+1. **Node 链可配置**
+   - 节点可启用/停用；
+   - 可选节点失败可以降级；
+   - 章节不是节点，章节是 Node 内的 Plan artifact。
+
+2. **Node 内部由 LLM 主导**
+   - 先做什么、调用哪个工具、是否继续、何时 final，由 Kernel/LLM 决定；
+   - 代码只提供工具、预算、schema 和不变量。
+
+3. **所有外部交互工具化**
+   - HTTP、PDF、文件、DB、LLM、报告落库、评分都通过 Tool；
+   - 业务代码不直接 import 领域 service 做副作用。
+
+4. **双 Verifier**
+   - 每个 Node 输出都经过代码校验 + LLM 审计；
+   - 代码 hard fail 不能被 LLM 覆盖；
+   - LLM audit fail 可以触发修复/重写。
+
+5. **Artifact 契约**
+   - Node 间只传 artifact；
+   - artifact 内容寻址；
+   - 不在 Node 间传隐式全局状态。
+
+6. **可恢复**
+   - Node commit 后写状态；
+   - Kernel step checkpoint；
+   - resume 跳过已提交节点；
+   - pause 在 Node/step 边界生效。
+
+7. **Feature-first**
+   - classification、comparison、scorecard 都是 feature；
+   - demo 可以关闭；
+   - 不因为高阶功能阻塞基础报告。
+
+---
+
+## 3. 平台分层
+
+```text
+Interface
+  API / CLI / UI
+      │
+Workflow
+  Node chain / runner / state / commit / resume
+      │
+Kernel
+  ReAct / context / plan / tool calls / budget / checkpoint
+      │
+Tools
+  source / evidence / report / storage / eval / audit
+      │
+Storage
+  artifacts / SQLite / event / metric / report
+```
+
+横向：
+
+```text
+Verification
+  code verifier + LLM audit verifier
+  作用于每个 Node 输出
+```
+
+模块：
+
+```text
+workflow/
+kernel/
+tools/
+verify/
+storage/
+interface/
+domains/        # 领域工具包，不是流程层
+composition/    # 唯一装配点
+```
+
+---
+
+## 4. Node 契约
+
+```python
+@dataclass(frozen=True)
+class NodeSpec:
+    id: str
+    goal: str
+    tools: tuple[str, ...]
+    inputs: tuple[str, ...]
+    output_schema: str
+    verifier: VerifierProfile
+    max_steps: int
+    max_usd: float
+    timeout_s: float
+    optional: bool = False
+    enabled: bool = True
+```
+
+### 4.1 goal
+
+`goal` 是提示词的一部分，不是代码流程：
+
+```text
+"收集至少 100 篇相关论文。
+至少 30 篇 fulltext；如果不足，明确标记 degraded。
+先去重，再检查元数据完整性。"
+```
+
+### 4.2 tools
+
+Node 只能看到 allowlist：
+
+```text
+source.collect:
+  source.search
+  source.fetch_pdf
+  source.fetch_html
+  source.store
+  corpus.stats
+  corpus.dedupe
+```
+
+LLM 不能调用未注册工具。
+
+### 4.3 inputs / output_schema
+
+```text
+inputs:
+  SourceArtifact / EvidenceArtifact / ReportRequirements / ...
+
+output_schema:
+  JSON Schema，commit 前必须通过验证
+```
+
+### 4.4 verifier
+
+```python
+VerifierProfile(
+    code=["schema", "quote", "citation", "count", "word_limit", "file_exists"],
+    audit="report_quality",
+)
+```
+
+### 4.5 optional / enabled
+
+```text
+enabled=False  → node.skipped
+optional=True  → 失败时允许降级继续
+```
+
+Node 链可以由 features 生成：
+
+```python
+build_workflow(features)
+  → source
+  → evidence
+  → map?            # classification
+  → report
+  → scorecard?      # evaluation
+  → finalize
+```
+
+---
+
+## 5. Kernel
+
+Kernel 只做单 Node 内部的事：
+
+```text
+接收 NodeContext
+  goal
+  tools
+  inputs
+  output schema
+  budget
+  checkpoint
+
+循环：
+  context
+  → LLM action
+  → tool call
+  → observation
+  → checkpoint
+  → stop / continue
+  → final
+```
+
+Kernel 不允许：
+
+```text
+改 Node 链
+访问未授权工具
+直接写 DB
+直接 import 领域模块
+```
+
+Kernel 负责：
+
+```text
+tool 参数校验
+no-progress
+budget
+timeout
+cancel
+step checkpoint
+usage / cost
+```
+
+---
+
+## 6. Tools
+
+Tool 是唯一副作用边界。
+
+```python
+@dataclass(frozen=True)
+class ToolSpec:
+    name: str
+    description: str
+    input_schema: dict
+    output_schema: dict
+    side_effect: bool
+    idempotent: bool
+    timeout_s: float
+    cost_usd: float
+    handler: Callable
+```
+
+工具命名空间：
+
+```text
+source.*       搜索、PDF、HTML、存储
+corpus.*       统计、去重、范围检查
+claims.*       抽取、过滤、quote 校验
+report.*       plan、write_section、check、assemble、persist
+eval.*         dataset、scorecard、judge
+audit.*        质量审计
+fs.*           文件
+http.*         HTTP
+llm.*          LLM 调用
+```
+
+规则：
+
+- 领域工具包只暴露 Tool，不暴露 service；
+- Node 的工具列表由 Workflow 决定；
+- 工具调用记录 input hash、output hash、耗时、错误；
+- 有副作用的工具必须幂等或可回滚；
+- 下载/HTTP 工具有 allowlist、大小限制、超时。
+
+---
+
+## 7. Verification
+
+每个 Node commit 前：
+
+```text
+candidate output
+  → CodeVerifier
+  → AuditVerifier
+  → Verdict
+```
+
+### 7.1 CodeVerifier
+
+```text
+schema
+paper_id / claim_id 存在
+quote 原文命中
+citation 覆盖
+count reconciliation
+字数硬上限
+文件真实存在
+budget / steps
+```
+
+这些检查也封装成工具，Kernel 可以主动调用自检。
+
+但最终 Verifier 会**独立重跑**，不信任 Kernel 自检结果。
+
+### 7.2 AuditVerifier
+
+```text
+相关性
+覆盖度
+可读性
+综合质量
+事实是否有引用支持
+```
+
+- 独立 LLM；
+- 不接收 producer 的推理链；
+- 结构化 JSON；
+- 只做质量判断，不替代 quote/count 硬校验。
+
+### 7.3 Verdict
+
+```python
+Verdict(
+    accept: bool,
+    code: CodeResult,
+    audit: AuditResult,
+    reasons: list[str],
 )
 ```
 
 规则：
 
-- `input_keys` 必须由前序 Node 产出；
-- `output_key` 唯一；
-- commit 前过 CodeVerifier；
-- commit 后写 `run_nodes(state=committed, artifact_sha=...)`；
-- resume 只跳过 committed Node。
+```text
+code pass + audit pass     → commit
+code pass + audit fail     → repair / rewrite
+code fail                  → reject，LLM 不能覆盖
+```
 
 ---
 
-## 4. 内层 Kernel（ReAct / tool loop）
-
-### 4.1 目标语义
-
-每个 Agent Node 内：
+## 8. Workflow 运行
 
 ```text
-Observe(artifact/context)
-  → Think/Act(choose tool)
-  → Tool result
-  → Observe
-  → ... (bounded)
-  → Final(outputs)
+RunShell.prepare
+  → WorkflowDefinition
+  → for node in nodes:
+      if disabled: node.skipped
+      context = inputs + feature flags
+      result = Kernel.run(node, context)
+      verdict = Verifier.verify(node, result)
+      if accept: commit artifact
+      elif optional: degraded + continue
+      else: retry / fail
+  → finalize
 ```
 
-Kernel 的 plan 只能拆当前 Node，不能改变外层 Workflow。
+状态：
 
-### 4.2 当前实现
-
-`kernel/loop.py`：
-
-```python
-Goal(node_id, objective, max_steps, max_usd)
-ToolBox.register(name, fn)
-Kernel.run(goal, toolbox, completer)
+```text
+pending
+running
+paused
+succeeded
+failed
+degraded
+aborted
 ```
 
-`completer(history)` 返回：
+Node 状态：
+
+```text
+pending
+running
+verifying
+committed
+failed
+skipped
+```
+
+---
+
+## 9. 领域工具包
+
+领域模块不再直接组成 Workflow。
+
+### 9.1 Research
+
+```text
+source.collect
+  tools: search, fetch_pdf, fetch_html, store, stats, dedupe
+  goal: 100 unique papers, >=30 fulltext or degraded
+
+evidence.extract
+  tools: claims.extract, quote.check, claims.filter, evidence.stats
+
+map.classify (optional)
+  tools: cluster, name_directions, validate_directions
+```
+
+### 9.2 Report
+
+```text
+report.generate
+  tools:
+    report.plan
+    report.write_section
+    report.check_section
+    report.assemble
+```
+
+### 9.3 Evaluation
+
+```text
+scorecard.build
+judge.score
+dataset.validate
+```
+
+Evaluation 是可选 Node，不阻塞报告生成。
+
+---
+
+## 10. Report Node：现在一个，后期拆
+
+### 现在
+
+```text
+Node: report.generate
+Input:
+  EvidenceArtifact
+  ReportRequirements
+  ReportFeatures
+Tools:
+  report.plan
+  report.write_section
+  report.check_section
+  report.assemble
+Output:
+  ReportDraft
+```
+
+Kernel：
+
+```text
+1. 调 report.plan
+2. 得到 ReportPlan
+3. 对每个 section 调 report.write_section
+4. 每节调 report.check_section
+5. 调 report.assemble
+```
+
+`ReportPlan` 是工具产物：
 
 ```json
-{"action": "tool", "tool": "search_topic", "args": {...}}
+{
+  "sections": [
+    {"kind": "overview"},
+    {"kind": "paper_analysis", "paper_ids": ["P1..P5"]},
+    {"kind": "synthesis"},
+    {"kind": "paper_index"}
+  ]
+}
+```
+
+章节不写死在 Python。
+
+### 后期
+
+```text
+report.plan        Node
+report.write       Node
+report.verify      Node
+report.persist     Node
 ```
 
 或：
 
-```json
-{"action": "final", "outputs": {...}}
-```
-
-当前 Loop：
-
-- 有工具调用；
-- 有 final；
-- 有 max_steps；
-- 有 cancel；
-- **没有** token 级 reasoning；
-- **没有** LLM planner；
-- **没有** tool budget/cost 累加；
-- **没有** checkpoint；
-- **没有** no-progress 检测。
-
-所以更准确叫：
-
-> **action loop / minimal ReAct-compatible loop**，不是完整 ReAct agent。
-
-### 4.3 目标 Kernel
-
 ```text
-Kernel
-  context: L0 invariants / L1 artifacts / L2 working / L3 raw refs
-  tools: schema + timeout + cost
-  loop: think → act → observe → compact
-  checkpoint per step
-  budget/cancel/stagnation
-  event: token.delta / tool.called / tool.result
+foreach section
+  → section.writer Node
 ```
 
-Report 每个方向、Chat 每次回答都应跑一个 Kernel。
+工具契约不变。
 
 ---
 
-## 5. Report 端到端链路
+## 11. Demo 配置
 
-### 5.1 当前链路
+```python
+ReportFeatures(
+    classification=False,
+    direction_sections=False,
+    per_paper_sections=True,
+    synthesis=True,
+    scorecard=False,
+    require_fulltext=False,
+)
+```
+
+Demo Workflow：
 
 ```text
-RunShell.prepare
-  → WorkflowRunner
-  → source: LocalCorpus/OpenAlex → SourceArtifact
-  → evidence: PaperCard/claim/quote → EvidenceArtifact
-  → map: token-vector + average-link → MapArtifact
-  → write: 模板章节 → ReportDraft
-  → finalize: reports/sections/claims/citations
-  → metrics
+source.collect
+  → evidence.extract
+  → report.generate
+  → finalize
 ```
-
-### 5.2 数据契约
-
-#### SourceArtifact
-
-```json
-{
-  "topic_id": "...",
-  "query": "...",
-  "papers": [{"paper_id": "...", "title": "...", "abstract": "...", "url": "..."}],
-  "readiness": {"requested": 100, "retrieved": 135, "relevant": 100},
-  "provenance": {"strategy": "openalex", "retrieved_at": "..."}
-}
-```
-
-#### EvidenceArtifact
-
-```json
-{
-  "papers": [{
-    "paper_id": "...",
-    "title": "...",
-    "abstract": "...",
-    "level": "L1|L2",
-    "fulltext_available": true,
-    "quote_windows": [{"text": "...", "section": "...", "page": 1}],
-    "claims": [{"claim_id": "...", "text": "...", "quote": "..."}]
-  }],
-  "coverage": {"papers": 100, "with_claims": 84, "fulltext": 5},
-  "stats": {"quote_checks": 185, "quote_ok": 185, "claims": 185}
-}
-```
-
-#### MapArtifact
-
-```json
-{
-  "directions": [{
-    "direction_id": "D1",
-    "name": "...",
-    "paper_ids": ["..."],
-    "claim_ids": ["..."],
-    "coherence": 0.17,
-    "outliers": []
-  }],
-  "papers": 100,
-  "min_size": 6,
-  "outlier_rate": 0.0,
-  "count_quality": "deficit"
-}
-```
-
-#### ReportDraft
-
-```json
-{
-  "title": "...",
-  "content_md": "...",
-  "content_sha": "...",
-  "sections": [{"section_id": "D1", "kind": "deep_dive", "title": "...", "body": "...", "claim_indexes": [1,2]}],
-  "word_count": 2519,
-  "claims": [],
-  "state": "complete|degraded"
-}
-```
-
-### 5.3 当前生成的报告结构
-
-```text
-At a Glance
-D1..Dn Deep Dive
-Comparison Matrix
-Gaps & Limitations
-Method & Scope
-Paper Index
-Claim Ledger
-```
-
-问题（见 `TODO.md`）：
-
-- claim 计数不一致；
-- paper index 只有 ID；
-- 方向名泄漏作者；
-- 作者列表被当 claim；
-- ledger 刷覆盖率；
-- 86 篇只写 6 条。
-
-### 5.4 目标链路
-
-```text
-ReportPlan（只定结构）
-  → per-direction EvidencePack
-  → LLM 写 direction section
-  → code gate + verifier + section score
-  → append
-  → global overview / comparison / gaps
-  → full-report consistency check
-```
-
----
-
-## 6. Chat 链路
-
-```text
-ChatService.answer
-  → LocalCorpus
-  → token match → ranked papers
-  → Kernel:
-       search_topic
-       verify_claim
-       final
-  → citations
-  → ChatStore.append(session)
-```
-
-当前：
-
-- 确定性检索；
-- 无 LLM 生成；
-- 可选 `composer` 注入；
-- 有 session 持久化。
 
 目标：
 
-- 每轮走 Kernel；
-- LLM grounded composer；
-- token 流；
-- 引用必须来自 snippets。
-
----
-
-## 7. RunShell 生命周期
-
-### 7.1 状态
-
 ```text
-pending → running → succeeded
-                  → failed
-                  → paused → running
-                  → aborted
+100 篇论文
+>=30 篇 fulltext 或 abstract-only
+每篇有 claim
+overview + paper analysis blocks + synthesis + index
+每个事实句有引用
+API/UI 可读
 ```
 
-### 7.2 prepare
+不要求：
 
-- 生成 run_id；
-- 写 `runs`；
-- 保存 `request_json`。
-
-### 7.3 run
-
-- 写 `state=running`；
-- 创建 `EventLog`；
-- `WorkflowRunner`；
-- 成功写 `succeeded`；
-- 异常写 `failed`；
-- `RunInterrupted` 写 `paused`。
-
-### 7.4 pause/resume
-
-- pause：把 run 置 `paused`；
-- WorkflowRunner 在 Node 边界检查 state；
-- resume：置 `running`，重新执行，跳过 committed Node；
-- Report 的 resume 依赖 artifact 反序列化。
-
-限制：
-
-- 长 Node 内部不能 pause；
-- 需要 Node 内 step checkpoint 才能细粒度暂停。
+```text
+5–8 directions
+direction F1
+scorecard
+gold
+```
 
 ---
 
-## 8. 存储
-
-### 8.1 SQLite
+## 12. 存储与事件
 
 ```text
 runs
 run_nodes
 run_artifacts
 run_events
-reports
-report_sections
-claims
-citations
 metric_points
-run_spans
-experiments
-chat_sessions
-chat_messages
+reports / report_sections / claims / citations
 ```
 
-### 8.2 Artifact Store
-
-- 内容寻址：`sha256(payload).json`；
-- DB `run_artifacts` 存 sha；
-- resume 通过 sha 读 payload；
-- 避免 DB 存大 JSON 重复。
-
-### 8.3 一致性
-
-- Node commit：artifact 先写，DB 后写；
-- 报告：claims/sections/report 同事务；
-- `report_id = run_id:content_sha`。
-
----
-
-## 9. 事件 / API / SSE
-
-### 9.1 事件
+Artifact：
 
 ```text
-run.started
+sha256(payload)
+metadata: schema, node_id, run_id, created_at
+```
+
+事件：
+
+```text
 node.started
-node.finished
+tool.called
+tool.result
+node.verifying
+node.committed
 node.failed
-section.delta
-run.paused
+node.skipped
 run.finished
-run.failed
 ```
 
-当前 `EventLog`：
+---
 
-- 写 `run_events`；
-- seq 从 DB `MAX(seq)+1` 生成；
-- 不是单写者，高并发需改进。
-
-### 9.2 API v2
+## 13. 模块依赖规则
 
 ```text
-POST /api/v2/runs
-GET  /api/v2/runs/{id}
-GET  /api/v2/runs/{id}/report
-GET  /api/v2/runs/{id}/events       SSE
-POST /api/v2/runs/{id}/pause
-POST /api/v2/runs/{id}/resume
-POST /api/v2/runs/{id}/abort
-GET  /api/v2/reports/{id}
-POST /api/v2/chat
-GET  /api/v2/chat/sessions/{id}
-GET  /api/v2/chat/stream
-GET  /api/v2/health
+interface   → workflow
+workflow    → kernel, verify, storage contracts
+kernel      → tools contracts
+tools       → storage / external adapters
+verify      → code checks + audit tool
+domains     → tools contracts only
+composition → all concrete
 ```
-
-### 9.3 SSE
-
-- `id: seq`；
-- `event: type`；
-- `data: JSON`；
-- 支持 `Last-Event-ID` 重放；
-- 终态关闭。
-
----
-
-## 10. 指标
-
-`metrics/catalog.py`：
-
-- `search.coverage`
-- `search.duplicate_rate`
-- `fulltext.available_ratio`
-- `card.quote_verbatim_rate`
-- `claim.purity`
-- `claim.citation_coverage`
-- `cluster.count`
-- `cluster.min_size`
-- `cluster.outlier_rate`
-- `report.words`
-- `report.citation_coverage`
-- `report.uncited_facts`
-- `report.claim_coverage`
-- `direction.max_share`
-
-当前问题：
-
-- 部分指标是结构性计数，不是质量；
-- `claim.purity` 实际恒为 1；
-- `uncited_facts` 硬编码 0；
-- `claim_coverage` 被 ledger 刷高；
-- 字数被当成质量。
-
-目标：模块分 + 方向分 + 硬门禁 + confidence，字数只做 gate。
-
----
-
-## 11. 评估
-
-```text
-evaluation/dataset.py
-evaluation/evaluators.py
-evaluation/runner.py
-```
-
-当前：
-
-- dataset load + SHA 冻结；
-- direction F1；
-- report words/citation；
-- Tuner 写 experiments。
-
-未完成：
-
-- 100 篇 × 3 topic gold；
-- 人工 rubric；
-- LLM judge；
-- 真实调参闭环。
-
----
-
-## 12. 当前实现状态矩阵
-
-| 能力 | 状态 | 说明 |
-|---|---|---|
-| 固定 Workflow | ✅ | Report 5 节点 |
-| Report 节点 Kernel 化 | ❌ | 仍是 deterministic handler |
-| Chat Kernel | ✅ | minimal action loop |
-| 完整 ReAct | ❌ | 无 reason/step checkpoint |
-| Artifact 契约 | ✅ | JSON + sha |
-| Node resume | ✅ | committed skip |
-| Node 内 pause | ❌ | 仅边界 |
-| CodeVerifier | ✅ | postconditions |
-| AgentVerifier | ❌ | 未迁入 |
-| SSE | ✅ | section/event + replay |
-| LLM 写作 | ❌ | 未接 |
-| LLM 审计 | ✅ | 已跑，报告 reject |
-| 100 篇真实报告 | ⚠️ | 可跑，degraded |
-| 真实评估集 | ❌ | 只有 20 篇 silver |
-| 旧系统 | 已移出 | archive 外置 |
-
----
-
-## 13. 扩展规则
-
-新增一个 Node：
-
-1. 在 `contracts.py` 定义 NodeSpec；
-2. 定义 input/output artifact；
-3. 实现 domain service；
-4. 注册 handler；
-5. 增加 postconditions；
-6. 增加 metric gate；
-7. 增加测试；
-8. 更新本文件。
-
-新增一个 Tool：
-
-1. 在 ToolBox 注册；
-2. schema；
-3. timeout；
-4. error code；
-5. 事件；
-6. 测试。
 
 禁止：
 
-- Node 直接互相调用；
-- domain service 直接写 DB 绕过 persist；
-- Workflow 运行时改拓扑；
-- import 旧 `lit_agent`；
-- 用 ledger/index 刷 coverage。
-
----
-
-## 14. 目标架构（Phase 4）
-
 ```text
-ReportPlan
-  → direction job:
-       EvidencePack
-       → Kernel(LLM)
-       → SectionArtifact
-       → CodeGate + AgentVerifier + SectionScore
-       → append
-  → global assembly:
-       overview
-       comparison
-       gaps
-  → full consistency check
-  → publish
+workflow 直接 import domain service
+kernel 直接 import domain service
+domain 直接调用另一个 domain 的 service
+工具外部调用绕过 ToolRegistry
 ```
 
-核心变化：
+---
 
-- Report 节点真正 Kernel 化；
-- 每方向独立 LLM 写作；
-- 每 section 独立评分/重试；
-- 全报告计数一致；
-- 评分按模块/方向加权，字数只做 gate；
-- AgentVerifier 接入主链路。
+## 14. 当前实现状态
+
+当前代码仍接近旧架构：
+
+```text
+M1 Engine:
+  workflow + kernel + storage 混在一起
+M4 Report:
+  write 节点是 deterministic
+  report/write.py 固定章节
+  LLM writer 只在测试路径
+M5 Evaluation:
+  scorecard/judge 可独立运行，未接入 workflow
+M6 Interface:
+  API/UI 已可用，使用 deterministic writer
+```
+
+已经具备：
+
+```text
+Kernel ReAct
+ToolBox
+Step checkpoint
+LLM writer
+API/UI
+```
+
+尚未完成：
+
+```text
+Workflow 可选节点
+Node goal/tools/verifier 契约
+ToolRegistry 全量工具化
+Report Node 的 plan 工具
+双 Verifier
+模块重排
+```
 
 ---
 
-## 15. 相关文档
+## 15. 迁移顺序
 
-- `docs/TODO.md` — 当前 P0/P1 缺陷
-- `docs/implementation/RESULTS-P3.6-LIVE.md` — 100 篇真实联调与审计
-- `README.md` — 运行方式
+```text
+1. 抽 Workflow / Kernel / Tools / Verify 模块
+2. NodeSpec 增加 goal/tools/verifier/optional
+3. ToolRegistry 包装现有 service
+4. report.generate 改为 agent node
+5. report.plan 产出 sections
+6. 双 Verifier 接入
+7. demo profile 跑 100 篇
+8. 再拆 report.plan / report.write / section nodes
+9. 启用 classification / scorecard
+```
+
+---
+
+## 16. 非目标
+
+- 不把每个 section 都做成 Workflow Node；
+- 不让 LLM 直接访问 DB/文件/HTTP；
+- 不让 LLM retry 覆盖代码 hard fail；
+- 不用 AI-only gold 声称 human gold；
+- 不为 demo 引入生产级前端。
+
+---
+
+## 17. 相关文档
+
+- `docs/CONTRACTS.md`：Node / Tool / Verifier 契约
+- `docs/modules/README.md`：新平台模块与旧 M1–M6 映射
+- `docs/STATUS.md`：当前实现与迁移状态
+- `docs/DECISIONS.md`：架构决定
+- `docs/modules/research/REPORT-POLICY.md`：报告 sizing / demo 质量策略
+- `docs/implementation/PHASE4.1-node-platform-migration.md`：迁移方案
+- `docs/implementation/PHASE4-report-end-to-end.md`：历史 Phase 4 计划

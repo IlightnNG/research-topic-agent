@@ -3,6 +3,8 @@
 > 版本：1.0（2026-10-31）
 > 目标：统一事件、日志、指标三类可观测数据，避免重复和泄漏。
 
+> 架构 2.0 备注：文中旧 M1–M6 为历史模块 ID；新平台模块为 W/K/T/V/S/I，领域工具包为 R/E。
+
 ---
 
 ## 1. 三类数据
@@ -177,4 +179,32 @@ report artifacts 永久（sha）
 5. 错误有 error_code；
 6. 指标/事件/日志不重复；
 7. 能从 report 反查 node。
+```
+
+
+---
+
+## 架构 2.0 事件
+
+```text
+node.started
+node.skipped
+tool.called
+tool.result
+node.verifying
+node.committed
+node.failed
+section.delta
+run.finished
+```
+
+字段：
+
+```json
+{
+  "node_id": "report.generate",
+  "tool": "report.write_section",
+  "verifier": "code|audit",
+  "attempt": 1
+}
 ```

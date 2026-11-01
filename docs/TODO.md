@@ -6,6 +6,24 @@
 
 ---
 
+## 0. 架构 2.0 迁移
+
+| ID | Module | Priority | Status | Title |
+|---|---|---|---|---|
+| TODO-101 | W | P0 | open | NodeSpec 增加 goal/tools/verifier/optional |
+| TODO-102 | T | P0 | open | ToolRegistry 包装所有外部交互 |
+| TODO-103 | K | P0 | open | Kernel 接收 NodeContext/tool allowlist |
+| TODO-104 | R | P0 | open | report.generate 改为 agent node |
+| TODO-105 | R | P0 | open | report.plan 工具产出可选 sections |
+| TODO-106 | V | P0 | open | code + audit 双 Verifier |
+| TODO-107 | W | P1 | open | Workflow optional/skip 节点 |
+| TODO-108 | R | P1 | open | demo profile 100 篇报告 |
+| TODO-109 | E | P2 | open | scorecard 作为可选 Node |
+
+旧 M1–M6 TODO 保留为历史记录。
+
+---
+
 ## 1. 索引
 
 | ID | Module | Phase | Priority | Status | Title |
@@ -18,10 +36,10 @@
 | TODO-006 | M4 | M4-P01 | P0 | done | 动态方向质量 / min size / max share |
 | TODO-007 | M4 | M4-P02 | P1 | done | 分方向 LLM writer |
 | TODO-008 | M5 | M5-P01 | P1 | done | 模块分 + 方向分评分卡 |
-| TODO-009 | M5 | M5-P02 | P1 | open | 100 篇 gold + LLM judge |
+| TODO-009 | M5 | M5-P02 | P1 | open | 100 篇 gold（schema/calibration 已完成） |
 | TODO-010 | M2 | M2-P01 | P1 | open | 全文率 ≥30%（10 篇 3/10，100 篇待复跑） |
 | TODO-011 | M1 | M1-P01 | P1 | done | Kernel ReAct + step checkpoint |
-| TODO-012 | M6 | M6-P01 | P2 | open | 生产 UI / 错误格式 |
+| TODO-012 | M6 | M6-P01 | P2 | done | 生产 UI / 错误格式 |
 | TODO-013 | M1 | M1-P02 | P1 | open | 事件单写者与 module/severity |
 | TODO-014 | M5 | M5-P03 | P2 | open | 自动调参闭环 |
 | TODO-015 | M4 | M4-P02 | P1 | done | 分方向实时 section 流 |
@@ -45,7 +63,7 @@
   - 截断句拒绝；
   - 每条 claim 有 type；
   - fixture 覆盖 6 类负样本。
-- Links：`docs/modules/m3-evidence/README.md`
+- Links：`docs/modules/research/README.md`
 
 ### TODO-002 · Claim purity 真计算
 
@@ -58,7 +76,7 @@
   - purity 可复算；
   - 负样本 purity < 1；
   - 指标落库。
-- Links：`docs/modules/m3-evidence/README.md`
+- Links：`docs/modules/research/README.md`
 
 ### TODO-003 · 全报告 claim 计数一致
 
@@ -70,7 +88,7 @@
   - overview = sections = matrix = ledger；
   - 不一致 verifier reject；
   - 测试覆盖 mismatch。
-- Links：`docs/modules/m4-report/README.md`
+- Links：`docs/modules/research/README.md`
 
 ### TODO-004 · Paper Index metadata 完整
 
@@ -82,7 +100,7 @@
   - index 含 title/authors/venue/year/url；
   - metadata 缺失论文标记；
   - 测试覆盖。
-- Links：`docs/modules/m4-report/README.md`
+- Links：`docs/modules/research/README.md`
 
 ### TODO-005 · 正文真实 claim 覆盖
 
@@ -94,7 +112,7 @@
   - `report.claim_coverage` 只算正文实际引用；
   - 每方向正文覆盖 ≥0.8；
   - ledger/index 不计 coverage。
-- Links：`docs/modules/m4-report/README.md`
+- Links：`docs/modules/research/README.md`
 
 ### TODO-006 · 方向质量
 
@@ -108,7 +126,7 @@
   - max_share ≤0.6；
   - 禁止作者/venue 名；
   - 不达标 → degraded。
-- Links：`docs/modules/m4-report/README.md`
+- Links：`docs/modules/research/README.md`
 
 ### TODO-007 · 分方向 LLM writer
 
@@ -122,7 +140,7 @@
   - code gate + verifier；
   - 失败只重写该 section；
   - 与模板对比审计。
-- Links：`docs/modules/m4-report/README.md`
+- Links：`docs/modules/research/README.md`
 
 ### TODO-008 · 模块分 + 方向分评分卡
 
@@ -136,7 +154,7 @@
   - 硬门禁；
   - confidence；
   - 字数只做 gate。
-- Links：`docs/modules/m5-evaluation/README.md`
+- Links：`docs/modules/evaluation/README.md`
 
 ### TODO-009 · 100 篇 gold + LLM judge
 
@@ -149,7 +167,7 @@
   - double annotation；
   - judge 校准；
   - 数据集 hash 冻结。
-- Links：`docs/modules/m5-evaluation/README.md`
+- Links：`docs/modules/evaluation/README.md`
 
 ### TODO-010 · 全文率 ≥30%
 
@@ -162,7 +180,7 @@
   - fulltext ratio ≥0.3；
   - abstract-only 明示；
   - 失败降级记录。
-- Links：`docs/modules/m2-source/README.md`
+- Links：`docs/modules/research/README.md`
 
 ### TODO-011 · Kernel ReAct + step checkpoint
 
@@ -176,7 +194,7 @@
   - no-progress；
   - cost；
   - token/step 事件。
-- Links：`docs/modules/m1-engine/README.md`
+- Links：`docs/modules/workflow/README.md`
 
 ### TODO-012 · 生产 UI / 错误格式
 
@@ -189,7 +207,7 @@
   - 错误响应；
   - SSE replay；
   - e2e。
-- Links：`docs/modules/m6-interface/README.md`
+- Links：`docs/modules/interface/README.md`
 
 ### TODO-013 · 事件单写者
 
@@ -215,7 +233,7 @@
   - experiments；
   - 硬指标回退拒绝；
   - 可复跑。
-- Links：`docs/modules/m5-evaluation/README.md`
+- Links：`docs/modules/evaluation/README.md`
 
 ### TODO-015 · 分方向实时 section 流
 
@@ -227,7 +245,7 @@
   - 每 section 生成即 emit；
   - SSE 可见；
   - 失败 section 单独重试。
-- Links：`docs/modules/m4-report/README.md`
+- Links：`docs/modules/research/README.md`
 
 ---
 

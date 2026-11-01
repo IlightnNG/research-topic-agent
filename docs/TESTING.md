@@ -4,6 +4,8 @@
 > 范围：v2 only。旧 tests 已移出仓库。
 > 目标：每个模块 phase 都有可执行验收，不靠“看起来跑通”。
 
+> 架构 2.0 备注：文中旧 M1–M6 为历史模块 ID；新平台模块为 W/K/T/V/S/I，领域工具包为 R/E。
+
 ---
 
 ## 1. 测试层级
@@ -149,3 +151,28 @@ ruff         clean
 - LLM audit：reject。
 
 详见 `docs/implementation/RESULTS-P3.6-LIVE.md`。
+
+
+---
+
+## 架构 2.0 测试层级
+
+```text
+W  Workflow：Node 链、optional、skip、resume
+K  Kernel：goal/tools、budget、checkpoint
+T  Tools：schema、idempotency、timeout
+V  Verify：code fail、audit fail、combined verdict
+R  Research：source/evidence/report tools
+E  Evaluation：scorecard/judge
+I  Interface：API/UI
+```
+
+Demo gate：
+
+```text
+100 papers
+>=30 fulltext 或 abstract-only
+overview + paper_analysis + synthesis + index
+citation coverage = 1
+code verifier pass
+```

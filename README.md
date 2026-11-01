@@ -21,22 +21,29 @@ What works:
 
 What is not done:
 
-- LLM section writing;
-- 5–8 high-quality directions on real 100-paper corpora;
-- ≥30% full-text coverage;
-- report count/claim consistency;
-- LLM judge + human gold evaluation;
+- Node/Tool/Verifier platform migration;
+- report.generate as agent node;
+- demo profile with classification disabled;
+- ≥30% full-text coverage on the live corpus;
+- usable gold evaluation;
 - production UI.
 
-See [`docs/TODO.md`](docs/TODO.md) for the audit findings, [`docs/modules/README.md`](docs/modules/README.md) for module boundaries, and [`docs/implementation/PHASE4-report-end-to-end.md`](docs/implementation/PHASE4-report-end-to-end.md) for Phase 4.
+Start with:
+
+- [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) — target architecture 2.0;
+- [`docs/CONTRACTS.md`](docs/CONTRACTS.md) — Node/Tool/Verifier contracts;
+- [`docs/modules/README.md`](docs/modules/README.md) — platform modules and legacy M1–M6 mapping;
+- [`docs/STATUS.md`](docs/STATUS.md) — current migration state.
 
 ## Layout
 
 ```text
 src/lit_agent_v2/
   api/            FastAPI v2
-  kernel/         minimal agent kernel
-  workflow/       runner, events, verifier
+  kernel/         ReAct kernel, tools, checkpoint
+  workflow/       node chain, runner, state
+  tools/          target ToolRegistry
+  verify/         target code + audit verifier
   domains/
     report/       source, evidence, map, write, persist
     chat/         answer, sessions, stream

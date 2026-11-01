@@ -9,7 +9,7 @@
 ## D-001 · 六模块固定
 
 - 日期：2026-10-31
-- 状态：accepted
+- 状态：superseded by D-015
 - 决定：系统固定为 M1 Engine / M2 Source / M3 Evidence / M4 Report / M5 Evaluation / M6 Interface。
 - 原因：跨模块 phase 导致反复返工；模块化后独立优化。
 - 约束：一个 phase 只改一个模块。
@@ -17,7 +17,7 @@
 ## D-002 · 外层 Workflow 固定
 
 - 日期：2026-10-31
-- 状态：accepted
+- 状态：superseded by D-015
 - 决定：Workflow 由代码声明，运行时不增删节点。
 - 原因：保证可恢复、可测试、可审计。
 - 约束：Kernel 只能拆当前节点任务。
@@ -137,5 +137,45 @@
 - 状态：accepted
 - 决定：方向数、方向最小规模、max share、报告字数全部由 `policy_for(n, c)` 推导。
 - 原因：固定 5–8 方向 / 1500–3000 words 会让 20 篇和 200 篇使用同一把尺子。
-- 约束：`docs/modules/m4-report/REPORT-POLICY.md`；M4 state gate 使用 policy。
+- 约束：`docs/modules/research/REPORT-POLICY.md`；M4 state gate 使用 policy。
 - 取代：D-004 中固定 1500–3000 的部分。
+
+
+## D-015 · Workflow 就是 Node 链
+
+- 日期：2026-11-01
+- 状态：accepted
+- 决定：Workflow 不是 Node 外的另一层；Workflow = 有序 Node 链。
+- 取代：D-001、D-002 中“固定 6 模块 / 固定节点结构”的表述。
+- 约束：Node 契约同时承担阶段契约；不再维护两套。
+
+## D-016 · Agent-first Node
+
+- 日期：2026-11-01
+- 状态：accepted
+- 决定：每个 Node 都通过 Kernel 执行 goal/tools/input/output/verifier。
+- 纯确定性操作（PDF、DB、校验）作为 Tool，不单独做 deterministic Node 类型。
+- 约束：Workflow 不 import domain service；Node 不写死领域流程。
+
+## D-017 · Tools 是唯一外部交互边界
+
+- 日期：2026-11-01
+- 状态：accepted
+- 决定：HTTP、文件、DB、LLM、PDF、报告落库、评分全部工具化。
+- 约束：Kernel 只能用 Node allowlist；Domain 只通过 Tool 暴露能力。
+
+## D-018 · 双 Verifier
+
+- 日期：2026-11-01
+- 状态：accepted
+- 决定：每个 Node commit 前同时运行 CodeVerifier 和 LLM AuditVerifier。
+- 约束：code hard fail 不能被 LLM 覆盖；LLM audit fail 可 repair。
+- 原因：代码保证事实/计数，LLM 保证质量/可读性。
+
+## D-019 · Report 先一个 Node
+
+- 日期：2026-11-01
+- 状态：accepted
+- 决定：当前只做一个 `report.generate` Node；章节由 `report.plan` 工具产物决定。
+- 后续：可拆 `report.plan` / `report.write` / `section.writer`。
+- 约束：章节不是 Workflow Node；section 缺失合法，由 requirements 校验必需项。
