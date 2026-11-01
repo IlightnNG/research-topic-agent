@@ -12,8 +12,8 @@ from pydantic import BaseModel, Field
 
 from lit_agent_v2.composition import build_chat_service
 from lit_agent_v2.domains.chat.store import ChatStore
-from lit_agent_v2.domains.report.persist import ReportStore
 from lit_agent_v2.storage.db import Database
+from lit_agent_v2.storage.report_store import ReportStore
 
 from .runs import PlatformRunService
 from .topics import TopicStore
@@ -241,6 +241,8 @@ def build_platform_router(
             "conversation_id": conversation_id,
             "role": "assistant",
             "content": reply.text,
+            "citations": reply.citations,
+            "answered": reply.answered,
             "created_at": _now(),
             "state": "done",
         }

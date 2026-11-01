@@ -15,11 +15,11 @@ from typing import Any
 
 from lit_agent_v2.contracts.node import WorkflowDefinition
 from lit_agent_v2.contracts.report import ReportDraft, Section
-from lit_agent_v2.domains.report.persist import ReportStore
 from lit_agent_v2.kernel.llm import DeepSeekChatClient, load_llm_config
 from lit_agent_v2.kernel.node.loop import Kernel
 from lit_agent_v2.kernel.node.ports import CheckpointPort, EventPort
 from lit_agent_v2.storage.db import Database
+from lit_agent_v2.storage.report_store import ReportStore
 from lit_agent_v2.tools.packs.claims import build_claim_tools
 from lit_agent_v2.tools.packs.corpus import build_corpus_tools
 from lit_agent_v2.tools.packs.demo import build_demo_tools

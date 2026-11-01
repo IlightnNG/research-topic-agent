@@ -4,7 +4,7 @@
 > 类型：详细迁移方案
 > 范围：平台层 + Research 工具包 + Report Node
 > 目标：删除旧 M1–M6 流程骨架，按 Node/Tool/Verifier 重写
-> 状态：execution；4.1.0–4.1.8 done；下一 4.1.9
+> 状态：complete；4.1.0–4.1.9 done
 > 依据：`docs/ARCHITECTURE.md` 2.0、`docs/CONTRACTS.md` 2.0 DRAFT
 
 ---
@@ -1107,6 +1107,8 @@ feat(R-P02): add 100-paper demo profile
 
 ## 15. Step 4.1.9 · Delete old code
 
+> Result: [`RESULTS-P4.1.9.md`](RESULTS-P4.1.9.md)
+
 ### 删除
 
 ```text
@@ -1177,18 +1179,18 @@ refactor(W-P03): delete legacy report workflow
 | `domains/report/plan.py` | 重写 | `tools/packs/report_plan.py` |
 | `domains/report/llm_writer.py` | 重写 | `tools/packs/report.py` |
 | `domains/report/map.py` | 重写 | `tools/packs/map.py` |
-| `domains/report/persist.py` | 重写 | `storage/report_repository.py` |
-| `domains/report/source.py` | 重写 | `tools/packs/source.py` |
-| `domains/report/openalex.py` | 迁移 | `tools/adapters/openalex.py` |
-| `domains/report/pdf.py` | 迁移 | `tools/adapters/pdf.py` |
-| `domains/report/ingest.py` | 重写 | `tools/packs/corpus.py` |
-| `domains/report/evidence.py` | 重写 | `tools/packs/evidence.py` |
-| `domains/report/claim_extractor.py` | 重写 | `tools/packs/claims.py` |
-| `domains/report/audit.py` | 迁移 | `verify/code.py` + `audit.py` |
+| `domains/report/persist.py` | 迁移 | `storage/report_store.py` |
+| `domains/report/source.py` | 删除 | `tools/packs/source.py` 已有新实现 |
+| `domains/report/openalex.py` | 迁移 | `research/openalex.py` |
+| `domains/report/pdf.py` | 迁移 | `research/pdf.py` |
+| `domains/report/ingest.py` | 迁移 | `research/corpus.py` |
+| `domains/report/evidence.py` | 删除 | old pipeline only |
+| `domains/report/claim_extractor.py` | 迁移 | `research/claims.py` |
+| `domains/report/audit.py` | 删除 | old pipeline only |
 | `metrics/*` | 迁移 | `domains/evaluation/metrics/` |
 | `evaluation/*` | 迁移 | `domains/evaluation/` |
 | `composition.py` | 重写 | `composition.py` |
-| `api/app.py` | 重写 | `interface/api.py` |
+| `api/app.py` | 重写 | platform-only `api/app.py` |
 | `cli.py` | 重写 | `interface/cli.py` |
 
 ---
@@ -1218,8 +1220,8 @@ refactor(W-P03): delete legacy report workflow
 | Tool 副作用失败 | idempotent/回滚/错误码 |
 | ReportPlan 乱生成 | 允许 kind + max sections + requirements |
 | Audit 覆盖代码 | code hard fail 优先 |
-| Chat 仍依赖旧 kernel | Phase 4.1 不迁移 Chat；保留 adapter，Phase 5 清理 |
-| 双轨运行 | 只允许迁移期；4.1.9 删除旧文件 |
+| Chat 已移除旧 kernel | 简化为本地检索回答，Phase 5 做 LLM/streaming |
+| 双轨运行 | 4.1.9 已删除旧文件；新基线 84 passed |
 
 ---
 

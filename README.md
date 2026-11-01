@@ -76,14 +76,14 @@ npm run dev
 ```
 
 Current scope: F1–F6 (Topics, Report shell, Run list, New Run modal, per-run tabs, Run delete, trajectory + pause/resume, report + paper tabs, Chat, Inspector).
-All frontend data currently uses the mock adapter.
+Set `VITE_USE_MOCK=false` to use the real platform API; mock remains the default for UI-only work.
 
 See [`web/README.md`](web/README.md), [`docs/design/FRONTEND.md`](docs/design/FRONTEND.md), and the [local dev runbook](docs/design/DEV-RUNBOOK.md).
 
 ## Report from local corpus
 
 ```powershell
-uv run python -c "from lit_agent_v2.cli import main; main()" run --topic llm-agents --limit 100 --corpus D:\lit-agent-store\v2-live\corpus
+uv run python -c "from lit_agent_v2.interface.cli import main; main()" demo100 --corpus D:\lit-agent-store\v2-eval\gold\corpora\agents
 ```
 
 ## Data

@@ -5,7 +5,7 @@ from __future__ import annotations
 from typing import Any
 
 from lit_agent_v2.contracts.tool import ToolSpec
-from lit_agent_v2.domains.report.claim_extractor import extract_deterministic
+from lit_agent_v2.research.claims import extract_deterministic
 
 __all__ = ["build_claim_tools", "check_quote", "extract_claims"]
 

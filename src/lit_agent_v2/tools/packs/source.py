@@ -5,8 +5,8 @@ from __future__ import annotations
 from typing import Any
 
 from lit_agent_v2.contracts.tool import ToolSpec
-from lit_agent_v2.domains.report.openalex import OpenAlexAdapter
-from lit_agent_v2.domains.report.pdf import download_html_text, download_pdf_text
+from lit_agent_v2.research.openalex import OpenAlexAdapter
+from lit_agent_v2.research.pdf import download_html_text, download_pdf_text
 
 __all__ = ["build_source_tools", "fetch_html", "fetch_pdf", "search_openalex"]
 

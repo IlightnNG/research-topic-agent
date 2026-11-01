@@ -9,10 +9,11 @@
 ## 当前状态
 
 ```text
-阶段：Phase 4.1.0–4.1.8 done；下一 4.1.9 清理旧代码
+阶段：Phase 4.1 complete（4.1.0–4.1.9）；下一 Phase 4.2
 前端：Vue F1–F6 done；real API mode 已联调
-最后测试：136 passed / ruff clean
+最后测试：84 passed / ruff clean
 前端构建：web npm run build passed
+全链路 demo：100 papers / 174 claims / 13 sections / degraded
 联调：topics → run → trace → report → paper；chat 基础链路
 当前契约：代码仍为 1.2；目标契约 CONTRACTS 2.0 DRAFT
 真实联调：100 篇本地 corpus，fulltext 0/100，174 claims，13 sections，report degraded
@@ -23,16 +24,22 @@
 ## 当前代码实际结构
 
 ```text
-M1 Engine:
-  workflow + kernel + storage 混在一起
-M4 Report:
-  write 节点 deterministic
-  write.py 固定章节
-  LLM writer 仅在测试/直接调用路径
-M5 Evaluation:
-  scorecard/judge 可独立运行，未接入 workflow
-M6 Interface:
-  API/UI 可用，仍走 deterministic writer
+Platform:
+  interface/  topics / runs / router / cli
+  workflow/node/  NodeRunner + definitions
+  kernel/node/    ReAct loop
+  tools/packs/    source / corpus / claims / report / demo
+  verify/         code + audit
+  research/       corpus / claims / pdf / openalex
+  storage/        db + report_store
+  domains/chat/   local retrieval chat
+  evaluation/     standalone evaluation tools
+
+Legacy:
+  domains/report/ removed
+  contracts/ports.py removed
+  run_shell.py removed
+  old kernel/workflow removed
 ```
 
 ---
@@ -54,25 +61,23 @@ M6 Interface:
 
 ## 当前阻塞
 
-1. 旧 `ReportWorkflow` / `write.py` 仍在仓库，尚未删；
-2. 默认 API 是单 Node report demo；`LIT_V2_DEMO_CHAIN=full` 才走 4 Node 链；
+1. 默认 API 是单 Node report demo；`LIT_V2_DEMO_CHAIN=full` 才走 4 Node 链；
 3. 100 篇本地 corpus fulltext 0/100，report 明确 degraded；
 4. demo.report 目前是确定性 composer，不是 LLM 逐节写作；
 5. 前端默认仍用 mock adapter；real mode 已接 topics/trace/report/paper/chat；
 6. M5-P02 AI gold 不可用；
-7. 旧 M1–M6 模块代码还未清理。
+7. 真实 Chat 仍是本地检索，不是 LLM 对话。
 
 ---
 
 ## 下一步
 
 ```text
-1. 4.1.9 删除旧 ReportWorkflow / write.py / run_shell / 旧 kernel
-2. 清理旧 contracts/ports 与 domains/report 依赖
-3. 加 test_no_legacy_imports
-4. 决定 full-chain 是否成为默认 API
-5. demo.report 升级为 LLM 逐节写作（可选）
-6. 章节拆分 / classification / scorecard
+1. Phase 4.2 决定 full-chain 是否成为默认 API
+2. demo.report 升级为 LLM 逐节写作
+3. 章节拆分 / classification / scorecard
+4. Chat 接入真实 LLM 与 streaming
+5. 评估模块接入 platform workflow
 ```
 
 Demo 目标：
@@ -98,6 +103,7 @@ API/UI 可读
 2026-11-01  Phase 4.1.8：100 篇 4 Node 全链路跑通（174 claims / 13 sections / degraded）
 2026-11-01  Pause/Resume：线程去重 + Kernel checkpoint 恢复
 2026-11-01  Frontend：Trajectory UX / 菜单 / 文档索引收尾
+2026-11-01  Phase 4.1.9：删除旧 report workflow / 旧 kernel / 旧 API，contracts 2.0 frozen
 ```
 
 ---

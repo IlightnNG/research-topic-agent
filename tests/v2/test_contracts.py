@@ -72,3 +72,10 @@ def test_event_envelope_shape() -> None:
     payload = event.to_dict()
     assert payload["module"] == "M4"
     assert payload["schema_version"] == 1
+
+
+def test_contracts_frozen_at_2() -> None:
+    from lit_agent_v2.contracts.version import CONTRACT_VERSION, SCHEMA_VERSION
+
+    assert CONTRACT_VERSION == "2.0"
+    assert SCHEMA_VERSION == 2

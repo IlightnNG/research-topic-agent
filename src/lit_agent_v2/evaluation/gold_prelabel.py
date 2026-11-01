@@ -13,8 +13,8 @@ from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any, Protocol
 
-from lit_agent_v2.domains.report.claim_extractor import build_claim
 from lit_agent_v2.evaluation.gold_annotation import compile_annotations
+from lit_agent_v2.research.claims import build_claim
 
 __all__ = ["Annotator", "annotate_template"]
 

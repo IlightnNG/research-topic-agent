@@ -182,6 +182,17 @@ def test_platform_api_e2e(tmp_path: Path) -> None:
     assert paper.status_code == 200
     assert paper.json()["title"] == "A"
 
+    conversation = client.post("/api/v2/topics/topic-ai-agents/conversations")
+    assert conversation.status_code == 201
+    conversation_id = conversation.json()["id"]
+    reply = client.post(
+        f"/api/v2/conversations/{conversation_id}/messages",
+        json={"content": "Does tool use improve success?"},
+    )
+    assert reply.status_code == 200, reply.text
+    assert reply.json()["content"]
+    assert reply.json()["citations"]
+
     # Older projects recorded context.compacted without node_id; trace must
     # attribute it to the active node for display inside that node.
     with sqlite3.connect(tmp_path / "api.sqlite") as conn:

@@ -68,7 +68,7 @@ class IngestService:
             for paper in papers:
                 handle.write(json.dumps(paper.__dict__, ensure_ascii=False) + "\n")
         if fulltext_limit:
-            from lit_agent_v2.domains.report.pdf import download_html_text, download_pdf_text
+            from lit_agent_v2.research.pdf import download_html_text, download_pdf_text
 
             for paper in papers:
                 if len(list((self.root / "fulltext").glob("*.txt"))) >= fulltext_limit:
