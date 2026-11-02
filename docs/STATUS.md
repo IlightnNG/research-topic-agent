@@ -9,9 +9,9 @@
 ## 当前状态
 
 ```text
-阶段：Phase 4.1 complete；Phase 4.2 S0–S5 done；下一 S6 Kernel completeness（Workflow 暂缓）
+阶段：Phase 4.1 complete；Phase 4.2 S0–S8 done；S9 仅 deterministic benchmark；真实 LLM L3 未完成
 前端：Vue F1–F6 done；real API mode 已联调
-最后测试：99 passed / ruff clean
+最后测试：104 passed / ruff clean
 前端构建：web npm run build passed
 全链路 demo：100 papers / 35 fulltext / 186 claims / 13 sections / complete
 联调：topics → run → trace → report → paper；chat 基础链路
@@ -49,7 +49,7 @@ Legacy:
 | 模块 | 目标状态 | 当前代码 |
 |---|---|---|
 | W Workflow | 特制任务外壳 | 4 Node report demo 已跑通；但 Node 单工具 + DemoOrchestrator 写死 |
-| K Kernel | 通用 Agent 内核，可独立完成复杂任务 | S4 最小闭环 + A–E 脚本测试；未达 L3，需 S6 硬化与 benchmark |
+| K Kernel | 通用 Agent 内核，可独立完成复杂任务 | S6–S8 硬化完成；S9 30-case deterministic benchmark；真实 LLM L3 未完成 |
 | T Tools | ToolRuntime + general/domain toolset | S2/S3 done：general tools、toolset、policy、spill |
 | V Verification | code + audit | dual Verifier 已接入 runner |
 | S Storage | artifact/state/report | 已有 |

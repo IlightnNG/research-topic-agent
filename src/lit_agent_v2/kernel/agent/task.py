@@ -17,6 +17,10 @@ class KernelPolicy:
     max_tool_calls: int = 64
     max_repair: int = 2
     timeout_s: float = 600.0
+    max_retries: int = 2
+    max_parallel_tools: int = 4
+    soft_history_chars: int = 24000
+    hard_history_chars: int = 40000
 
 
 @dataclass(frozen=True)
@@ -39,3 +43,5 @@ class KernelResult:
     usage: dict[str, Any]
     cost_usd: float
     stop_reason: str
+    error_code: str | None = None
+    metrics: dict[str, Any] = field(default_factory=dict)

@@ -1,0 +1,68 @@
+"""Minimal Node entrypoint for the generic AgentKernel.
+
+This adapter is deliberately not a WorkflowRunner. It lets one Node call the
+generic kernel while the workflow layer is still frozen.
+"""
+
+from __future__ import annotations
+
+from collections.abc import Callable
+from pathlib import Path
+from typing import Any
+
+from lit_agent_v2.contracts.node import NodeContext, NodeResult, NodeSpec
+from lit_agent_v2.kernel.agent.checkpoint import FileCheckpointStore
+from lit_agent_v2.kernel.agent.loop import AgentKernel
+from lit_agent_v2.kernel.agent.task import KernelPolicy, KernelTask
+from lit_agent_v2.tools.general.state import GeneralState
+from lit_agent_v2.tools.runtime import ToolRuntime
+
+__all__ = ["KernelNodeAdapter"]
+
+
+class KernelNodeAdapter:
+    def __init__(
+        self,
+        llm: Any,
+        tools: ToolRuntime,
+        *,
+        workspace: str | Path,
+        events: Any = None,
+        checkpoints: FileCheckpointStore | None = None,
+        policy: KernelPolicy | None = None,
+        verifier: Callable[[dict[str, Any]], list[str]] | None = None,
+    ) -> None:
+        self.llm = llm
+        self.tools = tools
+        self.workspace = Path(workspace)
+        self.events = events
+        self.checkpoints = checkpoints
+        self.policy = policy or KernelPolicy()
+        self.verifier = verifier
+
+    def run(self, node: NodeSpec, context: NodeContext) -> NodeResult:
+        state = GeneralState(workspace=self.workspace)
+        task = KernelTask(
+            task_id=f"{context.run_id}:{node.id}",
+            goal=node.goal,
+            inputs=dict(context.inputs),
+            output_schema=node.output_schema if isinstance(node.output_schema, dict) else {},
+            toolset=node.toolset,
+            policy=self.policy,
+            verifier=self.verifier,
+        )
+        result = AgentKernel(
+            self.llm,
+            self.tools,
+            state,
+            events=self.events,
+            checkpoints=self.checkpoints,
+        ).run(task)
+        return NodeResult(
+            output=result.output,
+            trace=result.history,
+            usage=result.usage,
+            cost_usd=result.cost_usd,
+            stop_reason=result.stop_reason,
+            checkpoint=result.metrics,
+        )

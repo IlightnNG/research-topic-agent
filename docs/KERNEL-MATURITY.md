@@ -47,6 +47,11 @@ L3  Benchmarked
 ```text
 S4 = L0/L1 之间
 S5 = 控制流验收
+S6 = 并行/checkpoint/retry/compaction 基础完成
+S7 = NodeKernelAdapter 完成
+S8 = JSONL event + metrics + error code 基础完成
+S9 = 30-case deterministic benchmark 完成
+真实 LLM L3 = 未完成
 ```
 
 目标：

@@ -2,7 +2,7 @@
 
 > 版本：2.0（2026-11-02）
 > 类型：详细设计与迁移方案
-> 状态：in progress；S0–S5 done；下一 S6 Kernel completeness（Workflow 暂缓）
+> 状态：in progress；S0–S8 done；S9 deterministic benchmark done；真实 LLM L3 未完成
 > 优先级：通用 Kernel + 通用 Tools 优先；报告 Workflow 后置
 > 依据：DSH `core/tools`、`core/agent-loop`、`compaction` 与 Phase 4.1 实现
 
@@ -815,7 +815,7 @@ verify.audit
 
 **不通过不许写报告 Workflow。**
 
-### 4.2.6 Kernel completeness · next
+### 4.2.6 Kernel completeness · done
 
 目标：先把 Kernel 做到完善可用，再碰 Workflow。
 
@@ -827,7 +827,7 @@ verify.audit
 - streaming（可后置但接口先定）
 - 严格 output schema / failure classification
 
-### 4.2.7 NodeKernelAdapter
+### 4.2.7 NodeKernelAdapter · done
 
 只做一个 Node 入口，不改 Workflow：
 
@@ -844,7 +844,7 @@ NodeSpec -> KernelTask -> AgentKernel.run -> NodeResult
 不进入 report workflow 优化
 ```
 
-### 4.2.8 Observability
+### 4.2.8 Observability · done
 
 - kernel event taxonomy
 - metrics：success/steps/tokens/cost/latency/tool errors
@@ -852,7 +852,7 @@ NodeSpec -> KernelTask -> AgentKernel.run -> NodeResult
 - 日志脱敏
 - benchmark 结果落库
 
-### 4.2.9 Kernel benchmark + performance
+### 4.2.9 Kernel benchmark + performance · deterministic only
 
 必须完成真实 LLM 多任务基准：
 
@@ -878,6 +878,8 @@ context compaction observable
 ```text
 禁止修改 Workflow
 ```
+
+当前只完成 ScriptedLLM 的 30-case benchmark，真实 LLM benchmark 仍未完成。
 
 ### 4.2.10 Workflow core + report shell
 

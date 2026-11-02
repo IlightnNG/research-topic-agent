@@ -42,6 +42,7 @@ class NodeSpec:
     timeout_s: float = 600.0
     optional: bool = False
     enabled: bool = True
+    toolset: str = "general"
 
     def validate(self) -> list[str]:
         problems: list[str] = []

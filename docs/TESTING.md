@@ -139,7 +139,7 @@ live: 真实网络/模型/PDF
 ## 8. 当前
 
 ```text
-tests/v2     99 passed
+tests/v2     104 passed
 ruff         clean
 ```
 

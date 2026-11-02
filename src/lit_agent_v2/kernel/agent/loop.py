@@ -1,4 +1,4 @@
-"""A small, domain-agnostic AgentKernel loop.
+"""A domain-agnostic AgentKernel loop.
 
 The kernel knows KernelTask, ToolRuntime and GeneralState only. It has no
 report/paper/claim imports and can be exercised without a workflow.
@@ -12,6 +12,8 @@ from collections.abc import Callable
 from typing import Any
 
 from lit_agent_v2.contracts.tool import ToolContext
+from lit_agent_v2.kernel.agent.checkpoint import FileCheckpointStore, KernelCheckpoint
+from lit_agent_v2.kernel.agent.scheduler import schedule_tool_calls
 from lit_agent_v2.kernel.agent.task import KernelResult, KernelTask
 from lit_agent_v2.tools.general.state import GeneralState
 from lit_agent_v2.tools.runtime import ToolRuntime
@@ -30,6 +32,7 @@ class AgentKernel:
         events: Any = None,
         should_stop: Callable[[], bool] | None = None,
         clock: Callable[[], float] | None = None,
+        checkpoints: FileCheckpointStore | None = None,
     ) -> None:
         self.llm = llm
         self.tools = tools
@@ -37,37 +40,72 @@ class AgentKernel:
         self.events = events
         self.should_stop = should_stop
         self.clock = clock or time.monotonic
+        self.checkpoints = checkpoints
 
     def run(self, task: KernelTask) -> KernelResult:
         history = self.state.history
         started = self.clock()
         cost = 0.0
         usage: dict[str, Any] = {}
+        metrics = {
+            "steps": 0,
+            "tool_calls": 0,
+            "tool_errors": 0,
+            "model_retries": 0,
+            "repairs": 0,
+            "compactions": 0,
+            "prompt_tokens": 0,
+            "completion_tokens": 0,
+            "cost_usd": 0.0,
+        }
         invalid = 0
         repair = 0
+        start_step = 1
+        if self.checkpoints is not None:
+            saved = self.checkpoints.load(task.task_id)
+            if saved is not None:
+                self.state.import_state(saved.state)
+                start_step = saved.step + 1
+                usage = dict(saved.usage)
+                cost = saved.cost_usd
         self._emit("kernel.started", task=task.task_id, goal=task.goal)
 
-        for step in range(1, task.policy.max_steps + 1):
+        for step in range(start_step, task.policy.max_steps + 1):
             if self.should_stop is not None and self.should_stop():
-                return self._finish(task, {}, history, step - 1, usage, cost, "cancelled")
+                return self._finish(
+                    task, {}, history, step - 1, usage, cost, metrics, "cancelled", "E_KERNEL_CANCELLED"
+                )
             if self.clock() - started > task.policy.timeout_s:
-                return self._finish(task, {}, history, step - 1, usage, cost, "timeout")
+                return self._finish(
+                    task, {}, history, step - 1, usage, cost, metrics, "timeout", "E_KERNEL_TIMEOUT"
+                )
             if task.policy.max_usd > 0 and cost >= task.policy.max_usd:
-                return self._finish(task, {}, history, step - 1, usage, cost, "budget")
+                return self._finish(
+                    task, {}, history, step - 1, usage, cost, metrics, "budget", "E_KERNEL_BUDGET"
+                )
+            if metrics["tool_calls"] >= task.policy.max_tool_calls:
+                return self._finish(
+                    task, {}, history, step - 1, usage, cost, metrics, "tool_budget", "E_KERNEL_TOOL_BUDGET"
+                )
 
-            self._emit("kernel.step", task=task.task_id, step=step)
+            chars = len(json.dumps(history, ensure_ascii=False, default=str))
+            if chars > task.policy.hard_history_chars:
+                compacted = self.state.compact_context(keep_recent=6)
+                metrics["compactions"] += 1
+                self._emit("kernel.context_compacted", task=task.task_id, **compacted)
+            elif chars > task.policy.soft_history_chars:
+                compacted = self.state.compact_context(keep_recent=8)
+                metrics["compactions"] += 1
+                self._emit("kernel.context_compacted", task=task.task_id, **compacted)
+            self.state.history[:] = history
+
+            self._emit("kernel.step_started", task=task.task_id, step=step)
             messages = self._messages(task, history)
-            try:
-                action, step_usage = self.llm.chat_json(
-                    messages,
-                    max_tokens=task.policy.max_tokens,
-                    temperature=0.1,
+            action, step_usage = self._ask(task, messages, step, metrics)
+            if action is None:
+                return self._finish(
+                    task, {}, history, step, usage, cost, metrics, "failed", "E_MODEL_FAILED"
                 )
-            except Exception as exc:  # noqa: BLE001
-                self._emit(
-                    "kernel.failed", task=task.task_id, step=step, error=type(exc).__name__
-                )
-                return self._finish(task, {}, history, step, usage, cost, "failed")
             if step_usage is not None:
                 usage["prompt_tokens"] = int(usage.get("prompt_tokens", 0)) + int(
                     getattr(step_usage, "prompt_tokens", 0) or 0
@@ -75,13 +113,17 @@ class AgentKernel:
                 usage["completion_tokens"] = int(
                     usage.get("completion_tokens", 0)
                 ) + int(getattr(step_usage, "completion_tokens", 0) or 0)
-                cost += float(getattr(step_usage, "cost_usd", 0.0) or 0.0)
+                step_cost = float(getattr(step_usage, "cost_usd", 0.0) or 0.0)
+                cost += step_cost
+                metrics["cost_usd"] = cost
 
             if not isinstance(action, dict):
                 invalid += 1
                 history.append({"role": "system", "content": "invalid action: expected JSON object"})
                 if invalid >= 2:
-                    return self._finish(task, {}, history, step, usage, cost, "failed")
+                    return self._finish(
+                        task, {}, history, step, usage, cost, metrics, "failed", "E_KERNEL_INVALID_ACTION"
+                    )
                 continue
 
             if action.get("action") == "final":
@@ -89,6 +131,7 @@ class AgentKernel:
                 problems = self._validate_output(task, output)
                 if problems and repair < task.policy.max_repair:
                     repair += 1
+                    metrics["repairs"] += 1
                     history.append(
                         {
                             "role": "system",
@@ -98,18 +141,14 @@ class AgentKernel:
                     self._emit(
                         "kernel.repair", task=task.task_id, step=step, problems=problems
                     )
+                    self._checkpoint(task, step, usage, cost)
                     continue
                 if problems:
-                    return self._finish(task, {}, history, step, usage, cost, "failed")
-                self._emit("kernel.finished", task=task.task_id, stop_reason="final")
+                    return self._finish(
+                        task, {}, history, step, usage, cost, metrics, "failed", "E_KERNEL_REPAIR_EXHAUSTED"
+                    )
                 return self._finish(
-                    task,
-                    dict(output or {}),
-                    history,
-                    step,
-                    usage,
-                    cost,
-                    "final",
+                    task, dict(output or {}), history, step, usage, cost, metrics, "final"
                 )
 
             calls = self._calls(action, step)
@@ -117,30 +156,31 @@ class AgentKernel:
                 invalid += 1
                 history.append({"role": "system", "content": "invalid action: no tool calls"})
                 if invalid >= 2:
-                    return self._finish(task, {}, history, step, usage, cost, "failed")
+                    return self._finish(
+                        task, {}, history, step, usage, cost, metrics, "failed", "E_KERNEL_INVALID_ACTION"
+                    )
                 continue
 
             invalid = 0
-            history.append(
-                {
-                    "role": "assistant",
-                    "tool_calls": calls,
-                }
+            history.append({"role": "assistant", "tool_calls": calls})
+            metrics["tool_calls"] += len(calls)
+            results = schedule_tool_calls(
+                self.tools,
+                calls,
+                toolset=task.toolset,
+                context_for=lambda call: ToolContext(
+                    run_id=task.task_id,
+                    node_id=task.task_id,
+                    call_id=call["id"],
+                    workspace=str(self.state.workspace),
+                    signal=self.should_stop,
+                    state=self.state,
+                ),
+                max_parallel=task.policy.max_parallel_tools,
             )
-            for call in calls:
-                result = self.tools.call(
-                    call["name"],
-                    call["args"],
-                    toolset=task.toolset,
-                    context=ToolContext(
-                        run_id=task.task_id,
-                        node_id=task.task_id,
-                        call_id=call["id"],
-                        workspace=str(self.state.workspace),
-                        signal=self.should_stop,
-                        state=self.state,
-                    ),
-                )
+            for call, result in zip(calls, results, strict=True):
+                if not result.ok:
+                    metrics["tool_errors"] += 1
                 history.append(
                     {
                         "role": "tool",
@@ -150,6 +190,7 @@ class AgentKernel:
                         "content": result.content
                         or json.dumps(result.output, ensure_ascii=False, default=str)[:4000],
                         "artifact_refs": result.artifact_refs,
+                        "error_code": result.error_code,
                     }
                 )
                 self._emit(
@@ -159,13 +200,59 @@ class AgentKernel:
                     call_id=call["id"],
                     tool=call["name"],
                     ok=result.ok,
+                    error_code=result.error_code,
                 )
-                if not result.ok and result.error_code == "E_TOOL_TIMEOUT":
-                    cost += result.cost_usd
-            # Keep the same list object: context.compact mutates it in place.
             self.state.history[:] = history
+            self._checkpoint(task, step, usage, cost)
+            metrics["steps"] = step
 
-        return self._finish(task, {}, history, task.policy.max_steps, usage, cost, "max_steps")
+        return self._finish(
+            task, {}, history, task.policy.max_steps, usage, cost, metrics, "max_steps", "E_KERNEL_MAX_STEPS"
+        )
+
+    def _ask(
+        self,
+        task: KernelTask,
+        messages: list[dict[str, str]],
+        step: int,
+        metrics: dict[str, Any],
+    ) -> tuple[dict[str, Any] | None, Any]:
+        for attempt in range(task.policy.max_retries + 1):
+            try:
+                return self.llm.chat_json(
+                    messages,
+                    max_tokens=task.policy.max_tokens,
+                    temperature=0.1,
+                )
+            except Exception as exc:  # noqa: BLE001
+                metrics["model_retries"] += 1
+                self._emit(
+                    "kernel.model_retry",
+                    task=task.task_id,
+                    step=step,
+                    attempt=attempt + 1,
+                    error=type(exc).__name__,
+                )
+                if attempt >= task.policy.max_retries:
+                    return None, None
+                time.sleep(min(2.0, 0.1 * (2**attempt)))
+        return None, None
+
+    def _checkpoint(
+        self, task: KernelTask, step: int, usage: dict[str, Any], cost: float
+    ) -> None:
+        if self.checkpoints is None:
+            return
+        self.checkpoints.save(
+            KernelCheckpoint(
+                task_id=task.task_id,
+                step=step,
+                state=self.state.export(),
+                usage=usage,
+                cost_usd=cost,
+            )
+        )
+        self._emit("kernel.checkpoint", task=task.task_id, step=step)
 
     def _validate_output(self, task: KernelTask, output: Any) -> list[str]:
         if not isinstance(output, dict):
@@ -238,15 +325,27 @@ class AgentKernel:
         steps: int,
         usage: dict[str, Any],
         cost: float,
+        metrics: dict[str, Any],
         stop_reason: str,
+        error_code: str | None = None,
     ) -> KernelResult:
+        metrics = dict(metrics)
+        metrics["steps"] = steps
+        metrics["cost_usd"] = cost
         plan = next(iter(self.state.plans.values()), None)
         self._emit(
             "kernel.finished",
             task=task.task_id,
             steps=steps,
             stop_reason=stop_reason,
+            error_code=error_code,
+            metrics=metrics,
         )
+        if self.checkpoints is not None:
+            if stop_reason == "final":
+                self.checkpoints.clear(task.task_id)
+            else:
+                self._checkpoint(task, steps, usage, cost)
         return KernelResult(
             output=output,
             history=history,
@@ -255,6 +354,8 @@ class AgentKernel:
             usage=usage,
             cost_usd=cost,
             stop_reason=stop_reason,
+            error_code=error_code,
+            metrics=metrics,
         )
 
     def _emit(self, event_type: str, **payload: Any) -> None:

@@ -96,6 +96,22 @@ class GeneralState:
                 break
         return results
 
+    def export(self) -> dict[str, Any]:
+        return {
+            "history": self.history,
+            "plans": self.plans,
+            "memory": self.memory,
+            "compaction_count": self.compaction_count,
+        }
+
+    def import_state(self, payload: dict[str, Any]) -> None:
+        self.history[:] = list(payload.get("history") or [])
+        self.plans.clear()
+        self.plans.update(payload.get("plans") or {})
+        self.memory.clear()
+        self.memory.update(payload.get("memory") or {})
+        self.compaction_count = int(payload.get("compaction_count") or 0)
+
     def inspect_context(self) -> dict[str, Any]:
         chars = len(json.dumps(self.history, ensure_ascii=False, default=str))
         return {
