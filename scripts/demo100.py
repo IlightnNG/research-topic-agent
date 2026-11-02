@@ -14,6 +14,7 @@ from pathlib import Path
 from typing import Any
 
 from lit_agent_v2.contracts.verdict import Verdict
+from lit_agent_v2.demo.orchestrator import DemoOrchestrator
 from lit_agent_v2.kernel.llm import DeepSeekChatClient, load_llm_config
 from lit_agent_v2.kernel.node.loop import Kernel
 from lit_agent_v2.tools.packs.demo import build_demo_tools
@@ -22,7 +23,7 @@ from lit_agent_v2.verify.verdict import Verifier
 from lit_agent_v2.workflow.node.definition import build_demo100_workflow
 from lit_agent_v2.workflow.node.runner import WorkflowRunner
 
-DEFAULT_CORPUS = Path(r"D:\lit-agent-store\v2-eval\gold\corpora\agents")
+DEFAULT_CORPUS = Path(r"D:\lit-agent-store\v2-eval\gold\corpora\agents-fulltext")
 DEFAULT_OUT = Path(r"D:\lit-agent-store\v2-demo")
 
 
@@ -62,9 +63,10 @@ def main() -> int:
     print(f"out={args.out}")
     workflow = build_demo100_workflow()
     store = MemoryStore()
+    llm = DeepSeekChatClient(load_llm_config())
     kernel = Kernel(
-        DeepSeekChatClient(load_llm_config()),
-        ToolRegistry(build_demo_tools()),
+        DemoOrchestrator(args.corpus, args.out),
+        ToolRegistry(build_demo_tools(llm)),
         events=ConsoleEvents(),
         max_retries=1,
     )

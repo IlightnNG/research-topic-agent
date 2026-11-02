@@ -15,6 +15,7 @@ from typing import Any
 
 from lit_agent_v2.contracts.node import WorkflowDefinition
 from lit_agent_v2.contracts.report import ReportDraft, Section
+from lit_agent_v2.demo.orchestrator import DemoOrchestrator
 from lit_agent_v2.kernel.llm import DeepSeekChatClient, load_llm_config
 from lit_agent_v2.kernel.node.loop import Kernel
 from lit_agent_v2.kernel.node.ports import CheckpointPort, EventPort
@@ -175,7 +176,7 @@ class PlatformRunService:
         self.corpus_root = Path(corpus_root)
         self.llm = llm
         self.topics = TopicStore(db)
-        self.workflow_mode = os.environ.get("LIT_V2_DEMO_CHAIN", "single")
+        self.workflow_mode = os.environ.get("LIT_V2_DEMO_CHAIN", "full")
         self._threads: dict[str, threading.Thread] = {}
         self._pause_events: dict[str, threading.Event] = {}
         self._lock = threading.Lock()
@@ -283,10 +284,13 @@ class PlatformRunService:
                 build_corpus_tools()
                 + build_claim_tools()
                 + build_report_tools(llm, language=language)
-                + build_demo_tools()
+                + build_demo_tools(llm)
             )
+            orchestration_llm = llm
+            if self.workflow_mode == "full" and out_dir:
+                orchestration_llm = DemoOrchestrator(self.corpus_root, Path(out_dir))
             kernel = Kernel(
-                llm,
+                orchestration_llm,
                 registry,
                 checkpoint_store=DbCheckpoints(self.db),
                 events=events,

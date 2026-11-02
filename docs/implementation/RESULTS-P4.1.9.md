@@ -162,18 +162,19 @@ Demo result remains:
 
 ```text
 100 papers
-174 claims
+35 fulltext
+186 claims
 13 sections
-4628 words
-degraded (abstract-only corpus)
+4991 words
+complete
 ```
 
 API full-chain smoke after cleanup:
 
 ```text
-run-16b2eb09c6dc  succeeded
+run-8658812515c1  succeeded
 4 Nodes committed
-report: 13 sections / 174 claims / 4628 words
+report: 13 sections / 186 claims / 4991 words / complete
 ```
 
 One earlier LLM finalization attempt returned an invalid action and failed at

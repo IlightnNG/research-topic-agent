@@ -18,7 +18,7 @@ from lit_agent_v2.workflow.node.runner import WorkflowRunner
 
 __all__ = ["main"]
 
-DEFAULT_CORPUS = Path(r"D:\lit-agent-store\v2-eval\gold\corpora\agents")
+DEFAULT_CORPUS = Path(r"D:\lit-agent-store\v2-eval\gold\corpora\agents-fulltext")
 DEFAULT_OUT = Path(r"D:\lit-agent-store\v2-demo")
 
 

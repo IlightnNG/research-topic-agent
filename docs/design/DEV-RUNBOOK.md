@@ -14,7 +14,8 @@
 cd E:\大学\NUS\EE5003\agent
 . .\scripts\env.ps1
 $env:LIT_V2_DB='D:\lit-agent-store\temp\web-dev.sqlite'
-$env:LIT_V2_CORPUS='D:\lit-agent-store\p41-report-experiment'
+$env:LIT_V2_CORPUS='D:\lit-agent-store\v2-eval\gold\corpora\agents-fulltext'
+$env:LIT_V2_DEMO_OUT='D:\lit-agent-store\v2-demo-api'
 uv run uvicorn lit_agent_v2.api.app:create_app --factory --host 127.0.0.1 --port 8000
 ```
 
@@ -55,8 +56,8 @@ API / UI mode:
 
 ```powershell
 $env:LIT_V2_DB='D:\lit-agent-store\temp\demo100-api.sqlite'
-$env:LIT_V2_CORPUS='D:\lit-agent-store\v2-eval\gold\corpora\agents'
-$env:LIT_V2_DEMO_CHAIN='full'
+$env:LIT_V2_CORPUS='D:\lit-agent-store\v2-eval\gold\corpora\agents-fulltext'
+# full chain is the default; set single only for compatibility
 $env:LIT_V2_DEMO_OUT='D:\lit-agent-store\v2-demo-api'
 
 uv run uvicorn lit_agent_v2.api.app:create_app `
@@ -73,6 +74,12 @@ source.collect
 ```
 
 Full-chain result: [`RESULTS-P4.1.8.md`](../implementation/RESULTS-P4.1.8.md).
+
+If the fulltext corpus is missing, prepare it once:
+
+```powershell
+uv run python scripts\prepare_fulltext.py --target 35
+```
 
 ---
 
@@ -124,7 +131,7 @@ npm install
 当前联调使用：
 
 ```text
-D:\lit-agent-store\p41-report-experiment
+D:\lit-agent-store\v2-eval\gold\corpora\agents-fulltext
 ```
 
 至少需要：
@@ -152,7 +159,8 @@ cd E:\大学\NUS\EE5003\agent
 . .\scripts\env.ps1
 
 $env:LIT_V2_DB='D:\lit-agent-store\temp\web-dev.sqlite'
-$env:LIT_V2_CORPUS='D:\lit-agent-store\p41-report-experiment'
+$env:LIT_V2_CORPUS='D:\lit-agent-store\v2-eval\gold\corpora\agents-fulltext'
+$env:LIT_V2_DEMO_OUT='D:\lit-agent-store\v2-demo-api'
 
 uv run uvicorn lit_agent_v2.api.app:create_app `
   --factory `

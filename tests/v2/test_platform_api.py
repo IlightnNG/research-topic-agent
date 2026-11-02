@@ -126,7 +126,8 @@ class FakeLLM:
 ROOT = Path()
 
 
-def test_platform_api_e2e(tmp_path: Path) -> None:
+def test_platform_api_e2e(tmp_path: Path, monkeypatch) -> None:
+    monkeypatch.setenv("LIT_V2_DEMO_CHAIN", "single")
     global ROOT
     ROOT = tmp_path
     corpus = tmp_path / "corpus"

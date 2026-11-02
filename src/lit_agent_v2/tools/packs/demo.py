@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import re
 from pathlib import Path
 from typing import Any
 
@@ -87,8 +88,50 @@ def extract_evidence(source_path: str, out_dir: str, limit: int = 2) -> dict[str
     }
 
 
+def _llm_group_body(
+    llm: Any,
+    group: list[dict[str, Any]],
+    by_paper: dict[str, list[dict[str, Any]]],
+    language: str,
+) -> str:
+    material: list[str] = []
+    for paper in group:
+        paper_id = str(paper.get("paper_id"))
+        material.append(f"{paper_id}: {paper.get('title', '')}")
+        for claim in by_paper.get(paper_id, []):
+            material.append(
+                f"  [{claim.get('claim_id')}] {claim.get('quote') or claim.get('text')}"
+            )
+    prompt = (
+        "Write a concise literature-review subsection for the papers below. "
+        "Use only the supplied claims, do not invent facts or citations. "
+        "Every factual sentence must end with its [C#] citation. "
+        "Return JSON only: {\"body\": \"...\"}. "
+        f"Language: {'Chinese' if language == 'zh' else 'English'}. "
+        "Keep it under 450 words."
+    )
+    try:
+        payload, _ = llm.chat_json(
+            [
+                {"role": "system", "content": prompt},
+                {"role": "user", "content": "\n".join(material)},
+            ],
+            temperature=0.1,
+        )
+        body = str(payload.get("body") or "").strip()
+        if len(body) > 40 and re.search(r"\[C\d+\]", body):
+            return body
+    except Exception:
+        return ""
+    return ""
+
+
 def compose_report(
-    source_path: str, evidence_path: str, out_dir: str, language: str = "en"
+    source_path: str,
+    evidence_path: str,
+    out_dir: str,
+    language: str = "en",
+    llm: Any | None = None,
 ) -> dict[str, Any]:
     source = _read_json(Path(source_path))
     evidence = _read_json(Path(evidence_path))
@@ -97,6 +140,9 @@ def compose_report(
     by_paper: dict[str, list[dict[str, Any]]] = {}
     for claim in claims:
         by_paper.setdefault(str(claim.get("paper_id")), []).append(claim)
+    fulltext = sum(1 for paper in papers if paper.get("fulltext"))
+    fulltext_ratio = fulltext / len(papers) if papers else 0.0
+    complete = fulltext_ratio >= 0.3
 
     sections: list[dict[str, Any]] = []
     overview = (
@@ -109,10 +155,16 @@ def compose_report(
             f'The first extracted claim is: "{first.get("text", "")}" '
             f"[{first.get('claim_id')}]. "
         )
-    overview += (
-        "The corpus is abstract-only, so the report is explicitly marked degraded "
-        "rather than claiming full-text coverage. "
-    )
+    if complete:
+        overview += (
+            f"Full text was available for {fulltext}/{len(papers)} papers; "
+            "the remaining papers use abstracts only. "
+        )
+    else:
+        overview += (
+            "The corpus is abstract-only, so the report is explicitly marked degraded "
+            "rather than claiming full-text coverage. "
+        )
     sections.append(
         {
             "section_id": "overview",
@@ -136,12 +188,15 @@ def compose_report(
             refs = " ".join(f"[{claim.get('claim_id')}]" for claim in paper_claims)
             quote = str(paper_claims[0].get("quote") or paper_claims[0].get("text") or "")
             lines.append(f"{paper_id}. {title}. {quote} {refs}")
+        body = _llm_group_body(llm, group, by_paper, language) if llm is not None else ""
+        if not body:
+            body = "\n\n".join(lines)
         sections.append(
             {
                 "section_id": f"paper_analysis_{start // chunk + 1:03d}",
                 "kind": "paper_analysis",
                 "title": f"Papers {start + 1}-{start + len(group)}",
-                "body": "\n\n".join(lines),
+                "body": body,
             }
         )
 
@@ -150,8 +205,13 @@ def compose_report(
         synthesis = (
             f"Across the extracted claims, the recurring pattern is explicit evidence "
             f"grounding: each included paper contributes at least one quoted claim {refs}. "
-            "The corpus is small and abstract-only, so these are scoped observations, "
-            "not a claim of comprehensive coverage. "
+            + (
+                "The corpus has partial full text, so these are scoped observations, "
+                "not a claim of comprehensive coverage. "
+                if complete
+                else "The corpus is small and abstract-only, so these are scoped observations, "
+                "not a claim of comprehensive coverage. "
+            )
         )
     else:
         synthesis = "No claims were extracted; the synthesis is deliberately empty."
@@ -177,17 +237,19 @@ def compose_report(
     )
 
     content_md = "\n\n".join(f"## {section['title']}\n\n{section['body']}" for section in sections)
-    fulltext = sum(1 for paper in papers if paper.get("fulltext"))
-    state = "complete" if fulltext >= len(papers) * 0.3 else "degraded"
+    state = "complete" if complete else "degraded"
     report = {
         "title": "100-Paper Local Corpus Review",
         "content_md": content_md,
         "word_count": len(content_md.split()),
         "state": state,
         "papers": len(papers),
+        "fulltext": fulltext,
+        "fulltext_ratio": fulltext_ratio,
         "claims": claims,
         "sections": sections,
         "language": language,
+        "generator": "llm" if llm is not None else "deterministic",
     }
     path = Path(out_dir) / "report.json"
     _write_json(path, report)
@@ -219,7 +281,7 @@ def finalize_demo(report_path: str, out_dir: str) -> dict[str, Any]:
     return final
 
 
-def build_demo_tools() -> list[ToolSpec]:
+def build_demo_tools(llm: Any | None = None) -> list[ToolSpec]:
     return [
         ToolSpec(
             "demo.source",
@@ -268,12 +330,13 @@ def build_demo_tools() -> list[ToolSpec]:
                 "required": ["source_path", "evidence_path", "out_dir"],
             },
             side_effect=True,
-            timeout_s=60.0,
+            timeout_s=300.0,
             handler=lambda args: compose_report(
                 args["source_path"],
                 args["evidence_path"],
                 args["out_dir"],
                 str(args.get("language", "en")),
+                llm,
             ),
         ),
         ToolSpec(
