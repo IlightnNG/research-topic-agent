@@ -51,8 +51,9 @@ S6 = 并行/checkpoint/retry/compaction 基础完成
 S7 = NodeKernelAdapter 完成
 S8 = JSONL event + metrics + error code 基础完成
 S9 = 30-case deterministic benchmark 完成
-S9 = 30-case real LLM simple-task benchmark 30/30
-复杂 L3 = 未完成
+S9 = 30 real simple tasks 30/30 + 10 complex tasks 10/10
+S9 audit = 7/10
+L3 quality gate = 未通过（repair 未集成）
 ```
 
 目标：
@@ -505,3 +506,28 @@ W4  chat workflow
 详细 Phase 计划：
 
 [`PHASE4.2-agent-kernel-tools.md`](implementation/PHASE4.2-agent-kernel-tools.md)
+
+---
+
+## 12. L3 benchmark result（2026-11-02）
+
+```text
+simple tasks       30 / 30
+complex tasks      10 / 10
+schema             100%
+tool errors        0
+cost               $0.0558 total (peak pricing)
+latency p95        5.73 s complex
+audit accepted     7 / 10
+audit repair       not integrated
+```
+
+结论：
+
+```text
+执行能力 L3-lite 通过
+质量/repair 门禁未通过
+Workflow 继续冻结
+```
+
+详见 [`implementation/RESULTS-P4.2-S9-L3.md`](implementation/RESULTS-P4.2-S9-L3.md)。

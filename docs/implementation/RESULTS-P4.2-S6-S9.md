@@ -2,7 +2,7 @@
 
 > Status: S6/S7/S8 implemented; S9 deterministic + real simple-task benchmark
 > Date: 2026-11-02
-> Important: real 30-task benchmark covers simple general-tool tasks; complex-task L3 is still pending.
+> Important: simple 30/30 and complex 10/10 are done; L3 quality gate is still not passed (audit 7/10, repair not integrated).
 
 ---
 
@@ -239,14 +239,16 @@ report quality
 complex recovery
 ```
 
-So S9 real simple-task benchmark is complete; full L3 complexity is not.
+So S9 real simple and complex execution benchmark is complete; L3 quality gate is not.
+
+See [`RESULTS-P4.2-S9-L3.md`](RESULTS-P4.2-S9-L3.md).
 
 ---
 
 ## Tests
 
 ```text
-112 passed
+117 passed
 ruff clean
 ```
 

@@ -30,6 +30,7 @@ Current documents only.
 | [`implementation/RESULTS-P4.2-S0-S2.md`](implementation/RESULTS-P4.2-S0-S2.md) | S0–S2: tool contracts and ToolRuntime |
 | [`implementation/RESULTS-P4.2-S3-S5.md`](implementation/RESULTS-P4.2-S3-S5.md) | S3–S5: general tools, AgentKernel, A–E acceptance |
 | [`implementation/RESULTS-P4.2-S6-S9.md`](implementation/RESULTS-P4.2-S6-S9.md) | S6–S9: hardening, node entry, observability, benchmark |
+| [`implementation/RESULTS-P4.2-S9-L3.md`](implementation/RESULTS-P4.2-S9-L3.md) | real-LLM simple/complex benchmark, pricing, audit, L3 gate |
 | [`implementation/RESULTS-P4.1.9.md`](implementation/RESULTS-P4.1.9.md) | legacy cleanup and Phase 4.1 close |
 | [`archive/README.md`](archive/README.md) | historical docs index |
 | [`modules/README.md`](modules/README.md) | platform module map + legacy M1–M6 mapping |

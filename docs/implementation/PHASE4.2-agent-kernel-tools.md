@@ -2,7 +2,7 @@
 
 > 版本：2.0（2026-11-02）
 > 类型：详细设计与迁移方案
-> 状态：in progress；S0–S8 done；S9 deterministic + 30 real simple tasks done；复杂 L3 未完成
+> 状态：in progress；S0–S9 benchmark done；L3 quality gate 未通过；Workflow 冻结
 > 优先级：通用 Kernel + 通用 Tools 优先；报告 Workflow 后置
 > 依据：DSH `core/tools`、`core/agent-loop`、`compaction` 与 Phase 4.1 实现
 

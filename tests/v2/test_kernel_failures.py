@@ -7,6 +7,7 @@ from pathlib import Path
 from typing import Any
 
 from lit_agent_v2.contracts.tool import ToolSpec
+from lit_agent_v2.kernel.agent.checkpoint import FileCheckpointStore
 from lit_agent_v2.kernel.agent.loop import AgentKernel
 from lit_agent_v2.kernel.agent.observability import MemoryEventSink
 from lit_agent_v2.kernel.agent.task import KernelPolicy, KernelTask
@@ -196,3 +197,37 @@ def test_persistent_metrics_store(tmp_path: Path) -> None:
     summary = store.summary()
     assert summary["n"] == 1
     assert summary["successes"] == 1
+
+
+def test_audit_repair_metrics(tmp_path: Path) -> None:
+    calls = {"n": 0}
+
+    def auditor(_task, _output):  # noqa: ANN001
+        calls["n"] += 1
+        return ["audit rejected"] if calls["n"] == 1 else []
+
+    result = AgentKernel(
+        FakeLLM([_final(), _final()]),
+        _runtime(tmp_path),
+        GeneralState(workspace=tmp_path),
+    ).run(
+        KernelTask(
+            task_id="audit",
+            goal="audit",
+            output_schema=OUTPUT,
+            toolset="general",
+            policy=KernelPolicy(max_steps=4, max_repair=1),
+            auditor=auditor,
+        )
+    )
+    assert result.stop_reason == "final"
+    assert result.metrics["audit_calls"] == 2
+    assert result.metrics["audit_failures"] == 1
+    assert result.metrics["repairs"] == 1
+
+
+def test_corrupt_checkpoint_is_ignored(tmp_path: Path) -> None:
+    store = FileCheckpointStore(tmp_path / "checkpoints")
+    path = tmp_path / "checkpoints" / "broken.json"
+    path.write_text("{not json", encoding="utf-8")
+    assert store.load("broken") is None

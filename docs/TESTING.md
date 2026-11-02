@@ -139,7 +139,7 @@ live: 真实网络/模型/PDF
 ## 8. 当前
 
 ```text
-tests/v2     112 passed
+tests/v2     117 passed
 ruff         clean
 ```
 
@@ -225,7 +225,7 @@ compaction ratio
 resume success
 ```
 
-已完成 30 个真实 LLM 简单任务 benchmark：30/30；复杂任务 L3 仍未完成。
+已完成 30 个真实简单任务 + 10 个复杂多步任务；复杂 10/10，audit 7/10；L3 quality gate 未通过。
 
 详细要求见 [`KERNEL-MATURITY.md`](KERNEL-MATURITY.md)。
 

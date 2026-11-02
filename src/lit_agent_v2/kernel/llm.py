@@ -10,6 +10,7 @@ import os
 import re
 from collections.abc import Callable
 from dataclasses import dataclass
+from datetime import UTC, datetime
 from pathlib import Path
 from typing import Protocol
 
@@ -36,6 +37,9 @@ class LLMConfig:
     model: str
     api_key: str
     timeout_s: float = 120.0
+    input_cost_per_m: float = 0.30
+    output_cost_per_m: float = 1.20
+    off_peak_multiplier: float = 0.5
 
     @classmethod
     def from_env(cls, dotenv_path: str | Path = ".env") -> LLMConfig:
@@ -48,6 +52,18 @@ class LLMConfig:
         api_key = get("API_KEY") or str(values.get("DEEPSEEK_API_KEY") or "")
         base_url = get("BASE_URL", "https://api.deepseek.com")
         model = get("MODEL", "deepseek-flash")
+        pricing = {
+            "deepseek-flash": (0.30, 1.20),
+            "deepseek-v4-pro": (1.32, 3.96),
+            "deepseek-chat": (0.30, 1.20),
+            "deepseek-reasoner": (0.55, 2.19),
+        }.get(model, (0.0, 0.0))
+        input_cost = float(
+            get("INPUT_COST_PER_M", str(pricing[0])) or pricing[0]
+        )
+        output_cost = float(
+            get("OUTPUT_COST_PER_M", str(pricing[1])) or pricing[1]
+        )
         if not api_key:
             raise ModuleError(
                 "E_LLM_CONFIG",
@@ -55,7 +71,13 @@ class LLMConfig:
                 "M1",
                 retryable=False,
             )
-        return cls(base_url=base_url.rstrip("/"), model=model, api_key=api_key)
+        return cls(
+            base_url=base_url.rstrip("/"),
+            model=model,
+            api_key=api_key,
+            input_cost_per_m=input_cost,
+            output_cost_per_m=output_cost,
+        )
 
 
 def _read_dotenv(path: Path) -> dict[str, str]:
@@ -151,11 +173,13 @@ class DeepSeekChatClient:
         if not isinstance(parsed, dict):
             raise ModuleError("E_LLM_JSON", "LLM returned non-object", "M1", retryable=True)
         usage_raw = payload.get("usage") or {}
+        usage = self._usage(usage_raw, prompt_version)
         usage = LLMUsage(
-            prompt_tokens=int(usage_raw.get("prompt_tokens") or 0),
-            completion_tokens=int(usage_raw.get("completion_tokens") or 0),
-            model=self.config.model,
-            prompt_version=prompt_version,
+            prompt_tokens=usage.prompt_tokens,
+            completion_tokens=usage.completion_tokens,
+            cost_usd=usage.cost_usd,
+            model=usage.model,
+            prompt_version=usage.prompt_version,
             reasoning=str(message.get("reasoning_content") or ""),
         )
         return parsed, usage
@@ -252,9 +276,21 @@ class DeepSeekChatClient:
         return parsed
 
     def _usage(self, usage_raw: dict, prompt_version: str) -> LLMUsage:
+        prompt = int(usage_raw.get("prompt_tokens") or 0)
+        completion = int(usage_raw.get("completion_tokens") or 0)
+        now = datetime.now(UTC)
+        peak = now.weekday() < 5 and (
+            1 <= now.hour < 4 or 6 <= now.hour < 10
+        )
+        multiplier = 1.0 if peak else self.config.off_peak_multiplier
+        cost = (
+            prompt / 1_000_000 * self.config.input_cost_per_m * multiplier
+            + completion / 1_000_000 * self.config.output_cost_per_m * multiplier
+        )
         return LLMUsage(
-            prompt_tokens=int(usage_raw.get("prompt_tokens") or 0),
-            completion_tokens=int(usage_raw.get("completion_tokens") or 0),
+            prompt_tokens=prompt,
+            completion_tokens=completion,
+            cost_usd=cost,
             model=self.config.model,
             prompt_version=prompt_version,
         )

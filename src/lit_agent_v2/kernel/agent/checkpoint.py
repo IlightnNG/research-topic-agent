@@ -55,7 +55,10 @@ class FileCheckpointStore:
         path = self._path(task_id)
         if not path.exists():
             return None
-        return KernelCheckpoint.from_dict(json.loads(path.read_text(encoding="utf-8")))
+        try:
+            return KernelCheckpoint.from_dict(json.loads(path.read_text(encoding="utf-8")))
+        except (OSError, ValueError, TypeError, KeyError):
+            return None
 
     def clear(self, task_id: str) -> None:
         path = self._path(task_id)

@@ -55,6 +55,8 @@ class AgentKernel:
             "tool_errors": 0,
             "model_retries": 0,
             "repairs": 0,
+            "audit_calls": 0,
+            "audit_failures": 0,
             "compactions": 0,
             "prompt_tokens": 0,
             "completion_tokens": 0,
@@ -133,6 +135,14 @@ class AgentKernel:
             if action.get("action") == "final":
                 output = action.get("outputs")
                 problems = self._validate_output(task, output)
+                if not problems and task.auditor is not None:
+                    metrics["audit_calls"] += 1
+                    try:
+                        problems.extend(task.auditor(task, output))
+                    except Exception as exc:  # noqa: BLE001
+                        problems.append(f"audit_error:{type(exc).__name__}")
+                    if problems:
+                        metrics["audit_failures"] += 1
                 if problems and repair < task.policy.max_repair:
                     repair += 1
                     metrics["repairs"] += 1
