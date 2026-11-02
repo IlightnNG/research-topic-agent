@@ -314,7 +314,59 @@ workflow 拆分
 
 ---
 
-## 8. 开发顺序
+---
+
+## 8. Kernel 必须先成熟
+
+Kernel 不成熟时，不允许修改 Workflow。
+
+最小 Node 入口：
+
+```python
+class KernelNodeAdapter:
+    def run(self, node: NodeSpec, context: NodeContext) -> NodeResult:
+        task = KernelTask(
+            task_id=f"{context.run_id}:{node.id}",
+            goal=node.goal,
+            inputs=context.inputs,
+            output_schema=node.output_schema,
+            toolset=node.toolset,
+            policy=KernelPolicy(...),
+        )
+        result = AgentKernel(...).run(task)
+        return NodeResult(
+            output=result.output,
+            trace=result.history,
+            usage=result.usage,
+            cost_usd=result.cost_usd,
+            stop_reason=result.stop_reason,
+        )
+```
+
+这个入口只用于：
+
+```text
+验证 Kernel 输入输出
+验证 Node 级调用
+验证 checkpoint/metrics/logs
+```
+
+不是 Workflow 改造。
+
+Kernel 进入 Workflow 前必须通过：
+
+```text
+30+ 真实 LLM 任务
+schema pass >= 99%
+simple success >= 90%
+complex success >= 70%
+resume / compaction / tool recovery
+完整日志和错误码
+```
+
+详见 [`KERNEL-MATURITY.md`](KERNEL-MATURITY.md)。
+
+## 9. 开发顺序
 
 ```text
 1. Tool 契约与 ToolRuntime
@@ -335,7 +387,7 @@ Kernel 未通过独立任务验收
 
 ---
 
-## 9. 禁止事项
+## 10. 禁止事项
 
 ```text
 Kernel import report
@@ -348,7 +400,7 @@ DemoOrchestrator 进入生产路径
 
 ---
 
-## 10. 验收
+## 11. 验收
 
 ```text
 Kernel A–E 任务通过

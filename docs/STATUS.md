@@ -9,7 +9,7 @@
 ## 当前状态
 
 ```text
-阶段：Phase 4.1 complete；Phase 4.2 S0–S5 done（Tools 契约、ToolRuntime、General tools、AgentKernel），下一 S6 report workflow
+阶段：Phase 4.1 complete；Phase 4.2 S0–S5 done；下一 S6 Kernel completeness（Workflow 暂缓）
 前端：Vue F1–F6 done；real API mode 已联调
 最后测试：99 passed / ruff clean
 前端构建：web npm run build passed
@@ -49,7 +49,7 @@ Legacy:
 | 模块 | 目标状态 | 当前代码 |
 |---|---|---|
 | W Workflow | 特制任务外壳 | 4 Node report demo 已跑通；但 Node 单工具 + DemoOrchestrator 写死 |
-| K Kernel | 通用 Agent 内核，可独立完成复杂任务 | S4 AgentKernel 已有 A–E 测试；尚未接入 report workflow |
+| K Kernel | 通用 Agent 内核，可独立完成复杂任务 | S4 最小闭环 + A–E 脚本测试；未达 L3，需 S6 硬化与 benchmark |
 | T Tools | ToolRuntime + general/domain toolset | S2/S3 done：general tools、toolset、policy、spill |
 | V Verification | code + audit | dual Verifier 已接入 runner |
 | S Storage | artifact/state/report | 已有 |
@@ -73,11 +73,11 @@ Legacy:
 ## 下一步
 
 ```text
-1. Phase 4.2：ToolSpec / ToolRuntime 标准化
-2. Phase 4.2：通用工具 context/plan/memory/test/verify
-3. Phase 4.2：通用 Kernel（turn/step、动态工具、压缩、repair）
-4. Kernel-only 任务 A–E 验收
-5. 之后再做 report workflow（特制外壳）
+1. S6 Kernel completeness：parallel、checkpoint、retry、context overflow
+2. S7 NodeKernelAdapter：最小 Node 入口
+3. S8 观察性：metrics / logging / error taxonomy
+4. S9 真实 LLM 30+ benchmark + performance gate
+5. 门禁通过后才做 report workflow
 6. 最后再接 Chat workflow
 ```
 

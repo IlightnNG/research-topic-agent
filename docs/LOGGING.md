@@ -76,6 +76,55 @@ checkpoint.saved
 
 ---
 
+## 3.1 Kernel event contract（Phase 4.2）
+
+Kernel 事件必须带：
+
+```text
+run_id
+task_id
+node_id
+step
+type
+severity
+tool
+call_id
+duration_ms
+error_code
+payload
+```
+
+Kernel 事件：
+
+```text
+kernel.started
+kernel.step_started
+kernel.plan_updated
+kernel.context_compacted
+kernel.tool_called
+kernel.tool_result
+kernel.model_retry
+kernel.repair
+kernel.step_finished
+kernel.finished
+kernel.failed
+kernel.cancelled
+```
+
+约束：
+
+```text
+每个 tool call 有且只有一个 tool_result
+每个 step 有 started / finished
+repair 记录原因和次数
+compaction 记录 before/after
+失败记录 error_code / retryable / attempt
+```
+
+指标不要塞进 event payload；event 只记录事实，聚合进 metric store。
+
+---
+
 ## 4. 日志等级
 
 ```text

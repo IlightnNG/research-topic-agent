@@ -1,6 +1,6 @@
 # Testing
 
-> 版本：1.0（2026-10-31）
+> 版本：1.1（2026-11-02）
 > 范围：v2 only。旧 tests 已移出仓库。
 > 目标：每个模块 phase 都有可执行验收，不靠“看起来跑通”。
 
@@ -139,9 +139,19 @@ live: 真实网络/模型/PDF
 ## 8. 当前
 
 ```text
-tests/v2     23 passed
+tests/v2     99 passed
 ruff         clean
 ```
+
+Kernel 直接测试：
+
+```text
+tests/v2/test_tool_runtime.py
+tests/v2/test_general_tools.py
+tests/v2/test_agent_kernel.py
+```
+
+注意：当前 kernel 测试使用 ScriptedLLM，只验证控制流，不证明真实 LLM 质量。
 
 真实联调：
 
@@ -154,6 +164,70 @@ ruff         clean
 
 
 ---
+
+---
+
+## Kernel 成熟度测试（Phase 4.2）
+
+### L0–L3
+
+```text
+L0 Skeleton     固定 fake LLM
+L1 Functional   多工具 / plan / memory / context / repair
+L2 Hardened     并行 / checkpoint / 取消 / 错误 / 日志
+L3 Benchmarked  真实 LLM 多任务 / 性能 / 质量门禁
+```
+
+Phase 4.2 进入 Workflow 前必须达到 L3。
+
+### 必须覆盖
+
+```text
+tool timeout / exception / schema
+unknown tool / policy deny
+invalid LLM JSON
+repeated tool call
+max_steps / budget
+context overflow / compaction
+checkpoint corrupt / resume
+cancel mid-tool
+model 429 / timeout
+parallel-safe / exclusive
+NodeKernelAdapter smoke
+```
+
+### 真实 LLM Benchmark
+
+```text
+30+ tasks
+workspace analysis
+multi-file extraction
+test failure repair
+retrieval + citation
+long task + compaction
+tool selection
+cancel / resume
+```
+
+指标：
+
+```text
+task_success_rate
+schema_pass_rate
+steps
+tool_calls
+tool_error_rate
+repair_rate
+prompt/completion tokens
+cost
+latency p50/p95
+compaction ratio
+resume success
+```
+
+当前没有真实 LLM kernel benchmark；不能声称 L3。
+
+详细要求见 [`KERNEL-MATURITY.md`](KERNEL-MATURITY.md)。
 
 ## 架构 2.0 测试层级
 

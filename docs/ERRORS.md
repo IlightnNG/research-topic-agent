@@ -186,3 +186,38 @@ error.by_module
 | `E_TOOL_SIDE_EFFECT` | T | 有副作用工具失败/不可回滚 |
 | `E_REPORT_PLAN` | R | ReportPlan 非法/缺少必需 section |
 | `E_REPORT_SECTION` | R | section 生成失败且不可修复 |
+
+---
+
+## Kernel 错误码（Phase 4.2）
+
+| Code | Retry | 说明 |
+|---|---|---|
+| `E_KERNEL_INVALID_ACTION` | yes | LLM 返回非法 action |
+| `E_KERNEL_MAX_STEPS` | no | 超过 max_steps |
+| `E_KERNEL_TIMEOUT` | no | 超过 task timeout |
+| `E_KERNEL_CANCELLED` | no | 外部取消 |
+| `E_KERNEL_REPAIR_EXHAUSTED` | no | repair 次数用尽 |
+| `E_KERNEL_OUTPUT_SCHEMA` | yes | final 输出不符合 schema |
+| `E_KERNEL_CHECKPOINT` | yes | checkpoint 保存/恢复失败 |
+| `E_MODEL_TIMEOUT` | yes | 模型超时 |
+| `E_MODEL_RATE_LIMIT` | yes | 模型 429 |
+| `E_MODEL_INVALID_JSON` | yes | 模型输出不可解析 |
+| `E_TOOL_NOT_ALLOWED` | no | 工具不在当前 toolset |
+| `E_TOOL_OUTPUT_SCHEMA` | no | 工具输出 schema 失败 |
+| `E_TOOL_POLICY_DENIED` | no | policy 拒绝 |
+| `E_TOOL_APPROVAL_REQUIRED` | no | 需要审批但未批准 |
+
+错误结果必须包含：
+
+```text
+code
+message
+retryable
+attempt
+tool
+step
+details
+```
+
+这比当前只返回 `RuntimeError` 类名更可观测。

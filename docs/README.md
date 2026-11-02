@@ -9,6 +9,7 @@ Current documents only.
 |---|---|
 | [`ARCHITECTURE.md`](ARCHITECTURE.md) | system architecture: generic Kernel + specialized Workflow |
 | [`KERNEL-WORKFLOW.md`](KERNEL-WORKFLOW.md) | canonical Kernel / Workflow two-layer boundary |
+| [`KERNEL-MATURITY.md`](KERNEL-MATURITY.md) | kernel maturity, benchmark, metrics, logging, errors, workflow gate |
 | [`STATUS.md`](STATUS.md) | current state / next action / handoff |
 | [`TODO.md`](TODO.md) | standardized TODO registry |
 | [`CONTRACTS.md`](CONTRACTS.md) | Node/Tool/Verifier contracts, 2.0 frozen |

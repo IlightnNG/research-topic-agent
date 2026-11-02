@@ -23,10 +23,11 @@
 ```text
 1. docs/ARCHITECTURE.md
 2. docs/KERNEL-WORKFLOW.md
-3. docs/CONTRACTS.md
-4. docs/STATUS.md
-5. docs/implementation/PHASE4.2-agent-kernel-tools.md
-6. docs/design/README.md
+3. docs/KERNEL-MATURITY.md
+4. docs/CONTRACTS.md
+5. docs/STATUS.md
+6. docs/implementation/PHASE4.2-agent-kernel-tools.md
+7. docs/design/README.md
 ```
 
 ---

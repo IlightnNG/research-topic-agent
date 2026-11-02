@@ -2,7 +2,7 @@
 
 > 版本：2.0（2026-11-02）
 > 类型：详细设计与迁移方案
-> 状态：in progress；S0–S5 done；下一 S6（Workflow core + report shell）
+> 状态：in progress；S0–S5 done；下一 S6 Kernel completeness（Workflow 暂缓）
 > 优先级：通用 Kernel + 通用 Tools 优先；报告 Workflow 后置
 > 依据：DSH `core/tools`、`core/agent-loop`、`compaction` 与 Phase 4.1 实现
 
@@ -815,22 +815,88 @@ verify.audit
 
 **不通过不许写报告 Workflow。**
 
-### 4.2.6 Workflow core + report shell
+### 4.2.6 Kernel completeness · next
+
+目标：先把 Kernel 做到完善可用，再碰 Workflow。
+
+- 工具并行调度（parallel_safe / exclusive）
+- 持久化 checkpoint / session / resume
+- 模型 retry / backoff / token / cost
+- context soft/hard compaction / overflow recovery
+- 取消与 drain
+- streaming（可后置但接口先定）
+- 严格 output schema / failure classification
+
+### 4.2.7 NodeKernelAdapter
+
+只做一个 Node 入口，不改 Workflow：
+
+```text
+NodeSpec -> KernelTask -> AgentKernel.run -> NodeResult
+```
+
+用途：
+
+```text
+让 Kernel 通过 Node 入口被调用
+验证输入输出合法
+验证 checkpoint / metrics / logs
+不进入 report workflow 优化
+```
+
+### 4.2.8 Observability
+
+- kernel event taxonomy
+- metrics：success/steps/tokens/cost/latency/tool errors
+- error taxonomy：E_KERNEL_* / E_MODEL_* / E_TOOL_*
+- 日志脱敏
+- benchmark 结果落库
+
+### 4.2.9 Kernel benchmark + performance
+
+必须完成真实 LLM 多任务基准：
+
+```text
+30+ tasks
+real model
+no report tools
+```
+
+门禁：
+
+```text
+schema pass >= 99%
+simple task success >= 90%
+complex task success >= 70%
+no uncaught kernel exception
+resume works
+context compaction observable
+```
+
+未通过：
+
+```text
+禁止修改 Workflow
+```
+
+### 4.2.10 Workflow core + report shell
+
+只有 Kernel 门禁通过后才开始：
 
 - WorkflowRunner
 - NodeSpec -> KernelTask
 - report workflow
 - 移除生产 `DemoOrchestrator`
+- 每个 Agent Node >= 3 tools
 
-### 4.2.7 Report optimization
+### 4.2.11 Report optimization
 
 - 100 篇 fulltext
 - 多工具 Node
-- fulltext ratio
 - citation / audit
 - 报告质量改进
 
-### 4.2.8 Chat
+### 4.2.12 Chat
 
 - ConversationSession
 - chat workflow
@@ -838,11 +904,25 @@ verify.audit
 - 真实 LLM
 - streaming 可后置
 
-### 4.2.9 Cleanup
+### 4.2.13 Cleanup
 
 - 删除 `demo.orchestrator`
 - 删除单工具 demo
 - docs / tests / commit
+
+---
+
+## 10.1 Kernel → Workflow 门禁
+
+```text
+Kernel feature checklist 完成
+NodeKernelAdapter smoke 通过
+30+ 真实 LLM benchmark 完成
+指标达标
+日志/错误系统完整
+```
+
+详见 [`docs/KERNEL-MATURITY.md`](../KERNEL-MATURITY.md)。
 
 ---
 
