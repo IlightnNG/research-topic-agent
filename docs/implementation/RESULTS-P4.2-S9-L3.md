@@ -1,6 +1,6 @@
 # RESULTS · Phase 4.2 Complex L3 Benchmark
 
-> Status: benchmark run complete; L3 gate partially passed
+> Status: early benchmark record; final gate passed in [`RESULTS-P4.2-L3-GATE.md`](RESULTS-P4.2-L3-GATE.md)
 > Date: 2026-11-02
 > Model: `deepseek-flash`
 > Pricing: peak rates from DeepSeek official page
@@ -190,9 +190,9 @@ ruff clean
 ### Decision
 
 ```text
-L3 functional benchmark: mostly passed
-L3 quality/repair gate: NOT passed
-Workflow changes: still frozen
+This early run: 10 tasks, audit 7/10
+Final gate: 14 tasks, audit 13/14, passed
+Workflow: unblocked by final gate
 ```
 
 Reason:

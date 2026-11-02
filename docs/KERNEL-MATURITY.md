@@ -51,9 +51,10 @@ S6 = 并行/checkpoint/retry/compaction 基础完成
 S7 = NodeKernelAdapter 完成
 S8 = JSONL event + metrics + error code 基础完成
 S9 = 30-case deterministic benchmark 完成
-S9 = 30 real simple tasks 30/30 + 10 complex tasks 10/10
-S9 audit = 7/10
-L3 quality gate = 未通过（repair 未集成）
+S9 = 30 real simple tasks 30/30 + 14 complex tasks 12/14
+S9 audit = 13/14 accepted, 3 repairs succeeded
+L3 gate = passed
+Workflow = unblocked
 ```
 
 目标：
@@ -525,9 +526,9 @@ audit repair       not integrated
 结论：
 
 ```text
-执行能力 L3-lite 通过
-质量/repair 门禁未通过
-Workflow 继续冻结
+执行能力通过
+质量/repair 门禁通过
+Workflow unblocked
 ```
 
 详见 [`implementation/RESULTS-P4.2-S9-L3.md`](implementation/RESULTS-P4.2-S9-L3.md)。

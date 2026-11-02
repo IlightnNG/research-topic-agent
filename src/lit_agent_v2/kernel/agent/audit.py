@@ -21,6 +21,19 @@ class LLMAuditor:
         self.llm = llm
         self.min_score = min_score
 
+    def task_auditor(
+        self,
+        task: Any,
+        output: dict[str, Any],
+        trace: list[dict[str, Any]],
+    ) -> list[str]:
+        report = self.audit(task.goal, output, trace=trace)
+        if report.accepted:
+            return []
+        return report.problems or [
+            "audit rejected: " + ", ".join(f"{key}={value}" for key, value in report.scores.items())
+        ]
+
     def audit(
         self,
         goal: str,

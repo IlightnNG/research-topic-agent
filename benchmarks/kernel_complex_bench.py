@@ -135,6 +135,60 @@ def build_cases() -> list[Case]:
             ),
             lambda state: sum(1 for item in state.history if item.get("name") == "fs.read") >= 2,
         ),
+
+        Case(
+            "repair-code",
+            (
+                "You MUST call fs.read on calc.py and test_calc.py. Then fs.write calc.py "
+                "with a corrected implementation of add. Then test.run target test_calc.py. "
+                'Finally return {"ok":true,"summary":"..."} .'
+            ),
+            lambda workspace: (
+                (workspace / "calc.py").write_text(
+                    "def add(a, b):\n    return a - b\n", encoding="utf-8"
+                ),
+                (workspace / "test_calc.py").write_text(
+                    "from calc import add\n\ndef test_add():\n    assert add(2, 3) == 5\n",
+                    encoding="utf-8",
+                ),
+            ),
+            lambda state: any(item.get("name") == "test.run" for item in state.history)
+            and "a + b" in (state.workspace / "calc.py").read_text(encoding="utf-8"),
+        ),
+        Case(
+            "plan-replan",
+            (
+                'You MUST call plan.create goal "replan" steps ["one"]. Then plan.update '
+                'with the plan id and steps ["one","two","three"]. Then plan.read. '
+                "Finally return ok=true."
+            ),
+            lambda _workspace: None,
+            lambda state: bool(state.plans)
+            and len(next(iter(state.plans.values()))["steps"]) == 3,
+        ),
+        Case(
+            "multi-file-compare",
+            (
+                "You MUST call fs.read on a.txt, b.txt and c.txt. Then artifact.put name "
+                "compare.txt with a short comparison. Finally return ok=true."
+            ),
+            lambda workspace: (
+                (workspace / "a.txt").write_text("A", encoding="utf-8"),
+                (workspace / "b.txt").write_text("B", encoding="utf-8"),
+                (workspace / "c.txt").write_text("C", encoding="utf-8"),
+            ),
+            lambda state: sum(1 for item in state.history if item.get("name") == "fs.read") >= 3,
+        ),
+        Case(
+            "json-repair",
+            (
+                "You MUST call fs.write path result.json content '{\"x\": 1}'. Then "
+                "verify.code path result.json required_keys ['x']. If it fails, fix and retry. "
+                "Finally return ok=true."
+            ),
+            lambda _workspace: None,
+            lambda state: any(item.get("name") == "verify.code" for item in state.history),
+        ),
         Case(
             "context-plan-artifact",
             (
@@ -147,6 +201,18 @@ def build_cases() -> list[Case]:
     ]
 
 
+class CaseAuditor:
+    def __init__(self, llm: DeepSeekChatClient) -> None:
+        self.inner = LLMAuditor(llm, min_score=2.0)
+        self.last = None
+
+    def __call__(self, task, output, trace):  # noqa: ANN001
+        self.last = self.inner.audit(task.goal, output, trace=trace)
+        if self.last.accepted:
+            return []
+        return self.last.problems or ["audit rejected"]
+
+
 def _runtime() -> ToolRuntime:
     return ToolRuntime(
         ToolRegistry(build_general_tools()),
@@ -155,12 +221,13 @@ def _runtime() -> ToolRuntime:
     )
 
 
-def run_case(case: Case, root: Path, llm: DeepSeekChatClient, auditor: LLMAuditor) -> dict[str, Any]:
+def run_case(case: Case, root: Path, llm: DeepSeekChatClient) -> dict[str, Any]:
     workspace = root / case.name
     workspace.mkdir(parents=True, exist_ok=True)
     case.setup(workspace)
     state = GeneralState(workspace=workspace)
     started = time.perf_counter()
+    case_auditor = CaseAuditor(llm)
     result = AgentKernel(llm, _runtime(), state).run(
         KernelTask(
             task_id=case.name,
@@ -169,10 +236,11 @@ def run_case(case: Case, root: Path, llm: DeepSeekChatClient, auditor: LLMAudito
             output_schema=OUTPUT,
             toolset="general",
             policy=KernelPolicy(max_steps=8, max_usd=1.0, max_repair=1),
+            trace_auditor=case_auditor,
         )
     )
     latency = (time.perf_counter() - started) * 1000
-    audit = auditor.audit(case.goal, result.output, trace=result.history)
+    audit = case_auditor.last
     verified = False
     try:
         verified = case.verify(state)
@@ -188,9 +256,12 @@ def run_case(case: Case, root: Path, llm: DeepSeekChatClient, auditor: LLMAudito
         "tool_calls": result.metrics.get("tool_calls", 0),
         "tool_errors": result.metrics.get("tool_errors", 0),
         "repairs": result.metrics.get("repairs", 0),
-        "audit_accepted": audit.accepted,
-        "audit_scores": audit.scores,
-        "audit_problems": audit.problems,
+        "audit_accepted": bool(audit and audit.accepted),
+        "audit_scores": audit.scores if audit else {},
+        "audit_problems": audit.problems if audit else [],
+        "audit_calls": result.metrics.get("audit_calls", 0),
+        "audit_failures": result.metrics.get("audit_failures", 0),
+        "audit_repair_successes": result.metrics.get("audit_repair_successes", 0),
         "prompt_tokens": result.usage.get("prompt_tokens", 0),
         "completion_tokens": result.usage.get("completion_tokens", 0),
         "cost_usd": result.cost_usd,
@@ -208,11 +279,10 @@ def main() -> int:
     db.migrate()
     store = KernelMetricStore(db)
     llm = DeepSeekChatClient(load_llm_config())
-    auditor = LLMAuditor(llm, min_score=2.0)
     rows = []
     with tempfile.TemporaryDirectory() as temp:
         for case in build_cases():
-            row = run_case(case, Path(temp), llm, auditor)
+            row = run_case(case, Path(temp), llm)
             result = row.pop("result")
             store.record(
                 result,

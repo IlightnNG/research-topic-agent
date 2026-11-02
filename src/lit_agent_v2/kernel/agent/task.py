@@ -33,6 +33,7 @@ class KernelTask:
     policy: KernelPolicy = field(default_factory=KernelPolicy)
     verifier: Callable[[dict[str, Any]], list[str]] | None = None
     auditor: Callable[[KernelTask, dict[str, Any]], list[str]] | None = None
+    trace_auditor: Callable[[KernelTask, dict[str, Any], list[dict[str, Any]]], list[str]] | None = None
 
 
 @dataclass

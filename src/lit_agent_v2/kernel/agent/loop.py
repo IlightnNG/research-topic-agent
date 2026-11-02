@@ -57,6 +57,7 @@ class AgentKernel:
             "repairs": 0,
             "audit_calls": 0,
             "audit_failures": 0,
+            "audit_repair_successes": 0,
             "compactions": 0,
             "prompt_tokens": 0,
             "completion_tokens": 0,
@@ -64,6 +65,7 @@ class AgentKernel:
         }
         invalid = 0
         repair = 0
+        audit_failed_before = False
         last_signature = ""
         repeats = 0
         start_step = 1
@@ -135,14 +137,21 @@ class AgentKernel:
             if action.get("action") == "final":
                 output = action.get("outputs")
                 problems = self._validate_output(task, output)
-                if not problems and task.auditor is not None:
+                audit_rejected = False
+                if not problems and (task.trace_auditor is not None or task.auditor is not None):
                     metrics["audit_calls"] += 1
                     try:
-                        problems.extend(task.auditor(task, output))
+                        if task.trace_auditor is not None:
+                            audit_problems = task.trace_auditor(task, output, history)
+                        else:
+                            audit_problems = task.auditor(task, output)  # type: ignore[misc]
+                        problems.extend(audit_problems or [])
                     except Exception as exc:  # noqa: BLE001
                         problems.append(f"audit_error:{type(exc).__name__}")
-                    if problems:
+                    audit_rejected = bool(problems)
+                    if audit_rejected:
                         metrics["audit_failures"] += 1
+                        audit_failed_before = True
                 if problems and repair < task.policy.max_repair:
                     repair += 1
                     metrics["repairs"] += 1
@@ -161,6 +170,8 @@ class AgentKernel:
                     return self._finish(
                         task, {}, history, step, usage, cost, metrics, "failed", "E_KERNEL_REPAIR_EXHAUSTED"
                     )
+                if audit_failed_before:
+                    metrics["audit_repair_successes"] += 1
                 return self._finish(
                     task, dict(output or {}), history, step, usage, cost, metrics, "final"
                 )

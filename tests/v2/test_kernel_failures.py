@@ -231,3 +231,33 @@ def test_corrupt_checkpoint_is_ignored(tmp_path: Path) -> None:
     path = tmp_path / "checkpoints" / "broken.json"
     path.write_text("{not json", encoding="utf-8")
     assert store.load("broken") is None
+
+
+def test_trace_aware_audit_repair(tmp_path: Path) -> None:
+    calls = {"n": 0}
+    trace_seen = {"items": 0}
+
+    def trace_auditor(_task, _output, history):  # noqa: ANN001
+        calls["n"] += 1
+        trace_seen["items"] = len(history)
+        return ["trace audit rejected"] if calls["n"] == 1 else []
+
+    result = AgentKernel(
+        FakeLLM([_final(), _final()]),
+        _runtime(tmp_path),
+        GeneralState(workspace=tmp_path),
+    ).run(
+        KernelTask(
+            task_id="trace-audit",
+            goal="trace audit",
+            output_schema=OUTPUT,
+            toolset="general",
+            policy=KernelPolicy(max_steps=4, max_repair=1),
+            trace_auditor=trace_auditor,
+        )
+    )
+    assert result.stop_reason == "final"
+    assert result.metrics["audit_calls"] == 2
+    assert result.metrics["audit_failures"] == 1
+    assert result.metrics["audit_repair_successes"] == 1
+    assert trace_seen["items"] >= 1

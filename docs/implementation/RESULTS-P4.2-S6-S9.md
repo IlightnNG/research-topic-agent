@@ -1,8 +1,8 @@
 # RESULTS · Phase 4.2 S6–S9
 
-> Status: S6/S7/S8 implemented; S9 deterministic + real simple-task benchmark
+> Status: S6/S7/S8 implemented; S9 superseded by final L3 gate
 > Date: 2026-11-02
-> Important: simple 30/30 and complex 10/10 are done; L3 quality gate is still not passed (audit 7/10, repair not integrated).
+> Important: final L3 gate passed; see [`RESULTS-P4.2-L3-GATE.md`](RESULTS-P4.2-L3-GATE.md).
 
 ---
 
@@ -248,7 +248,7 @@ See [`RESULTS-P4.2-S9-L3.md`](RESULTS-P4.2-S9-L3.md).
 ## Tests
 
 ```text
-117 passed
+119 passed
 ruff clean
 ```
 

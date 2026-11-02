@@ -9,9 +9,9 @@
 ## 当前状态
 
 ```text
-阶段：Phase 4.1 complete；Phase 4.2 S0–S9 benchmark done；真实简单 30/30、复杂 10/10；L3 quality gate 未通过
+阶段：Phase 4.1 complete；Phase 4.2 S0–S9 done；L3 gate passed（简单 30/30，复杂 12/14，audit 13/14，soak 8/8）
 前端：Vue F1–F6 done；real API mode 已联调
-最后测试：117 passed / ruff clean
+最后测试：119 passed / ruff clean
 前端构建：web npm run build passed
 全链路 demo：100 papers / 35 fulltext / 186 claims / 13 sections / complete
 联调：topics → run → trace → report → paper；chat 基础链路
@@ -49,7 +49,7 @@ Legacy:
 | 模块 | 目标状态 | 当前代码 |
 |---|---|---|
 | W Workflow | 特制任务外壳 | 4 Node report demo 已跑通；但 Node 单工具 + DemoOrchestrator 写死 |
-| K Kernel | 通用 Agent 内核，可独立完成复杂任务 | S6–S8 硬化；真实简单 30/30、复杂 10/10；audit 7/10，L3 未过 |
+| K Kernel | 通用 Agent 内核，可独立完成复杂任务 | L3 gate passed；复杂 12/14，audit 13/14，soak 8/8 |
 | T Tools | ToolRuntime + general/domain toolset | S2/S3 done：general tools、toolset、policy、spill |
 | V Verification | code + audit | dual Verifier 已接入 runner |
 | S Storage | artifact/state/report | 已有 |
@@ -73,12 +73,10 @@ Legacy:
 ## 下一步
 
 ```text
-1. S6 Kernel completeness：parallel、checkpoint、retry、context overflow
-2. S7 NodeKernelAdapter：最小 Node 入口
-3. S8 观察性：metrics / logging / error taxonomy
-4. S9 真实 LLM 30+ benchmark + performance gate
-5. 门禁通过后才做 report workflow
-6. 最后再接 Chat workflow
+1. S10 Workflow core + report shell
+2. report workflow 使用通用 AgentKernel
+3. 报告质量优化
+4. 最后再接 Chat workflow
 ```
 
 Demo 目标：

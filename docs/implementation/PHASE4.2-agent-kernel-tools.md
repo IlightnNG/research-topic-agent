@@ -2,7 +2,7 @@
 
 > 版本：2.0（2026-11-02）
 > 类型：详细设计与迁移方案
-> 状态：in progress；S0–S9 benchmark done；L3 quality gate 未通过；Workflow 冻结
+> 状态：in progress；S0–S9 done；L3 gate passed；下一 S10 Workflow
 > 优先级：通用 Kernel + 通用 Tools 优先；报告 Workflow 后置
 > 依据：DSH `core/tools`、`core/agent-loop`、`compaction` 与 Phase 4.1 实现
 
@@ -852,7 +852,7 @@ NodeSpec -> KernelTask -> AgentKernel.run -> NodeResult
 - 日志脱敏
 - benchmark 结果落库
 
-### 4.2.9 Kernel benchmark + performance · deterministic only
+### 4.2.9 Kernel benchmark + performance · done
 
 必须完成真实 LLM 多任务基准：
 
