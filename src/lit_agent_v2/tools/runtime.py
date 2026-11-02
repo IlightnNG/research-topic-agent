@@ -89,7 +89,7 @@ class ToolRuntime:
                     error_code="E_TOOL_POLICY_DENIED",
                     content=str(decision) if isinstance(decision, str) else "",
                 )
-        result = self.registry.call(name, args)
+        result = self.registry.call(name, args, context=context)
         if not result.ok:
             return result
         content = result.content or self._render(spec, args, result.output)

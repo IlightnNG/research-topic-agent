@@ -2,7 +2,7 @@
 
 > 版本：2.0（2026-11-02）
 > 类型：详细设计与迁移方案
-> 状态：in progress；S0–S2 done（见 [`RESULTS-P4.2-S0-S2.md`](RESULTS-P4.2-S0-S2.md)）；下一 S3
+> 状态：in progress；S0–S5 done；下一 S6（Workflow core + report shell）
 > 优先级：通用 Kernel + 通用 Tools 优先；报告 Workflow 后置
 > 依据：DSH `core/tools`、`core/agent-loop`、`compaction` 与 Phase 4.1 实现
 
@@ -785,7 +785,7 @@ chat.py
 - cancellation
 - tool events
 
-### 4.2.3 General tools · next
+### 4.2.3 General tools · done
 
 ```text
 context.inspect
@@ -799,7 +799,7 @@ verify.code
 verify.audit
 ```
 
-### 4.2.4 Generic Kernel
+### 4.2.4 Generic Kernel · done
 
 - KernelTask
 - turn/step
@@ -809,7 +809,7 @@ verify.audit
 - checkpoint
 - cancel / pause
 
-### 4.2.5 Kernel acceptance
+### 4.2.5 Kernel acceptance · done
 
 运行第 8 节的 A–E 任务。
 

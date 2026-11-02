@@ -15,6 +15,7 @@ GENERAL_TOOLSET = (
     "artifact.get",
     "fs.read",
     "fs.list",
+    "fs.write",
     "test.run",
     "verify.code",
     "verify.audit",

@@ -8,7 +8,7 @@ from concurrent.futures import ThreadPoolExecutor
 from concurrent.futures import TimeoutError as FutureTimeout
 from typing import Any
 
-from lit_agent_v2.contracts.tool import ToolResult, ToolSpec
+from lit_agent_v2.contracts.tool import ToolContext, ToolResult, ToolSpec
 from lit_agent_v2.tools.schema import validate_args, validate_value
 
 __all__ = ["ToolRegistry"]
@@ -31,7 +31,7 @@ class ToolRegistry:
             raise ValueError("tool name is required")
         if spec.name in self._specs:
             raise ValueError(f"duplicate tool: {spec.name}")
-        if spec.handler is None:
+        if spec.handler is None and spec.context_handler is None:
             raise ValueError(f"tool {spec.name} has no handler")
         self._specs[spec.name] = spec
 
@@ -47,9 +47,11 @@ class ToolRegistry:
             spec for name, spec in self._specs.items() if name in allowed
         )
 
-    def call(self, name: str, args: dict[str, Any]) -> ToolResult:
+    def call(
+        self, name: str, args: dict[str, Any], *, context: ToolContext | None = None
+    ) -> ToolResult:
         spec = self._specs.get(name)
-        if spec is None or spec.handler is None:
+        if spec is None or (spec.handler is None and spec.context_handler is None):
             return ToolResult(False, error_code="E_TOOL_NOT_FOUND")
         problems = validate_args(args, spec.input_schema)
         if problems:
@@ -58,7 +60,7 @@ class ToolRegistry:
             return result
         last: ToolResult | None = None
         for _attempt in range(spec.max_retries + 1):
-            result = self._call_once(spec, args)
+            result = self._call_once(spec, args, context)
             last = result
             if result.ok or not result.retryable:
                 break
@@ -68,10 +70,15 @@ class ToolRegistry:
         self._notify(name, args, last)
         return last
 
-    def _call_once(self, spec: ToolSpec, args: dict[str, Any]) -> ToolResult:
+    def _call_once(
+        self, spec: ToolSpec, args: dict[str, Any], context: ToolContext | None
+    ) -> ToolResult:
         started = time.monotonic()
         pool = ThreadPoolExecutor(max_workers=1)
-        future = pool.submit(spec.handler, args)  # type: ignore[arg-type]
+        if spec.context_handler is not None:
+            future = pool.submit(spec.context_handler, args, context)  # type: ignore[arg-type]
+        else:
+            future = pool.submit(spec.handler, args)  # type: ignore[arg-type]
         try:
             output = future.result(timeout=spec.timeout_s)
         except FutureTimeout:

@@ -27,6 +27,7 @@ Current documents only.
 | [`implementation/PHASE4.1-node-platform-migration.md`](implementation/PHASE4.1-node-platform-migration.md) | completed Node platform migration |
 | [`implementation/RESULTS-P4.1.8.md`](implementation/RESULTS-P4.1.8.md) | 100-paper fulltext full-chain result |
 | [`implementation/RESULTS-P4.2-S0-S2.md`](implementation/RESULTS-P4.2-S0-S2.md) | S0–S2: tool contracts and ToolRuntime |
+| [`implementation/RESULTS-P4.2-S3-S5.md`](implementation/RESULTS-P4.2-S3-S5.md) | S3–S5: general tools, AgentKernel, A–E acceptance |
 | [`implementation/RESULTS-P4.1.9.md`](implementation/RESULTS-P4.1.9.md) | legacy cleanup and Phase 4.1 close |
 | [`archive/README.md`](archive/README.md) | historical docs index |
 | [`modules/README.md`](modules/README.md) | platform module map + legacy M1–M6 mapping |

@@ -22,6 +22,7 @@ class ToolSpec:
     max_retries: int = 0
     retry_on: tuple[str, ...] = ("E_TOOL_TIMEOUT",)
     handler: Callable[[dict[str, Any]], dict[str, Any]] | None = None
+    context_handler: Callable[[dict[str, Any], ToolContext], dict[str, Any]] | None = None
 
     # Phase 4.2 metadata. Fields stay optional so existing packs remain valid.
     namespace: str = ""
@@ -57,6 +58,7 @@ class ToolContext:
     signal: Callable[[], bool] | None = None
     events: Any = None
     artifacts: Any = None
+    state: Any = None
     metadata: dict[str, Any] = field(default_factory=dict)
 
 
