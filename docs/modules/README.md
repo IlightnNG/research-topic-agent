@@ -1,6 +1,6 @@
 # Modules · 模块地图
 
-> 版本：2.0（2026-11-01）
+> 版本：2.1（2026-11-02）
 > 目的：按**平台职责**拆分，不再按业务阶段 M1–M6 拆分。
 > 旧 M1–M6 文档保留为历史 phase 记录；目标架构见 `docs/ARCHITECTURE.md`。
 
@@ -10,9 +10,9 @@
 
 | ID | 模块 | 目录（目标） | 职责 |
 |---|---|---|---|
-| **W** | Workflow | [docs/modules/workflow/](workflow/README.md) | Node 链、运行状态、commit/resume、optional nodes |
-| **K** | Kernel | [docs/modules/kernel/](kernel/README.md) | Node 内 ReAct、context、tool loop、budget、checkpoint |
-| **T** | Tools | [docs/modules/tools/](tools/README.md) | ToolSpec、registry、参数校验、工具适配 |
+| **W** | Workflow | [docs/modules/workflow/](workflow/README.md) | 特制任务外壳；阶段拆分、约束、验收、commit/resume |
+| **K** | Kernel | [docs/modules/kernel/](kernel/README.md) | 通用 Agent Kernel；可独立完成复杂任务 |
+| **T** | Tools | [docs/modules/tools/](tools/README.md) | ToolRuntime；general/domain toolset；参数/输出校验 |
 | **V** | Verification | [docs/modules/verify/](verify/README.md) | CodeVerifier + LLM AuditVerifier + Verdict |
 | **S** | Storage | [docs/modules/storage/](storage/README.md) | artifacts、SQLite、events、metrics、report repository |
 | **I** | Interface | [docs/modules/interface/](interface/README.md) | API、SSE、CLI、UI |
@@ -62,12 +62,22 @@ Composition → all concrete
 
 ---
 
-## 5. Workflow 与 Node
+## 5. Kernel 与 Workflow
 
 ```text
-Workflow = 有序 Node 链
-Node     = 目标 + 工具 + 输入 + 输出 + Verifier
+Kernel = 通用 Agent 发动机
+         可独立完成复杂任务
+         不知道 report/paper/claim
+
+Workflow = 特制任务外壳
+           拆解阶段、约束 Kernel、验收中间产物
+           报告/Chat/研究各自不同
+
+Node = Workflow 的一个阶段
+       NodeSpec → KernelTask
 ```
+
+详见 [`docs/KERNEL-WORKFLOW.md`](../KERNEL-WORKFLOW.md)。
 
 Node 不是“另一个层级”，而是 Workflow 的元素。
 

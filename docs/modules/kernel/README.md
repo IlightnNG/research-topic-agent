@@ -1,50 +1,93 @@
 # K · Kernel
 
 > 模块：Kernel
-> 版本：2.0（2026-11-01）
-> 状态：target；已有 ReAct 原型，需重写接口
-> 目标：执行单个 Node。
+> 版本：2.1（2026-11-02）
+> 状态：target；Phase 4.2 优先实现
+> 目标：通用 Agent 内核，可独立完成复杂任务
 
 ---
 
 ## 1. 职责
 
+Kernel 接收 `KernelTask`：
+
 ```text
-NodeContext
-goal prompt
-tool allowlist
-ReAct loop
-tool call / observation
-budget / steps / timeout
-no-progress
-cancel
-step checkpoint
-NodeResult
+goal
+inputs
+toolset
+output_schema
+verifier
+policy
 ```
+
+自主完成：
+
+```text
+计划
+选择工具
+多步骤执行
+观察结果
+上下文压缩
+计划 / 记忆
+失败恢复
+self-check
+repair
+输出 artifact
+```
+
+Kernel 必须能脱离 Workflow 独立运行。
 
 ## 2. 不负责
 
 ```text
-Workflow 拓扑
+Workflow 阶段拆分
 Node 顺序
-领域 service
-数据库/文件/HTTP
-Verifier 最终判定
+报告 / 论文 / claim 等领域逻辑
+数据库 / 文件 / HTTP 的直接实现
+最终业务验收
 ```
 
-## 3. 契约
+## 3. 知识边界
+
+Kernel 只认识：
+
+```text
+KernelTask
+Message
+Tool
+Observation
+Context
+Plan
+Memory
+Budget
+Checkpoint
+Artifact
+Verifier
+```
+
+Kernel 不知道：
+
+```text
+report
+paper
+claim
+section
+citation
+```
+
+## 4. 契约
 
 ```python
 Kernel.run(
-    node: NodeSpec,
-    context: NodeContext,
-    tools: ToolRegistry,
+    task: KernelTask,
+    tools: ToolRuntime,
     llm: LLMClient,
+    context: KernelContext,
     checkpoint: KernelCheckpoint | None,
-) -> NodeResult
+) -> KernelResult
 ```
 
-NodeResult：
+`KernelResult`：
 
 ```text
 output
@@ -55,47 +98,52 @@ stop_reason
 checkpoint
 ```
 
-## 4. 目标文件
+## 5. 循环
 
 ```text
-kernel/loop.py
-kernel/context.py
-kernel/checkpoint.py
-kernel/budget.py
+turn
+  → step
+    → inbox / steering
+    → context assembly
+    → context compaction
+    → model call
+    → tool calls
+    → observations
+    → checkpoint
+  → final / repair / stop
 ```
 
-## 5. 规则
+## 6. 规则
 
-- 只能调用 Node allowlist 工具；
-- 不能改 Workflow；
-- 不能直接 import domain；
-- 每次工具调用后可 checkpoint；
-- no-progress / budget / timeout 必须终止；
-- `final` 输出必须符合 Node output schema。
+- Kernel 不 import 领域 workflow。
+- Kernel 不判断任务是否为报告。
+- 每个工具调用后 / 每个 step 后可 checkpoint。
+- 工具失败返回结构化结果，不终止 turn。
+- 输出必须经过 output schema / verifier。
+- repair 由 Kernel 执行，有预算上限。
+- pause 在 step 边界生效。
 
-## 6. 验收
+## 7. 目标文件
 
 ```text
-fake LLM tool→final
-unregistered tool rejected
-budget stops
-no-progress stops
-checkpoint/resume
+kernel/agent/loop.py
+kernel/agent/context.py
+kernel/agent/scheduler.py
+kernel/agent/policy.py
+kernel/agent/checkpoint.py
+kernel/llm.py
 ```
 
-## 7. 当前实现
+## 8. 验收
 
 ```text
-kernel/node/loop.py
-kernel/node/checkpoint.py
-kernel/node/ports.py
+Kernel A–E 任务通过
+无 report 工具也能完成复杂任务
+tool 动态选择
+plan.update
+context.compact
+verify.repair
+checkpoint / resume
 ```
 
-状态：4.1.3 done + DSH-informed optimization；旧 kernel/loop.py 仍在迁移期保留给 Chat。
-
-## 8. Phase docs
-
-```text
-K-P01-node-context.md
-K-P02-tool-loop-checkpoint.md
-```
+详见 [`docs/implementation/PHASE4.2-agent-kernel-tools.md`](../../implementation/PHASE4.2-agent-kernel-tools.md)。

@@ -1,6 +1,6 @@
 # STATUS
 
-> 版本：2.0（2026-11-01）
+> 版本：2.1（2026-11-02）
 > 用途：AI 长周期交接；每个 phase 收尾必须更新。
 > 只写事实，不写计划口吻。
 
@@ -9,13 +9,13 @@
 ## 当前状态
 
 ```text
-阶段：Phase 4.1 complete（4.1.0–4.1.9）；下一 Phase 4.2（见 `docs/implementation/PHASE4.2-agent-kernel-tools.md`）
+阶段：Phase 4.1 complete；Phase 4.2 启动：优先通用 Kernel + Tools，报告 Workflow 后置
 前端：Vue F1–F6 done；real API mode 已联调
 最后测试：84 passed / ruff clean
 前端构建：web npm run build passed
 全链路 demo：100 papers / 35 fulltext / 186 claims / 13 sections / complete
 联调：topics → run → trace → report → paper；chat 基础链路
-当前契约：代码仍为 1.2；目标契约 CONTRACTS 2.0 DRAFT
+当前契约：CONTRACTS 2.0 frozen
 真实联调：100 篇本地 corpus，fulltext 35/100，186 claims，13 sections，report complete
 ```
 
@@ -48,12 +48,12 @@ Legacy:
 
 | 模块 | 目标状态 | 当前代码 |
 |---|---|---|
-| W Workflow | Node 链、可选节点、commit/resume | 4 Node full chain 已跑通；旧 ReportWorkflow 仍在 |
-| K Kernel | 每 Node ReAct、tools、checkpoint | 新 Kernel 已有；旧 Kernel 仍给 Chat |
-| T Tools | 全量 ToolRegistry | core registry + source/corpus/claims/report + demo packs |
+| W Workflow | 特制任务外壳 | 4 Node report demo 已跑通；但 Node 单工具 + DemoOrchestrator 写死 |
+| K Kernel | 通用 Agent 内核，可独立完成复杂任务 | 目前是 Node-local ReAct；无 plan/memory/通用压缩/repair |
+| T Tools | ToolRuntime + general/domain toolset | 当前只有薄 ToolRegistry；无 output pipeline/toolset |
 | V Verification | code + audit | dual Verifier 已接入 runner |
 | S Storage | artifact/state/report | 已有 |
-| I Interface | API/UI | Vue F1–F6 real API；支持 full-chain 模式 |
+| I Interface | API/UI | Vue F1–F6 real API；full-chain 默认 |
 | R Research | source/evidence/report tools | report demo tools 已有 |
 | E Evaluation | scorecard/judge tools | 已有，未接入 |
 
@@ -73,11 +73,12 @@ Legacy:
 ## 下一步
 
 ```text
-1. Phase 4.2 决定 full-chain 是否成为默认 API
-2. demo.report 升级为 LLM 逐节写作
-3. 章节拆分 / classification / scorecard
-4. Chat 接入真实 LLM 与 streaming
-5. 评估模块接入 platform workflow
+1. Phase 4.2：ToolSpec / ToolRuntime 标准化
+2. Phase 4.2：通用工具 context/plan/memory/test/verify
+3. Phase 4.2：通用 Kernel（turn/step、动态工具、压缩、repair）
+4. Kernel-only 任务 A–E 验收
+5. 之后再做 report workflow（特制外壳）
+6. 最后再接 Chat workflow
 ```
 
 Demo 目标：
@@ -95,8 +96,9 @@ API/UI 可读
 ## 最近变更
 
 ```text
-2026-11-01  ARCHITECTURE 2.0：Workflow = Node 链，Node = goal/tools/verifier
-2026-11-01  CONTRACTS 2.0 DRAFT
+2026-11-02  ARCHITECTURE 2.1：通用 Kernel + 特制 Workflow
+2026-11-02  CONTRACTS 2.0 frozen
+2026-11-02  Phase 4.2 设计：Kernel/Tools 优先，报告 Workflow 后置
 2026-11-01  模块地图改为 W/K/T/V/S/I + R/E + C
 2026-11-01  M6-P01 API/UI 完成
 2026-11-01  M5-P02 AI gold 抽样分析：不可用
@@ -111,9 +113,10 @@ API/UI 可读
 ## 交接规则
 
 1. 先读 `docs/ARCHITECTURE.md`；
-2. 再读 `docs/CONTRACTS.md`；
-3. 再读 `docs/modules/README.md`；
-4. 只改当前平台模块；
-5. phase 完成更新 STATUS/TODO；
-6. 生成一句话 commit；
-7. 不恢复旧代码。
+2. 再读 `docs/KERNEL-WORKFLOW.md`；
+3. 再读 `docs/CONTRACTS.md`；
+4. 再读 `docs/modules/README.md`；
+5. 只改当前平台模块；
+6. phase 完成更新 STATUS/TODO；
+7. 生成一句话 commit；
+8. 不恢复旧代码。

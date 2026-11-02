@@ -10,17 +10,23 @@
 ## 1. 契约总览
 
 ```text
+Kernel
+  = 通用 Agent 内核
+  = run(KernelTask, ToolRuntime, LLM, checkpoint) -> KernelResult
+
+KernelTask
+  = goal + inputs + toolset + output_schema + verifier + policy
+
 WorkflowDefinition
+  = 特制任务的阶段编排
   = ordered list[NodeSpec]
 
 NodeSpec
-  = goal + tools + inputs + output_schema + verifier + budget
-
-Kernel
-  = run(NodeSpec, NodeContext, ToolRegistry, LLM) -> NodeResult
+  = Workflow 阶段
+  = goal + toolset + inputs + output_schema + verifier + budget
 
 ToolSpec
-  = name + schema + side_effect + handler
+  = name + input/output schema + execution metadata + handler
 
 Verifier
   = code checks + LLM audit -> Verdict
@@ -29,9 +35,10 @@ Verifier
 契约最小集：
 
 ```text
+KernelTask
+KernelResult
+WorkflowDefinition
 NodeSpec
-NodeContext
-NodeResult
 ToolSpec
 ToolCall
 ToolResult
@@ -55,7 +62,8 @@ class WorkflowDefinition:
 
 规则：
 
-- `Workflow` 就是 Node 链；
+- Workflow 是特制任务外壳，不是通用层；
+- Workflow 由 Node 链组成；
 - 节点顺序由 `nodes` 决定；
 - `features` 决定可选节点；
 - Node 之间只通过 artifact 传递；
@@ -75,6 +83,7 @@ class NodeSpec:
     inputs: tuple[str, ...]
     output_schema: str
     verifier: VerifierProfile
+    toolset: str = "general"
     max_steps: int = 8
     max_usd: float = 0.20
     max_tokens: int = 4000
@@ -105,7 +114,9 @@ class NodeSpec:
 
 ### tools
 
-- 只能使用 allowlist；
+- 通过 toolset 解析可见工具；
+- tools 是额外 allowlist；
+- Agent Node 至少 3 个工具；
 - 工具名全局唯一；
 - LLM 不能调用未列出的工具；
 - workflow 不直接调用工具。
@@ -171,37 +182,51 @@ class FeatureProfile:
 
 ## 5. Kernel 契约
 
+Kernel 是通用层，不接收 WorkflowDefinition。
+
+```python
+@dataclass(frozen=True)
+class KernelTask:
+    task_id: str
+    goal: str
+    inputs: dict[str, Any]
+    toolset: str
+    output_schema: dict[str, Any]
+    verifier: VerifierProfile
+    policy: KernelPolicy
+    features: FeatureProfile = FeatureProfile()
+```
+
+```python
+@dataclass(frozen=True)
+class KernelPolicy:
+    max_steps: int = 12
+    max_usd: float = 0.50
+    max_tokens: int = 12000
+    max_tool_calls: int = 64
+    max_repair: int = 2
+    timeout_s: float = 600.0
+    soft_context_ratio: float = 0.60
+    hard_context_ratio: float = 0.85
+```
+
 ```python
 class Kernel(Protocol):
     def run(
         self,
-        node: NodeSpec,
-        context: NodeContext,
-        tools: ToolRegistry,
+        task: KernelTask,
+        tools: ToolRuntime,
         llm: LLMClient,
         *,
         checkpoint: KernelCheckpoint | None = None,
-    ) -> NodeResult: ...
+    ) -> KernelResult: ...
 ```
 
-`NodeContext`：
+`KernelResult`：
 
 ```python
 @dataclass
-class NodeContext:
-    run_id: str
-    node_id: str
-    goal: str
-    features: FeatureProfile
-    inputs: dict[str, Any]
-    output_schema: dict[str, Any]
-```
-
-`NodeResult`：
-
-```python
-@dataclass
-class NodeResult:
+class KernelResult:
     output: dict[str, Any]
     trace: list[dict[str, Any]]
     usage: LLMUsage
@@ -214,6 +239,8 @@ Kernel 不允许：
 
 ```text
 修改 WorkflowDefinition
+import report / paper / claim
+判断“这是报告任务”
 调用未授权工具
 访问 DB / 文件 / HTTP 绕过工具
 直接调用 domain service
@@ -222,11 +249,19 @@ Kernel 不允许：
 Kernel 必须：
 
 ```text
+自主计划
+动态选择工具
+多工具调用
+完整 history + context compaction
+plan / memory
 记录 tool trace
 执行 budget / max_steps / timeout
-支持 cancel / resume
-每次 tool call 后可 checkpoint
+支持 cancel / pause / resume
+每次 tool call / step 后可 checkpoint
+self-verify / repair
 ```
+
+Kernel 必须能脱离 Workflow 独立完成复杂任务。
 
 ---
 
@@ -463,13 +498,22 @@ run.finished
 
 | 模块 | 可以依赖 | 禁止 |
 |---|---|---|
-| `workflow` | kernel/verify/storage contracts | domain service |
-| `kernel` | tools contracts | domain service、DB |
+| `workflow` | kernel/verify/storage contracts + 领域 tools | 报告规则进入 kernel |
+| `kernel` | tools contracts | domain service、workflow、DB |
 | `tools` | storage/external adapters | workflow、kernel |
 | `verify` | code checks、audit tool | workflow 内部状态 |
 | `domains` | tools contracts | 其他 domain service |
 | `interface` | workflow | tools/domain 直接调用 |
 | `composition` | all concrete | 业务逻辑 |
+
+核心边界：
+
+```text
+Kernel 通用，不知道 report/paper/claim
+Workflow 特制，负责阶段拆分和验收
+Kernel 不接收 WorkflowDefinition
+Workflow 通过 KernelTask 调用 Kernel
+```
 
 唯一组合根：
 
@@ -482,8 +526,8 @@ composition.py
 ## 12. 版本与冻结
 
 ```text
-CONTRACT_VERSION 2.0-draft
-SCHEMA_VERSION 1
+CONTRACT_VERSION 2.0
+SCHEMA_VERSION 2
 ```
 
 冻结条件：

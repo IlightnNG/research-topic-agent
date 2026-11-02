@@ -1,7 +1,7 @@
 # Architecture · lit-agent v2
 
-> 版本：2.0（2026-11-01）
-> 状态：目标架构；当前代码仍在迁移中
+> 版本：2.1（2026-11-02）
+> 状态：目标架构；Phase 4.1 complete，Phase 4.2 proposed
 > 范围：`src/lit_agent_v2/`
 > 旧 M1–M6 文档是历史阶段记录，不再作为目标模块划分。
 
@@ -10,112 +10,141 @@
 ## 0. 一句话架构
 
 ```text
-Workflow = 一条 Node 链
-Node     = 目标 + 工具白名单 + 输入 artifact + 输出 schema + Verifier
-Kernel   = Node 内部的 LLM ReAct 执行器
+Kernel   = 通用 Agent 发动机，可独立完成复杂任务
+Workflow = 特制任务外壳，拆解 / 约束 / 验收 Kernel 的阶段
+Node     = Workflow 的一个阶段，交给 Kernel 执行
 Tools    = 所有外部交互的唯一入口
-Verifier = 代码校验 + LLM 审计，共同决定是否 commit
+Verifier = 代码校验 + LLM 审计
 ```
+
+不是：
+
+```text
+通用 Workflow + 领域 Profile
+```
+
+详见 [`KERNEL-WORKFLOW.md`](KERNEL-WORKFLOW.md)。
 
 ---
 
-## 1. 先统一概念
+## 1. 双层结构
 
-### 1.1 Workflow 和 Node 不是两层
+### 1.1 Kernel 是通用层
 
-```text
-Workflow 不是 Node 外面的另一个对象
-Workflow 就是按顺序组织起来的 Node 链
-```
+Kernel 接收 `KernelTask`：
 
 ```python
-WorkflowDefinition(
-    name="report",
-    nodes=[
-        NodeSpec(...),
-        NodeSpec(...),
-        NodeSpec(...),
-    ],
+KernelTask(
+    goal,
+    inputs,
+    toolset,
+    output_schema,
+    verifier,
+    policy,
 )
 ```
 
-所以：
+Kernel 自主完成：
 
 ```text
-Workflow 负责：节点顺序、依赖、可选性、运行状态、commit/resume
-Node  负责：目标、工具、输入、输出、验收、预算
+计划
+选择工具
+多步骤执行
+观察
+上下文压缩
+失败恢复
+自验证 / repair
+输出 artifact
 ```
 
-不再有“Workflow 契约”和“Node 契约”两套东西。
-
-### 1.2 每个 Node 都调用 Kernel
+Kernel 不知道：
 
 ```text
-WorkflowRunner
-  → NodeSpec
-  → Kernel.run(goal, tools, inputs, verifier)
-      → LLM 思考
-      → ToolCall
-      → Observation
-      → 继续 / Final
-  → Verifier
-  → commit artifact
-  → next Node
+report / paper / claim / section / citation
 ```
 
-没有 `deterministic node` 作为独立类型。
+Kernel 在**没有 Workflow** 的情况下也必须能独立完成复杂任务。
 
-纯确定性操作，例如：
+### 1.2 Workflow 是特制层
+
+Workflow 负责：
 
 ```text
-PDF 解析
-quote 校验
-计数
-写 DB
+任务拆解
+阶段顺序
+阶段输入/输出
+阶段工具集
+阶段验收
+重试 / 暂停 / 人工确认
+长时间运行恢复
 ```
 
-不是“另一种 Node”，而是 **Tool**。
-
-Node 本身始终是：
+Workflow 是领域相关的：
 
 ```text
-LLM 决定策略 + 调用工具
+report workflow
+chat workflow
+research workflow
+evaluation workflow
 ```
+
+不存在“通用报告 Workflow”。
+
+### 1.3 Node 是 Workflow 的阶段
+
+```text
+Workflow Node
+  goal + inputs + toolset + output schema + verifier + budget
+       │
+       ▼
+KernelTask
+       │
+       ▼
+Kernel 自主执行
+```
+
+Node 不是 Kernel 的领域类型；Node 只是 Workflow 传递给 Kernel 的阶段请求。
 
 ---
 
 ## 2. 设计原则
 
-1. **Node 链可配置**
-   - 节点可启用/停用；
-   - 可选节点失败可以降级；
-   - 章节不是节点，章节是 Node 内的 Plan artifact。
+1. **Kernel 通用优先**
+   - 先通过 Kernel-only 任务验收；
+   - 再开发报告 Workflow；
+   - Kernel 不 import 领域。
 
-2. **Node 内部由 LLM 主导**
-   - 先做什么、调用哪个工具、是否继续、何时 final，由 Kernel/LLM 决定；
-   - 代码只提供工具、预算、schema 和不变量。
+2. **Workflow 特制**
+   - 报告、Chat、研究各自拆分；
+   - Workflow 只约束阶段和验收；
+   - 报告优化不修改 Kernel。
 
-3. **所有外部交互工具化**
+3. **Node 有行动空间**
+   - 每个 Agent Node 至少 3 个工具；
+   - 包含 `context.*` / `plan.*` 等通用能力；
+   - 禁止单工具 Agent Node。
+
+4. **所有外部交互工具化**
    - HTTP、PDF、文件、DB、LLM、报告落库、评分都通过 Tool；
    - 业务代码不直接 import 领域 service 做副作用。
 
-4. **双 Verifier**
+5. **双 Verifier**
    - 每个 Node 输出都经过代码校验 + LLM 审计；
    - 代码 hard fail 不能被 LLM 覆盖；
-   - LLM audit fail 可以触发修复/重写。
+   - LLM audit fail 可以触发 repair。
 
-5. **Artifact 契约**
+6. **Artifact 契约**
    - Node 间只传 artifact；
    - artifact 内容寻址；
    - 不在 Node 间传隐式全局状态。
 
-6. **可恢复**
+7. **可恢复**
    - Node commit 后写状态；
    - Kernel step checkpoint；
    - resume 跳过已提交节点；
    - pause 在 Node/step 边界生效。
 
-7. **Feature-first**
+8. **Feature-first**
    - classification、comparison、scorecard 都是 feature；
    - demo 可以关闭；
    - 不因为高阶功能阻塞基础报告。
@@ -127,18 +156,20 @@ LLM 决定策略 + 调用工具
 ```text
 Interface
   API / CLI / UI
-      │
-Workflow
-  Node chain / runner / state / commit / resume
-      │
-Kernel
-  ReAct / context / plan / tool calls / budget / checkpoint
-      │
+       │
+Workflow（特制）
+  report / chat / research / evaluation
+  Node chain / stage verifier / checkpoint
+       │  每个 Node 调用 Kernel
+Kernel（通用）
+  KernelTask / turn-step / context / plan / memory
+  tool scheduler / verify / repair / checkpoint
+       │
 Tools
-  source / evidence / report / storage / eval / audit
-      │
+  general tools + domain tools
+       │
 Storage
-  artifacts / SQLite / event / metric / report
+  artifacts / SQLite / event / report / settings
 ```
 
 横向：
@@ -152,12 +183,12 @@ Verification
 模块：
 
 ```text
-workflow/
-kernel/
-tools/
-verify/
-storage/
-interface/
+workflow/       # runner + 特制 workflow definitions
+kernel/         # 通用 Agent Kernel
+tools/          # general + domain tool packs
+verify/         # code + audit
+storage/        # SQLite / artifacts / report
+interface/      # API / CLI / UI
 domains/        # 领域工具包，不是流程层
 composition/    # 唯一装配点
 ```
@@ -171,13 +202,15 @@ composition/    # 唯一装配点
 class NodeSpec:
     id: str
     goal: str
-    tools: tuple[str, ...]
     inputs: tuple[str, ...]
     output_schema: str
     verifier: VerifierProfile
-    max_steps: int
-    max_usd: float
-    timeout_s: float
+    toolset: str = "general"
+    tools: tuple[str, ...] = ()
+    max_steps: int = 12
+    max_usd: float = 0.50
+    max_tokens: int = 12000
+    timeout_s: float = 600.0
     optional: bool = False
     enabled: bool = True
 ```
@@ -193,6 +226,10 @@ class NodeSpec:
 ```
 
 ### 4.2 tools
+
+Node 通过 `toolset` 获得可见工具，`tools` 只做额外 allowlist。
+
+每个 Agent Node 至少 3 个工具，且应包含 `context.*` / `plan.*` 之一。
 
 Node 只能看到 allowlist：
 

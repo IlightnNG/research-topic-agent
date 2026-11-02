@@ -9,7 +9,7 @@
 
 | Doc | Purpose |
 |---|---|
-| [PHASE4.2-agent-kernel-tools.md](PHASE4.2-agent-kernel-tools.md) | **next**: generic Agent Kernel, standardized tools, generic workflow, chat reuse |
+| [PHASE4.2-agent-kernel-tools.md](PHASE4.2-agent-kernel-tools.md) | **next**: generic Agent Kernel first, standardized tools, specialized report/chat workflows |
 | [PHASE4.1-node-platform-migration.md](PHASE4.1-node-platform-migration.md) | completed Node platform migration record |
 | [RESULTS-P4.1.8.md](RESULTS-P4.1.8.md) | 100-paper fulltext full-chain result |
 | [RESULTS-P4.1.9.md](RESULTS-P4.1.9.md) | legacy cleanup and Phase 4.1 close |
@@ -20,10 +20,11 @@
 
 ```text
 1. docs/ARCHITECTURE.md
-2. docs/CONTRACTS.md
-3. docs/STATUS.md
-4. docs/implementation/PHASE4.2-agent-kernel-tools.md
-5. docs/design/README.md
+2. docs/KERNEL-WORKFLOW.md
+3. docs/CONTRACTS.md
+4. docs/STATUS.md
+5. docs/implementation/PHASE4.2-agent-kernel-tools.md
+6. docs/design/README.md
 ```
 
 ---
