@@ -9,7 +9,7 @@ from concurrent.futures import TimeoutError as FutureTimeout
 from typing import Any
 
 from lit_agent_v2.contracts.tool import ToolResult, ToolSpec
-from lit_agent_v2.tools.schema import validate_args
+from lit_agent_v2.tools.schema import validate_args, validate_value
 
 __all__ = ["ToolRegistry"]
 
@@ -100,11 +100,22 @@ class ToolRegistry:
                 duration_ms=int((time.monotonic() - started) * 1000),
                 cost_usd=spec.cost_usd,
             )
+        output_problems = validate_value("output", output, spec.output_schema)
+        if output_problems:
+            return ToolResult(
+                False,
+                error_code="E_TOOL_OUTPUT_SCHEMA",
+                output={"problems": output_problems},
+                duration_ms=int((time.monotonic() - started) * 1000),
+                cost_usd=spec.cost_usd,
+            )
+        content = spec.render(args, output) if spec.render is not None else ""
         return ToolResult(
             True,
             output=output,
             duration_ms=int((time.monotonic() - started) * 1000),
             cost_usd=spec.cost_usd,
+            content=content,
         )
 
     def _notify(self, name: str, args: dict[str, Any], result: ToolResult) -> None:

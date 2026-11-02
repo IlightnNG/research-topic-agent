@@ -2,7 +2,7 @@
 
 > 版本：2.0（2026-11-02）
 > 类型：详细设计与迁移方案
-> 状态：proposed；Phase 4.1 已 complete
+> 状态：in progress；S0–S2 done（见 [`RESULTS-P4.2-S0-S2.md`](RESULTS-P4.2-S0-S2.md)）；下一 S3
 > 优先级：通用 Kernel + 通用 Tools 优先；报告 Workflow 后置
 > 依据：DSH `core/tools`、`core/agent-loop`、`compaction` 与 Phase 4.1 实现
 
@@ -763,12 +763,12 @@ chat.py
 
 ## 10. 迁移顺序
 
-### 4.2.0 Baseline
+### 4.2.0 Baseline · done
 
 - 84 tests 通过。
 - 记录 Phase 4.1 报告链路。
 
-### 4.2.1 Tool contracts
+### 4.2.1 Tool contracts · done
 
 - ToolSpec / ToolContext / ToolResult
 - output schema
@@ -776,7 +776,7 @@ chat.py
 - policy
 - structured errors
 
-### 4.2.2 ToolRuntime
+### 4.2.2 ToolRuntime · done
 
 - registry view
 - pipeline
@@ -785,7 +785,7 @@ chat.py
 - cancellation
 - tool events
 
-### 4.2.3 General tools
+### 4.2.3 General tools · next
 
 ```text
 context.inspect

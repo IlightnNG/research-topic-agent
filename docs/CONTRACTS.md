@@ -271,26 +271,55 @@ Kernel 必须能脱离 Workflow 独立完成复杂任务。
 @dataclass(frozen=True)
 class ToolSpec:
     name: str
+    namespace: str
+    title: str
     description: str
+    version: str
+
     input_schema: dict
     output_schema: dict
+
     side_effect: bool
+    parallel_safe: bool | None
     idempotent: bool
+    requires_approval: bool
+
     timeout_s: float
-    cost_usd: float
+    max_output_chars: int
     max_retries: int
     retry_on: tuple[str, ...]
+    cost_usd: float
+
+    capabilities: tuple[str, ...]
+    tags: tuple[str, ...]
+
     handler: Callable[[dict], dict]
+    render: Callable[[dict, dict], str] | None
 ```
 
-`ToolCall`：
+`ToolContext`：
 
 ```python
-@dataclass
-class ToolCall:
-    tool: str
-    args: dict
+@dataclass(frozen=True)
+class ToolContext:
+    run_id: str
+    node_id: str
     call_id: str
+    workspace: str
+    signal: Callable[[], bool] | None
+    events: Any
+    artifacts: Any
+```
+
+`ToolError`：
+
+```python
+@dataclass(frozen=True)
+class ToolError:
+    code: str
+    message: str
+    retryable: bool
+    details: dict
 ```
 
 `ToolResult`：
@@ -304,15 +333,22 @@ class ToolResult:
     retryable: bool
     duration_ms: int
     cost_usd: float
+
+    content: str
+    error: ToolError | None
+    artifact_refs: list[str]
+    truncated: bool
 ```
 
 规则：
 
 - 所有外部 I/O 只能通过 Tool；
 - Tool 参数先 schema 校验；
-- Tool 输出必须 JSON；
+- Tool 输出必须 schema 校验；
+- 大输出写 artifact，返回 preview + ref；
 - 有副作用的 Tool 必须幂等或可回滚；
-- Tool 错误不能静默；
+- Tool 错误必须结构化，不能静默；
+- Tool 失败不会终止 Kernel turn；
 - LLM 可以调用 `check.*` 自检，但最终 Verifier 独立重跑。
 
 ---

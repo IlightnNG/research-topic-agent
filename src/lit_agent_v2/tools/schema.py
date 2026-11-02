@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from typing import Any
 
-__all__ = ["validate_args"]
+__all__ = ["validate_args", "validate_value"]
 
 
 def validate_args(args: dict[str, Any], schema: dict[str, Any]) -> list[str]:
@@ -30,8 +30,15 @@ def validate_args(args: dict[str, Any], schema: dict[str, Any]) -> list[str]:
     return problems
 
 
+def validate_value(name: str, value: Any, schema: dict[str, Any]) -> list[str]:
+    """Validate one JSON value against the small schema subset tools use."""
+    return _validate_value(name, value, schema)
+
+
 def _validate_value(name: str, value: Any, schema: dict[str, Any]) -> list[str]:
     expected = schema.get("type")
+    if expected is None and ("properties" in schema or "required" in schema):
+        expected = "object"
     if expected is None:
         return []
     if expected == "string" and not isinstance(value, str):

@@ -9,9 +9,9 @@
 ## 当前状态
 
 ```text
-阶段：Phase 4.1 complete；Phase 4.2 启动：优先通用 Kernel + Tools，报告 Workflow 后置
+阶段：Phase 4.1 complete；Phase 4.2 S0–S2 done（Tools 契约 + ToolRuntime），下一 S3 通用工具
 前端：Vue F1–F6 done；real API mode 已联调
-最后测试：84 passed / ruff clean
+最后测试：91 passed / ruff clean
 前端构建：web npm run build passed
 全链路 demo：100 papers / 35 fulltext / 186 claims / 13 sections / complete
 联调：topics → run → trace → report → paper；chat 基础链路
@@ -50,7 +50,7 @@ Legacy:
 |---|---|---|
 | W Workflow | 特制任务外壳 | 4 Node report demo 已跑通；但 Node 单工具 + DemoOrchestrator 写死 |
 | K Kernel | 通用 Agent 内核，可独立完成复杂任务 | 目前是 Node-local ReAct；无 plan/memory/通用压缩/repair |
-| T Tools | ToolRuntime + general/domain toolset | 当前只有薄 ToolRegistry；无 output pipeline/toolset |
+| T Tools | ToolRuntime + general/domain toolset | S2 done：ToolSpec 扩展、output schema、toolset、policy、spill；general tools 未实现 |
 | V Verification | code + audit | dual Verifier 已接入 runner |
 | S Storage | artifact/state/report | 已有 |
 | I Interface | API/UI | Vue F1–F6 real API；full-chain 默认 |
