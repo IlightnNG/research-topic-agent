@@ -732,6 +732,103 @@ pause request
 
 ## 7. Workflow 通用化
 
+### 7.0 先通用 Agent，后报告 Profile（本节是修正）
+
+上一版设计仍然把 `source.collect → evidence.extract → report.generate`
+写成 core workflow，这是不够通用的。
+
+正确分层：
+
+```text
+core/
+  AgentKernel
+    turn / step / tools / context / plan / memory / verify
+  AgentTask
+    goal + inputs + toolset + output_schema + policy + verifier
+  WorkflowRunner
+    ordered AgentTask execution + checkpoint
+  ToolRuntime
+    general tools + domain packs
+
+profiles/
+  generic/
+  report/
+  chat/
+  research/
+```
+
+`core` 不知道 report、paper、claim。
+
+报告不是一个特殊 Kernel，也不是一套写死 Node：
+
+```text
+report profile
+  = AgentTask goal
+  + report/research tools
+  + report prompt policy
+  + report verifier
+  + optional multi-task workflow
+```
+
+Chat 同理：
+
+```text
+chat profile
+  = AgentTask goal
+  + retrieval/chat tools
+  + conversation session
+  + citation verifier
+```
+
+基本能力先在线：
+
+```text
+generic agent 可以完成：
+  inspect workspace
+  plan
+  call general tools
+  write artifact
+  verify
+  final
+
+然后再给 report profile 增加：
+  report.plan
+  report.write_section
+  report.check_section
+  report.assemble
+  report.persist
+```
+
+报告优化只能修改 `profiles/report/`：
+
+```text
+prompt
+toolset
+section policy
+verifier thresholds
+budget
+```
+
+不能修改 Kernel 来特判报告。
+
+Workflow 只负责：
+
+```text
+顺序
+可选分支
+输入输出引用
+checkpoint
+失败策略
+```
+
+不负责：
+
+```text
+报告章节
+论文来源
+claim 规则
+```
+
 ### 7.1 NodeSpec 调整
 
 ```python
@@ -944,6 +1041,20 @@ artifact.put/get
 - checkpoint every tool/step
 - stop/budget/timeout
 
+### 4.2.4b Generic agent acceptance
+
+在接报告之前，先证明不依赖 report 工具也能完成：
+
+```text
+读取 workspace
+生成 plan
+调用 fs/test/verify
+输出 artifact
+通过 verifier
+```
+
+这是 Phase 4.2 的第一道门禁。
+
 ### 4.2.5 Workflow
 
 - `toolset` + `mode`
@@ -1062,8 +1173,20 @@ src/lit_agent_v2/
       runner.py
       driver.py
     definitions/
-      research.py
-      chat.py
+      generic.py          # generic agent sample only
+  profiles/
+    generic/
+      profile.py
+    report/
+      profile.py
+      workflow.py
+      verifier.py
+      prompts.py
+    chat/
+      profile.py
+      workflow.py
+      verifier.py
+      prompts.py
   settings/
     config.py
     store.py
@@ -1089,6 +1212,8 @@ src/lit_agent_v2/
 8. 工具输出必须校验并支持 artifact spill
 9. 工具失败返回结构化结果，不终止 turn
 10. Repair 是 Kernel 能力，不是 workflow 特判
+11. 先验收 generic agent，再接入 report profile
+12. 报告优化只允许改 profile/tools/verifier，不允许改 Kernel
 ```
 
 ---
@@ -1109,6 +1234,8 @@ report complete
 至少一个 plan.update
 至少一个 verify.repair
 生产路径无 DemoOrchestrator
+移除 report tool pack 后 generic agent 仍可完成一个简单任务
+kernel/workflow 不 import profiles.report
 Chat smoke 走同一 Kernel
 ```
 
