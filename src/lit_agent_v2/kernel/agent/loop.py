@@ -42,7 +42,9 @@ class AgentKernel:
         self.clock = clock or time.monotonic
         self.checkpoints = checkpoints
 
-    def run(self, task: KernelTask) -> KernelResult:
+    def run(
+        self, task: KernelTask, *, on_delta: Callable[[str], None] | None = None
+    ) -> KernelResult:
         history = self.state.history
         started = self.clock()
         cost = 0.0
@@ -60,6 +62,8 @@ class AgentKernel:
         }
         invalid = 0
         repair = 0
+        last_signature = ""
+        repeats = 0
         start_step = 1
         if self.checkpoints is not None:
             saved = self.checkpoints.load(task.task_id)
@@ -101,7 +105,7 @@ class AgentKernel:
 
             self._emit("kernel.step_started", task=task.task_id, step=step)
             messages = self._messages(task, history)
-            action, step_usage = self._ask(task, messages, step, metrics)
+            action, step_usage = self._ask(task, messages, step, metrics, on_delta)
             if action is None:
                 return self._finish(
                     task, {}, history, step, usage, cost, metrics, "failed", "E_MODEL_FAILED"
@@ -161,6 +165,27 @@ class AgentKernel:
                     )
                 continue
 
+            signature = json.dumps(
+                [{"name": call["name"], "args": call["args"]} for call in calls],
+                sort_keys=True,
+                ensure_ascii=False,
+                default=str,
+            )
+            repeats = repeats + 1 if signature == last_signature else 0
+            last_signature = signature
+            if repeats == 2:
+                history.append(
+                    {
+                        "role": "system",
+                        "content": "duplicate tool call detected. Do not repeat it; use the observation and return final.",
+                    }
+                )
+                self._emit("kernel.no_progress_warning", task=task.task_id, step=step)
+                continue
+            if repeats >= 4:
+                return self._finish(
+                    task, {}, history, step, usage, cost, metrics, "no_progress", "E_KERNEL_NO_PROGRESS"
+                )
             invalid = 0
             history.append({"role": "assistant", "tool_calls": calls})
             metrics["tool_calls"] += len(calls)
@@ -216,9 +241,24 @@ class AgentKernel:
         messages: list[dict[str, str]],
         step: int,
         metrics: dict[str, Any],
+        on_delta: Callable[[str], None] | None,
     ) -> tuple[dict[str, Any] | None, Any]:
+        streamer = getattr(self.llm, "stream_json", None)
         for attempt in range(task.policy.max_retries + 1):
             try:
+                if on_delta is not None and callable(streamer):
+                    def forward(piece: str) -> None:
+                        self._emit(
+                            "kernel.assistant_delta", task=task.task_id, step=step, text=piece
+                        )
+                        on_delta(piece)
+
+                    return streamer(
+                        messages,
+                        on_delta=forward,
+                        max_tokens=task.policy.max_tokens,
+                        temperature=0.1,
+                    )
                 return self.llm.chat_json(
                     messages,
                     max_tokens=task.policy.max_tokens,

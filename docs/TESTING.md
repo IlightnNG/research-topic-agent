@@ -139,7 +139,7 @@ live: 真实网络/模型/PDF
 ## 8. 当前
 
 ```text
-tests/v2     104 passed
+tests/v2     112 passed
 ruff         clean
 ```
 
@@ -225,7 +225,7 @@ compaction ratio
 resume success
 ```
 
-当前没有真实 LLM kernel benchmark；不能声称 L3。
+已完成 30 个真实 LLM 简单任务 benchmark：30/30；复杂任务 L3 仍未完成。
 
 详细要求见 [`KERNEL-MATURITY.md`](KERNEL-MATURITY.md)。
 

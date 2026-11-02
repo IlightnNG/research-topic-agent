@@ -1,8 +1,8 @@
 # RESULTS · Phase 4.2 S6–S9
 
-> Status: S6/S7/S8 implemented; S9 deterministic benchmark only
+> Status: S6/S7/S8 implemented; S9 deterministic + real simple-task benchmark
 > Date: 2026-11-02
-> Important: this is not L3. Real-LLM benchmark is still pending.
+> Important: real 30-task benchmark covers simple general-tool tasks; complex-task L3 is still pending.
 
 ---
 
@@ -175,37 +175,78 @@ Output:
 D:\lit-agent-store\kernel-benchmark.json
 ```
 
-### Important limitation
+### Real LLM benchmark
 
-This benchmark uses `ScriptedLLM`.
-
-It validates:
+Harness:
 
 ```text
-control loop
-tool scheduling
-artifact/plan/memory/context
-metrics
+benchmarks/kernel_live_bench.py
 ```
 
-It does **not** validate:
+30 tasks, real DeepSeek, general tools only:
+
+```text
+read file
+write artifact
+create plan
+list workspace
+write memory
+run pytest
+```
+
+Result:
+
+```text
+cases        30
+success      30
+success_rate 100%
+schema_ok    30 / 30
+tool_errors  0
+prompt_tokens  95,520
+completion_tokens 6,248
+cost_usd     0.0 (pricing not configured)
+latency_p50  2.58 s
+latency_p95  4.69 s
+```
+
+Persistent metrics:
+
+```text
+D:\lit-agent-store\kernel-live-30.sqlite
+D:\lit-agent-store\kernel-live-30.json
+```
+
+### Important limitation
+
+The 30 real tasks are intentionally simple: one general tool plus final.
+
+They validate:
 
 ```text
 real LLM tool selection
-real task success
-real token/cost behavior
-real latency
-report quality
+real output schema
+real tokens / latency
+general-tool execution
+metrics persistence
 ```
 
-So S9 deterministic benchmark is complete, but **L3 benchmark is not achieved**.
+They do **not** validate:
+
+```text
+complex multi-step research
+long-running tasks
+report quality
+complex recovery
+```
+
+So S9 real simple-task benchmark is complete; full L3 complexity is not.
 
 ---
 
 ## Tests
 
 ```text
-104 passed
+112 passed
 ruff clean
 ```
 
@@ -230,13 +271,12 @@ NodeKernelAdapter
 ## Remaining before Workflow changes
 
 ```text
-30+ real LLM tasks
-real success / schema pass metrics
-real token/cost/latency
-persistent metrics store
-streaming
+complex multi-step real LLM tasks
+real cost pricing
+streaming end-to-end
 LLM audit for kernel
 full failure-path matrix
+long-running / crash recovery
 ```
 
 Therefore:

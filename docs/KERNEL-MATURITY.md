@@ -51,7 +51,8 @@ S6 = 并行/checkpoint/retry/compaction 基础完成
 S7 = NodeKernelAdapter 完成
 S8 = JSONL event + metrics + error code 基础完成
 S9 = 30-case deterministic benchmark 完成
-真实 LLM L3 = 未完成
+S9 = 30-case real LLM simple-task benchmark 30/30
+复杂 L3 = 未完成
 ```
 
 目标：

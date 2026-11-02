@@ -101,6 +101,8 @@ kernel.started
 kernel.step_started
 kernel.plan_updated
 kernel.context_compacted
+kernel.assistant_delta
+kernel.no_progress_warning
 kernel.tool_called
 kernel.tool_result
 kernel.model_retry

@@ -198,6 +198,7 @@ error.by_module
 | `E_KERNEL_TIMEOUT` | no | 超过 task timeout |
 | `E_KERNEL_CANCELLED` | no | 外部取消 |
 | `E_KERNEL_REPAIR_EXHAUSTED` | no | repair 次数用尽 |
+| `E_KERNEL_NO_PROGRESS` | no | 重复工具调用且无进展 |
 | `E_KERNEL_OUTPUT_SCHEMA` | yes | final 输出不符合 schema |
 | `E_KERNEL_CHECKPOINT` | yes | checkpoint 保存/恢复失败 |
 | `E_MODEL_TIMEOUT` | yes | 模型超时 |

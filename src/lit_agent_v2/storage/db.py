@@ -165,6 +165,27 @@ CREATE TABLE IF NOT EXISTS run_spans (
   error_code TEXT
 );
 
+CREATE TABLE IF NOT EXISTS kernel_metrics (
+  id TEXT PRIMARY KEY,
+  task_id TEXT NOT NULL,
+  model TEXT NOT NULL,
+  success INTEGER NOT NULL,
+  stop_reason TEXT NOT NULL,
+  error_code TEXT,
+  steps INTEGER NOT NULL,
+  tool_calls INTEGER NOT NULL,
+  tool_errors INTEGER NOT NULL,
+  repairs INTEGER NOT NULL,
+  compactions INTEGER NOT NULL,
+  prompt_tokens INTEGER NOT NULL,
+  completion_tokens INTEGER NOT NULL,
+  cost_usd REAL NOT NULL,
+  latency_ms REAL NOT NULL,
+  schema_ok INTEGER NOT NULL,
+  metadata_json TEXT,
+  created_at TEXT NOT NULL
+);
+
 CREATE TABLE IF NOT EXISTS experiments (
   id TEXT PRIMARY KEY,
   name TEXT NOT NULL,
