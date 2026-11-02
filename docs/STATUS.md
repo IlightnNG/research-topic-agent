@@ -9,7 +9,7 @@
 ## 当前状态
 
 ```text
-阶段：Phase 4.1 complete（4.1.0–4.1.9）；下一 Phase 4.2
+阶段：Phase 4.1 complete（4.1.0–4.1.9）；下一 Phase 4.2（见 `docs/implementation/PHASE4.2-agent-kernel-tools.md`）
 前端：Vue F1–F6 done；real API mode 已联调
 最后测试：84 passed / ruff clean
 前端构建：web npm run build passed

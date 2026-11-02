@@ -720,4 +720,4 @@ Report Node 的 plan 工具
 - `docs/DECISIONS.md`：架构决定
 - `docs/modules/research/REPORT-POLICY.md`：报告 sizing / demo 质量策略
 - `docs/implementation/PHASE4.1-node-platform-migration.md`：迁移方案
-- `docs/implementation/PHASE4-report-end-to-end.md`：历史 Phase 4 计划
+- `docs/archive/implementation/PHASE4-report-end-to-end.md`：历史 Phase 4 计划

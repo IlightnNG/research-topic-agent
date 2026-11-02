@@ -829,7 +829,7 @@ code verifier pass
 > Report Node 不需要特殊类型，但需要足够的 max_tokens，
 > 以及把 planning/writing 放进工具，而不是全部塞进一个 prompt。
 
-详见 `docs/implementation/RESULTS-REPORT-KERNEL.md`。
+详见 `docs/archive/implementation/RESULTS-REPORT-KERNEL.md`。
 
 ### 新增
 
@@ -1280,7 +1280,7 @@ refactor(W-P03): delete legacy report workflow
 ### 4.1.0 baseline
 
 ```text
-docs/implementation/BASELINE-P4.1.md
+docs/archive/implementation/BASELINE-P4.1.md
 ```
 
 ### 4.1.1 contracts
@@ -1396,7 +1396,7 @@ bounded retry
 step checkpoint
 ```
 
-详见 `docs/implementation/KERNEL-OPTIMIZATION.md`。
+详见 `docs/archive/implementation/KERNEL-OPTIMIZATION.md`。
 
 ### 4.1.4 Tools
 
@@ -1532,7 +1532,7 @@ verifier accept
 记录：
 
 ```text
-docs/implementation/RESULTS-S6-REPORT-NODE.md
+docs/archive/implementation/RESULTS-S6-REPORT-NODE.md
 ```
 
 发现：

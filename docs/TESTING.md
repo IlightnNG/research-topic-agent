@@ -150,7 +150,7 @@ ruff         clean
 - 5 篇全文；
 - LLM audit：reject。
 
-详见 `docs/implementation/RESULTS-P3.6-LIVE.md`。
+详见 `docs/archive/README.md` 的历史记录。
 
 
 ---
