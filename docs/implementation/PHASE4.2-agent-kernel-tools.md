@@ -2,7 +2,7 @@
 
 > 版本：2.1（2026-11-03）
 > 类型：详细设计与迁移方案
-> 状态：Kernel done；L3 gate passed；S10.0–S10.7 已跑通；S10.2 Node-level 仍为 partial；Chat 后置
+> 状态：Kernel done；L3 gate passed；S10.0–S10.7 + S10.2b 已跑通；Chat 后置
 > 优先级：report workflow v2 > report quality > D 盘约束 > 三库/RAG > Chat
 > 依据：DSH `core/tools`、`core/agent-loop`、`compaction` 与 Phase 4.1 实现
 
@@ -711,7 +711,7 @@ Chat 后置
 ```
 
 API/CLI 都已有 `report-v2` 5 Node 实现；`DemoOrchestrator` 已从 production interface 移除。
-S10.2 的 tool-level per-section 已完成，Node-level 逐步调用仍为后续优化。
+S10.2b Node-level section loop 已作为默认 report.write 路径。
 
 架构约束：
 
@@ -1022,7 +1022,7 @@ context compaction observable
 |---|---|---|
 | S10.0 5 Node CLI | done | `report-v2` CLI 跑通 100 篇 |
 | S10.1 API 切 KernelNodeAdapter | done | 100 篇 API run succeeded |
-| S10.2 逐 section 写入 | partial | tool-level per-section + retry 已完成 |
+| S10.2 逐 section 写入 | done | Node-level section loop + retry 已完成 |
 | S10.3 checkpoint / resume | done | CLI resume 已验证；API 路径已接 |
 | S10.4 移除生产 DemoOrchestrator | done | interface 中 import = 0 |
 | S10.5 report quality gate | done | deterministic gate 100 篇通过 |

@@ -39,7 +39,7 @@ P3  Chat
 | TODO-203 | R/T | P0 | done | source/evidence 领域工具与 schema |
 | TODO-204 | R/T | P0 | done | report.plan / write / audit 工具与 verifier |
 | TODO-205 | R/W | P0 | done | 100 篇真实 LLM 端到端报告（CLI） |
-| TODO-206 | W | P1 | done | Node checkpoint / resume / 局部重试（CLI 已验证） |
+| TODO-206 | W | P1 | done | Node checkpoint / resume / 局部重试（CLI 已验证；Node-level loop 已接） |
 | TODO-207 | W | P1 | done | 移除生产路径 DemoOrchestrator |
 | TODO-208 | R/V | P1 | done | 报告质量门禁（deterministic） |
 

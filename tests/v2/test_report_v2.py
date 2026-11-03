@@ -10,8 +10,10 @@ import pytest
 from lit_agent_v2.interface.runs import PlatformRunService
 from lit_agent_v2.storage.db import Database
 from lit_agent_v2.tools.packs.report_v2 import (
+    assemble_sections,
     finalize_report,
     plan_from_evidence,
+    write_next_section,
     write_one_section,
     write_report,
 )
@@ -166,3 +168,35 @@ def test_no_demo_orchestrator_in_interface() -> None:
     assert root.exists()
     for path in root.glob("*.py"):
         assert "DemoOrchestrator" not in path.read_text(encoding="utf-8"), path
+
+
+def test_section_cursor_loop(tmp_path: Path) -> None:
+    out = tmp_path / "out"
+    out.mkdir()
+    evidence = {
+        "claims": [
+            {"claim_id": "C1", "paper_id": "P1", "quote": "Evidence one.", "text": "Evidence one."},
+            {"claim_id": "C2", "paper_id": "P2", "quote": "Evidence two.", "text": "Evidence two."},
+        ],
+        "papers": [{"paper_id": "P1"}, {"paper_id": "P2"}],
+    }
+    plan = {
+        "sections": [
+            {"section_id": "s1", "kind": "paper_analysis", "title": "One", "paper_ids": ["P1"]},
+            {"section_id": "s2", "kind": "paper_analysis", "title": "Two", "paper_ids": ["P2"]},
+        ]
+    }
+    ep = out / "evidence.json"
+    pp = out / "plan.json"
+    ep.write_text(json.dumps(evidence), encoding="utf-8")
+    pp.write_text(json.dumps(plan), encoding="utf-8")
+
+    first = write_next_section(str(pp), str(ep), str(out), llm=None)
+    assert first["written"] == 1
+    assert first["next_section"] == "s2"
+    second = write_next_section(str(pp), str(ep), str(out), llm=None)
+    assert second["written"] == 2
+    assert second["done"] is True
+    draft = assemble_sections(str(pp), str(ep), str(out))
+    assert draft["sections"] == 2
+    assert draft["citation_coverage"] == 1.0

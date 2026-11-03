@@ -7,6 +7,7 @@ generic kernel while the workflow layer is still frozen.
 from __future__ import annotations
 
 from collections.abc import Callable
+from dataclasses import replace
 from pathlib import Path
 from typing import Any
 
@@ -44,13 +45,20 @@ class KernelNodeAdapter:
 
     def run(self, node: NodeSpec, context: NodeContext) -> NodeResult:
         state = GeneralState(workspace=self.workspace)
+        policy = replace(
+            self.policy,
+            max_steps=node.max_steps,
+            max_usd=node.max_usd,
+            max_tokens=node.max_tokens,
+            timeout_s=node.timeout_s,
+        )
         task = KernelTask(
             task_id=f"{context.run_id}:{node.id}",
             goal=node.goal,
             inputs=dict(context.inputs),
             output_schema=node.output_schema if isinstance(node.output_schema, dict) else {},
             toolset=node.toolset,
-            policy=self.policy,
+            policy=policy,
             verifier=self.verifier,
         )
         result = AgentKernel(

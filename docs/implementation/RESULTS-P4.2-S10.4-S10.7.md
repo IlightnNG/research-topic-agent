@@ -1,6 +1,6 @@
 # RESULTS · Phase 4.2 S10.4–S10.7
 
-> Status：S10.4 / S10.5 / S10.7 done；S10.2 Node-level loop 仍为 partial
+> Status：S10.4 / S10.5 / S10.7 done；S10.2b Node-level loop done
 > Date：2026-11-03
 > Report：100 papers / 35 fulltext / 186 claims / 23 sections
 
@@ -118,7 +118,7 @@ ruff clean
 ```text
 S10.0  5 Node CLI                 done
 S10.1  API 接入                   done
-S10.2  逐 section + retry         partial（tool-level）
+S10.2  逐 section + retry         done（Node-level）
 S10.3  checkpoint / resume        done（CLI 验证）
 S10.4  移除生产 DemoOrchestrator  done
 S10.5  report quality gate        done（deterministic）
@@ -126,14 +126,14 @@ S10.6  100 篇端到端               done（CLI + API）
 S10.7  cleanup                    done
 ```
 
-S10.2 仍需把 Node 默认入口从批量 `report.write_v2` 改为 Agent 逐 section 调用；这不阻塞当前 report 链路。
+S10.2b Node-level loop 已完成；批量 `report.write_v2` 仅保留兼容。
 
 ---
 
 ## 5. Next
 
 ```text
-S10.2b Node-level section loop（可选/后续）
+S10.2b Node-level section loop（done）
 S11 report optimization
 S12 Chat
 ```

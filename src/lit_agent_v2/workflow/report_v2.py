@@ -43,12 +43,12 @@ def report_v2_toolsets() -> dict[str, tuple[str, ...]]:
             "artifact.put",
         ),
         "report.write": (
-            "report.write_v2",
+            "report.section_status",
+            "report.write_next_section",
             "report.write_section_v2",
             "report.check_section_v2",
             "report.assemble_v2",
             "context.compact",
-            "artifact.put",
         ),
         "report.audit_finalize": (
             "report.finalize_v2",
@@ -129,9 +129,9 @@ def build_report_v2_workflow(
             id="report.write",
             goal=(
                 "Use plan_path from report.plan, evidence_path from evidence.extract and "
-                "language/out_dir from request. Call report.write_v2. Then report.check_section "
-                "on one section and context.compact if needed. Return final JSON with draft_path, "
-                "sections, word_count, citation_coverage."
+                "language/out_dir from request. Call report.section_status, then repeatedly call "
+                "report.write_next_section until remaining=0. Then call report.assemble_v2. "
+                "Return final JSON with draft_path, sections, word_count, citation_coverage."
             ),
             tools=report_v2_toolsets()["report.write"],
             toolset="report.write",
@@ -141,9 +141,9 @@ def build_report_v2_workflow(
                 "required": ["draft_path", "sections", "word_count", "citation_coverage"],
             },
             verifier=VerifierProfile(code=("schema",), audit=None),
-            max_steps=12,
-            max_usd=1.20,
-            max_tokens=16000,
+            max_steps=30,
+            max_usd=1.50,
+            max_tokens=20000,
         ),
         NodeSpec(
             id="report.audit_finalize",

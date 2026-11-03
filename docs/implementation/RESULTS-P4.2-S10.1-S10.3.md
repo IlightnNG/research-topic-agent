@@ -166,9 +166,8 @@ CLI resume
 ## 5. 当前边界
 
 ```text
-S10.2 是 tool-level per-section + retry
-  Node 仍然调用 report.write_v2 批量入口
-  还不是 Agent 逐步调用每个 section
+S10.2 已完成 tool-level + Node-level per-section
+  report.write 默认通过 section cursor 逐步调用
 
 S10.3 CLI resume 已验证
   API resume 代码路径已接，但没有做真实中断测试

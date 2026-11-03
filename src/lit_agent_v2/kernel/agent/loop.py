@@ -186,14 +186,22 @@ class AgentKernel:
                     )
                 continue
 
+            repeatable = all(
+                (spec := self.tools.spec(call["name"])) is not None and spec.repeatable
+                for call in calls
+            )
             signature = json.dumps(
                 [{"name": call["name"], "args": call["args"]} for call in calls],
                 sort_keys=True,
                 ensure_ascii=False,
                 default=str,
             )
-            repeats = repeats + 1 if signature == last_signature else 0
-            last_signature = signature
+            if repeatable:
+                repeats = 0
+                last_signature = ""
+            else:
+                repeats = repeats + 1 if signature == last_signature else 0
+                last_signature = signature
             if repeats == 2:
                 history.append(
                     {

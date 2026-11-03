@@ -35,6 +35,7 @@ Current documents only.
 | [`implementation/RESULTS-P4.2-S10.0.md`](implementation/RESULTS-P4.2-S10.0.md) | S10.0: 5-node report CLI |
 | [`implementation/RESULTS-P4.2-S10.1-S10.3.md`](implementation/RESULTS-P4.2-S10.1-S10.3.md) | S10.1–S10.3: API, per-section, resume |
 | [`implementation/RESULTS-P4.2-S10.4-S10.7.md`](implementation/RESULTS-P4.2-S10.4-S10.7.md) | S10.4–S10.7: demo removal, quality gate, cleanup |
+| [`implementation/RESULTS-P4.2-S10.2b.md`](implementation/RESULTS-P4.2-S10.2b.md) | S10.2b: Node-level section loop |
 | [`implementation/RESULTS-P4.1.9.md`](implementation/RESULTS-P4.1.9.md) | legacy cleanup and Phase 4.1 close |
 | [`archive/README.md`](archive/README.md) | historical docs index |
 | [`modules/README.md`](modules/README.md) | platform module map + legacy M1–M6 mapping |

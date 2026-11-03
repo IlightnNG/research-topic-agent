@@ -29,6 +29,7 @@ class ToolSpec:
     title: str = ""
     version: str = "1"
     parallel_safe: bool | None = None
+    repeatable: bool = False
     requires_approval: bool = False
     max_output_chars: int = 20000
     capabilities: tuple[str, ...] = ()

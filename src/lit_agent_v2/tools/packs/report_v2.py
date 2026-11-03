@@ -224,6 +224,62 @@ def write_one_section(
     return {**payload, "section_path": str(path), "resumed": False}
 
 
+def section_progress(plan_path: str, out_dir: str) -> dict[str, Any]:
+    plan = _read(plan_path)
+    section_ids = [str(item.get("section_id")) for item in plan.get("sections") or []]
+    written: list[str] = []
+    failed: list[str] = []
+    for section_id in section_ids:
+        path = Path(out_dir) / "sections" / f"{section_id}.json"
+        if not path.exists():
+            continue
+        payload = _read(path)
+        if payload.get("ok"):
+            written.append(section_id)
+        else:
+            failed.append(section_id)
+    remaining = [section_id for section_id in section_ids if section_id not in written]
+    return {
+        "total": len(section_ids),
+        "written": len(written),
+        "remaining": len(remaining),
+        "next_section": remaining[0] if remaining else None,
+        "done": not remaining,
+        "failed": failed,
+    }
+
+
+def write_next_section(
+    plan_path: str,
+    evidence_path: str,
+    out_dir: str,
+    *,
+    llm: Any | None,
+    language: str = "en",
+) -> dict[str, Any]:
+    progress = section_progress(plan_path, out_dir)
+    next_section = progress.get("next_section")
+    if next_section is None:
+        return {**progress, "section_path": None, "ok": True}
+    result = write_one_section(
+        plan_path,
+        str(next_section),
+        evidence_path,
+        out_dir,
+        llm=llm,
+        language=language,
+    )
+    after = section_progress(plan_path, out_dir)
+    return {
+        **after,
+        "section_path": result.get("section_path"),
+        "section_id": next_section,
+        "attempts": result.get("attempts"),
+        "fallback": result.get("fallback"),
+        "ok": bool(result.get("ok")),
+    }
+
+
 def assemble_sections(plan_path: str, evidence_path: str, out_dir: str) -> dict[str, Any]:
     plan = _read(plan_path)
     evidence = _read(evidence_path)
@@ -417,6 +473,44 @@ def build_report_v2_tools(llm: Any | None = None) -> list[ToolSpec]:
             side_effect=True,
             timeout_s=30.0,
             handler=lambda args: plan_from_evidence(args["evidence_path"], args["out_dir"]),
+        ),
+        ToolSpec(
+            "report.section_status",
+            "Return the next unwritten section for the report.write loop.",
+            {
+                "type": "object",
+                "properties": {
+                    "plan_path": {"type": "string"},
+                    "out_dir": {"type": "string"},
+                },
+                "required": ["plan_path", "out_dir"],
+            },
+            handler=lambda args: section_progress(args["plan_path"], args["out_dir"]),
+            repeatable=True,
+        ),
+        ToolSpec(
+            "report.write_next_section",
+            "Write the next unwritten section. Repeat until done=true, then assemble.",
+            {
+                "type": "object",
+                "properties": {
+                    "plan_path": {"type": "string"},
+                    "evidence_path": {"type": "string"},
+                    "out_dir": {"type": "string"},
+                    "language": {"type": "string"},
+                },
+                "required": ["plan_path", "evidence_path", "out_dir"],
+            },
+            side_effect=True,
+            timeout_s=180.0,
+            handler=lambda args: write_next_section(
+                args["plan_path"],
+                args["evidence_path"],
+                args["out_dir"],
+                llm=llm,
+                language=str(args.get("language", "en")),
+            ),
+            repeatable=True,
         ),
         ToolSpec(
             "report.write_section_v2",
