@@ -133,6 +133,36 @@ RetrievalPort 可用
 | TODO-332 | R | P2 | open | 剩余 2/100 fulltext |
 | TODO-333 | R/V | P3 | deferred | 并行 section 写入 |
 | TODO-334 | I | P3 | deferred | 质量历史趋势 / 对比视图 |
+| TODO-335 | S/R | P1 | open | LLM query planning + multi-query parallel retrieval |
+
+### TODO-335 · LLM query planning + multi-query parallel retrieval
+
+目标：
+
+```text
+online 模式不再依赖用户填写 query
+由 LLM 从 topic / focus / description / keywords 生成 query set
+多 query 并行检索，合并去重，按相关性过滤
+逐篇尝试 fulltext，拿不到就跳过，直到凑够 limit
+```
+
+验收：
+
+```text
+至少生成 3 个互补 query
+并行检索，结果按 paper_id / DOI / title 去重
+候选先过滤再下载，记录 skipped_no_fulltext
+source artifact 保存 generated_queries 和每个 query 的命中数
+UI 展示 generated queries、候选数、保留数、跳过原因
+query 为空时不再让 Agent 从 topic_id 猜一个词
+```
+
+暂不做：
+
+```text
+不做证据回退到 evidence.extract
+不做跨 run 的 query 缓存
+```
 
 说明：
 
