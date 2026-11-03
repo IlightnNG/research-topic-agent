@@ -151,3 +151,52 @@ kernel.tool_called arrives with args_preview
 kernel.tool_result arrives with summary
 node_id is populated
 ```
+
+
+---
+
+## 6. Write failures and format template
+
+Historical failed run:
+
+```text
+report.write_next_section → E_TOOL_EXCEPTION:TypeError
+```
+
+Cause:
+
+```text
+old context-handler path passed the tool context incorrectly
+```
+
+This was a code bug, not a model/prompt issue. It is covered by the current
+section cursor tests and a fresh 100-paper run.
+
+Fresh run:
+
+```text
+sections       23
+retries        5
+fallback       2
+failed         0
+quality        passed
+audit          accepted
+```
+
+Template:
+
+```text
+docs/modules/research/REPORT-TEMPLATE.md
+REPORT_TEMPLATE in tools/packs/report.py
+```
+
+Prompt now includes:
+
+```text
+At a Glance
+Papers N-M with **paper_id**
+Cross-Paper Synthesis
+Paper Index
+body only, no section heading
+one paragraph per paper
+```

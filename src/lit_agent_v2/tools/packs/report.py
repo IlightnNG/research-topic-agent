@@ -56,6 +56,25 @@ def plan_report(
     return plan.to_dict()
 
 
+REPORT_TEMPLATE = """# <Report title>
+
+## At a Glance
+Two to four sentences that summarize the corpus, its main themes, and its scope.
+
+## Papers 1-5
+**<paper_id>.** One paragraph for the paper, using only supplied claims. Every factual sentence ends with its [C#] citation.
+
+## Papers 6-10
+**<paper_id>.** Same structure as above.
+
+## Cross-Paper Synthesis
+Two to three paragraphs: agreements, tensions, and open gaps across papers.
+
+## Paper Index
+- <paper_id>: <paper title>
+"""
+
+
 def _claim_keys(claims: list[dict[str, Any]]) -> set[str]:
     keys: set[str] = set()
     for index, claim in enumerate(claims, start=1):
@@ -137,11 +156,14 @@ def write_section(
         "paper_index": "Write a compact list mapping paper ids to claim ids.",
     }.get(kind, "Write the requested section using only the supplied claims.")
     prompt = (
-        "Write one report section. Use only the supplied claims.\n"
+        "Write one report section body. Use only the supplied claims.\n"
         "Every factual sentence must cite [C#] where # is the claim index in the supplied list.\n"
         "Do not invent papers, claims, numbers, or citations.\n"
         f"Write the section in {'Chinese' if language == 'zh' else 'English'}.\n"
         "Return JSON only: {\"body\":\"markdown\"}\n"
+        "Do not output a section heading; the report renderer adds it.\n"
+        "Follow this report-wide format template:\n"
+        f"{REPORT_TEMPLATE}\n"
         f"Section kind: {kind}\nTitle: {title}\nPaper ids: {paper_ids}\n"
         f"Rules: {rules}\nClaims: {claim_lines}"
     )

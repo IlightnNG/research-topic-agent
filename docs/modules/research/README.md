@@ -4,6 +4,7 @@
 > 版本：2.0（2026-11-01）
 > 状态：target；旧 M2/M3/M4 服务将被工具化
 > 目标：source / evidence / report 的领域工具包。
+> 报告格式模板见 [`REPORT-TEMPLATE.md`](REPORT-TEMPLATE.md)。
 
 ---
 

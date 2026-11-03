@@ -129,8 +129,9 @@ def build_report_v2_workflow(
             id="report.write",
             goal=(
                 "Use plan_path from report.plan, evidence_path from evidence.extract and "
-                "language/out_dir from request. Call report.section_status, then repeatedly call "
-                "report.write_next_section until remaining=0. Then call report.assemble_v2. "
+                "language/out_dir from request. Call report.section_status once, then call "
+                "report.write_next_section exactly once per step until remaining=0. Do not batch "
+                "multiple write_next_section calls in one step. Then call report.assemble_v2. "
                 "Return final JSON with draft_path, sections, word_count, citation_coverage."
             ),
             tools=report_v2_toolsets()["report.write"],

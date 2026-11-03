@@ -93,6 +93,7 @@ class ToolRegistry:
             return ToolResult(
                 False,
                 error_code=f"E_TOOL_EXCEPTION:{type(exc).__name__}",
+                content=f"{type(exc).__name__}: {exc}",
                 retryable=False,
                 duration_ms=int((time.monotonic() - started) * 1000),
                 cost_usd=spec.cost_usd,
