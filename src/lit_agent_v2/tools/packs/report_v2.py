@@ -67,6 +67,67 @@ def _coverage(sections: list[dict[str, Any]]) -> float:
     return cited / len(body_sections)
 
 
+def check_report_quality(
+    report: dict[str, Any],
+    evidence: dict[str, Any],
+    *,
+    min_papers: int = 100,
+    min_fulltext: int = 35,
+    min_claims: int = 100,
+    min_sections: int = 10,
+    min_words: int = 3500,
+    max_words: int = 8000,
+) -> dict[str, Any]:
+    papers = list(evidence.get("papers") or [])
+    claims = list(evidence.get("claims") or [])
+    sections = list(report.get("sections") or [])
+    fulltext = sum(1 for paper in papers if paper.get("fulltext"))
+    body = str(report.get("content_md") or "")
+    words = len(body.split())
+    coverage = _coverage(sections)
+    problems: list[str] = []
+    if len(papers) < min_papers:
+        problems.append(f"papers {len(papers)} < {min_papers}")
+    if fulltext < min_fulltext and report.get("state") != "degraded":
+        problems.append(f"fulltext {fulltext} < {min_fulltext} and state is not degraded")
+    if len(claims) < min_claims:
+        problems.append(f"claims {len(claims)} < {min_claims}")
+    if len(sections) < min_sections:
+        problems.append(f"sections {len(sections)} < {min_sections}")
+    if not min_words <= words <= max_words:
+        problems.append(f"word_count {words} outside {min_words}-{max_words}")
+    if coverage < 1.0:
+        problems.append(f"citation_coverage {coverage:.3f} < 1.0")
+    empty = 0
+    unknown = 0
+    for section in sections:
+        if section.get("kind") == "paper_index":
+            continue
+        checked = check_section(section, claims)
+        if not str(section.get("body") or "").strip():
+            empty += 1
+        if checked.get("problems"):
+            unknown += 1
+    if empty:
+        problems.append(f"empty sections: {empty}")
+    if unknown:
+        problems.append(f"sections with reference problems: {unknown}")
+    return {
+        "accepted": not problems,
+        "problems": problems,
+        "metrics": {
+            "papers": len(papers),
+            "fulltext": fulltext,
+            "claims": len(claims),
+            "sections": len(sections),
+            "word_count": words,
+            "citation_coverage": coverage,
+            "empty_sections": empty,
+            "reference_problem_sections": unknown,
+        },
+    }
+
+
 def plan_from_evidence(evidence_path: str, out_dir: str) -> dict[str, Any]:
     evidence = _read(evidence_path)
     papers = list(evidence.get("papers") or [])
@@ -236,7 +297,13 @@ def write_report(
     }
 
 
-def finalize_report(draft_path: str, evidence_path: str, out_dir: str) -> dict[str, Any]:
+def finalize_report(
+    draft_path: str,
+    evidence_path: str,
+    out_dir: str,
+    *,
+    strict_quality: bool = False,
+) -> dict[str, Any]:
     draft = _read(draft_path)
     evidence = _read(evidence_path)
     sections = list(draft.get("sections") or [])
@@ -258,6 +325,17 @@ def finalize_report(draft_path: str, evidence_path: str, out_dir: str) -> dict[s
     papers = list(evidence.get("papers") or [])
     fulltext = sum(1 for paper in papers if paper.get("fulltext"))
     state = "complete" if papers and fulltext / len(papers) >= 0.3 else "degraded"
+    quality = check_report_quality(
+        {
+            "papers": len(papers),
+            "content_md": assembled["content_md"],
+            "sections": sections,
+            "state": state,
+        },
+        evidence,
+    )
+    if strict_quality and not quality["accepted"]:
+        raise ValueError("E_REPORT_QUALITY: " + "; ".join(quality["problems"]))
     persisted = persist_report(
         out_dir,
         assembled["title"],
@@ -282,9 +360,11 @@ def finalize_report(draft_path: str, evidence_path: str, out_dir: str) -> dict[s
     final["word_count"] = persisted["word_count"]
     final["state"] = state
     final["citation_coverage"] = _coverage(sections)
+    final["quality"] = quality
     final["report_path"] = persisted["path"]
     final["markdown_path"] = persisted["markdown_path"]
     final["path"] = persisted["markdown_path"]
+    _write(Path(out_dir) / "final.json", final)
     return final
 
 
@@ -398,6 +478,21 @@ def build_report_v2_tools(llm: Any | None = None) -> list[ToolSpec]:
             ),
         ),
         ToolSpec(
+            "report.quality.check",
+            "Check report quality metrics and citation/reference safety.",
+            {
+                "type": "object",
+                "properties": {
+                    "report_path": {"type": "string"},
+                    "evidence_path": {"type": "string"},
+                },
+                "required": ["report_path", "evidence_path"],
+            },
+            handler=lambda args: check_report_quality(
+                _read(args["report_path"]), _read(args["evidence_path"])
+            ),
+        ),
+        ToolSpec(
             "report.write_v2",
             "Write all planned sections and write draft.json. Falls back to deterministic evidence text.",
             {
@@ -429,13 +524,17 @@ def build_report_v2_tools(llm: Any | None = None) -> list[ToolSpec]:
                     "draft_path": {"type": "string"},
                     "evidence_path": {"type": "string"},
                     "out_dir": {"type": "string"},
+                    "strict_quality": {"type": "boolean"},
                 },
                 "required": ["draft_path", "evidence_path", "out_dir"],
             },
             side_effect=True,
             timeout_s=60.0,
             handler=lambda args: finalize_report(
-                args["draft_path"], args["evidence_path"], args["out_dir"]
+                args["draft_path"],
+                args["evidence_path"],
+                args["out_dir"],
+                strict_quality=bool(args.get("strict_quality", True)),
             ),
         ),
     ]

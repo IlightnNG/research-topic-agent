@@ -15,7 +15,6 @@ from typing import Any
 
 from lit_agent_v2.contracts.node import WorkflowDefinition
 from lit_agent_v2.contracts.report import ReportDraft, Section
-from lit_agent_v2.demo.orchestrator import DemoOrchestrator
 from lit_agent_v2.kernel.agent.checkpoint import FileCheckpointStore
 from lit_agent_v2.kernel.agent.node import KernelNodeAdapter
 from lit_agent_v2.kernel.llm import DeepSeekChatClient, load_llm_config
@@ -320,11 +319,8 @@ class PlatformRunService:
                     + build_report_tools(llm, language=language)
                     + build_demo_tools(llm)
                 )
-                orchestration_llm = llm
-                if self.workflow_mode == "full" and out_dir:
-                    orchestration_llm = DemoOrchestrator(self.corpus_root, Path(out_dir))
                 kernel = Kernel(
-                    orchestration_llm,
+                    llm,
                     registry,
                     checkpoint_store=DbCheckpoints(self.db),
                     events=events,

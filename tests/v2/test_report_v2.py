@@ -5,6 +5,8 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
+import pytest
+
 from lit_agent_v2.interface.runs import PlatformRunService
 from lit_agent_v2.storage.db import Database
 from lit_agent_v2.tools.packs.report_v2 import (
@@ -72,6 +74,13 @@ def test_report_v2_tool_chain(tmp_path: Path) -> None:
     )
     assert draft["sections"] >= 3
     assert draft["citation_coverage"] > 0
+    with pytest.raises(ValueError, match="E_REPORT_QUALITY"):
+        finalize_report(
+            draft["draft_path"],
+            evidence["evidence_path"],
+            str(out),
+            strict_quality=True,
+        )
     final = finalize_report(
         draft["draft_path"], evidence["evidence_path"], str(out)
     )
@@ -150,3 +159,10 @@ def test_api_workflow_selects_report_v2(tmp_path: Path, monkeypatch) -> None:  #
     service = PlatformRunService(db, corpus_root=tmp_path)
     workflow = service._workflow({"id": "topic"}, None, "en")
     assert [node.id for node in workflow.nodes] == list(REPORT_V2_NODES)
+
+
+def test_no_demo_orchestrator_in_interface() -> None:
+    root = Path(__file__).resolve().parents[2] / "src" / "lit_agent_v2" / "interface"
+    assert root.exists()
+    for path in root.glob("*.py"):
+        assert "DemoOrchestrator" not in path.read_text(encoding="utf-8"), path

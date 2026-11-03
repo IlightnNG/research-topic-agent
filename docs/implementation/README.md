@@ -18,6 +18,7 @@
 | [RESULTS-P4.2-L3-GATE.md](RESULTS-P4.2-L3-GATE.md) | final L3 gate: 30 simple + 14 complex + soak, passed |
 | [RESULTS-P4.2-S10.0.md](RESULTS-P4.2-S10.0.md) | S10.0: 5-node report CLI on generic AgentKernel |
 | [RESULTS-P4.2-S10.1-S10.3.md](RESULTS-P4.2-S10.1-S10.3.md) | S10.1–S10.3: API, per-section, resume |
+| [RESULTS-P4.2-S10.4-S10.7.md](RESULTS-P4.2-S10.4-S10.7.md) | S10.4–S10.7: remove demo, quality gate, cleanup |
 | [RESULTS-P4.1.8.md](RESULTS-P4.1.8.md) | 100-paper fulltext full-chain result |
 | [RESULTS-P4.1.9.md](RESULTS-P4.1.9.md) | legacy cleanup and Phase 4.1 close |
 

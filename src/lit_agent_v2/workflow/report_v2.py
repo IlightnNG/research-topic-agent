@@ -52,6 +52,7 @@ def report_v2_toolsets() -> dict[str, tuple[str, ...]]:
         ),
         "report.audit_finalize": (
             "report.finalize_v2",
+            "report.quality.check",
             "report.assemble",
             "report.persist",
             "verify.code",
@@ -148,9 +149,10 @@ def build_report_v2_workflow(
             id="report.audit_finalize",
             goal=(
                 "Use draft_path from report.write, evidence_path from evidence.extract and "
-                "out_dir from request. Call report.finalize_v2. Then verify.code on report_path. "
+                "out_dir from request. Call report.finalize_v2 with strict_quality=true. Then "
+                "report.quality.check on report_path. Then verify.code on report_path. "
                 "Return final JSON with report_path, path, content_sha, papers, claims, sections, "
-                "word_count, state, citation_coverage."
+                "word_count, state, citation_coverage, quality."
             ),
             tools=report_v2_toolsets()["report.audit_finalize"],
             toolset="report.audit_finalize",
