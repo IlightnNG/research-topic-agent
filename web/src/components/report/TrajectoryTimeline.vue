@@ -208,17 +208,14 @@ watch(
                       <span class="tool__icon">⚙</span>
                       <code>{{ item.event.tool }}</code>
                       <span class="tool__id">{{ item.event.call_id }}</span>
-                      <span v-if="item.event.step" class="tool__id">step {{ item.event.step }}</span>
                       <StatusBadge :tone="toolTone(item.result)">{{ toolLabel(item.result) }}</StatusBadge>
                     </header>
-                    <details v-if="item.event.args_preview" class="tool__io">
-                      <summary>Input · {{ oneLine(item.event.args_preview) }}</summary>
-                      <pre>{{ item.event.args_preview }}</pre>
-                    </details>
-                    <details v-if="item.result" class="tool__io" :class="{ 'tool__io--bad': !item.result.ok }">
-                      <summary>Output · {{ oneLine(item.result.summary || item.result.error || (item.result.ok ? 'completed' : 'failed')) }}</summary>
-                      <pre>{{ item.result.summary || item.result.error || (item.result.ok ? 'Tool completed' : 'Tool failed') }}</pre>
-                    </details>
+                    <pre v-if="item.event.args_preview" class="tool__args">{{ item.event.args_preview }}</pre>
+                    <div v-if="item.result" class="tool__result" :class="{ 'tool__result--bad': !item.result.ok }">
+                      <span>{{ item.result.ok ? '✓' : '!' }}</span>
+                      <span>{{ item.result.summary || item.result.error || (item.result.ok ? 'Tool completed' : 'Tool failed') }}</span>
+                      <span v-if="item.result.duration_ms" class="tool__duration">{{ item.result.duration_ms }}ms</span>
+                    </div>
                     <p v-else class="tool__waiting">Waiting for result…</p>
                   </article>
                 </template>
@@ -326,34 +323,6 @@ watch(
 .tool__icon { color: var(--text-muted); font-size: 11px; }
 .tool__head code { color: var(--text); font-family: var(--font-mono); font-size: 11px; font-weight: 600; }
 .tool__id { margin-left: auto; color: var(--text-faint); font-family: var(--font-mono); font-size: 9px; }
-.tool__io {
-  margin-top: 6px;
-  color: var(--text-muted);
-  font-family: var(--font-mono);
-  font-size: 10px;
-}
-
-.tool__io summary {
-  overflow: hidden;
-  cursor: pointer;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.tool__io pre {
-  overflow-x: auto;
-  margin: 6px 0 0;
-  padding: 8px;
-  max-height: 220px;
-  border-radius: 4px;
-  background: var(--surface);
-  color: var(--text);
-  white-space: pre-wrap;
-}
-
-.tool__io--bad summary {
-  color: var(--danger);
-}
 
 .thinking__hint {
   overflow: hidden;
