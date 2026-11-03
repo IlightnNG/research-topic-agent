@@ -8,6 +8,7 @@ from pathlib import Path
 from typing import Any
 
 from lit_agent_v2.contracts.verdict import Verdict
+from lit_agent_v2.kernel.agent.checkpoint import FileCheckpointStore
 from lit_agent_v2.kernel.agent.node import KernelNodeAdapter
 from lit_agent_v2.kernel.llm import DeepSeekChatClient, load_llm_config
 from lit_agent_v2.kernel.node.loop import Kernel
@@ -15,6 +16,7 @@ from lit_agent_v2.tools.packs.demo import build_demo_tools
 from lit_agent_v2.tools.registry import ToolRegistry
 from lit_agent_v2.verify.verdict import Verifier
 from lit_agent_v2.workflow.node.definition import build_demo100_workflow
+from lit_agent_v2.workflow.node.file_store import JsonNodeStore
 from lit_agent_v2.workflow.node.runner import WorkflowRunner
 from lit_agent_v2.workflow.report_v2 import build_report_v2_workflow
 from lit_agent_v2.workflow.report_v2_runtime import build_report_v2_runtime
@@ -60,17 +62,23 @@ def main() -> int:
     v2.add_argument("--corpus", type=Path, default=DEFAULT_CORPUS)
     v2.add_argument("--out", type=Path, default=DEFAULT_OUT)
     v2.add_argument("--language", default="en")
+    v2.add_argument("--resume", action="store_true")
     args = parser.parse_args()
 
     args.out.mkdir(parents=True, exist_ok=True)
     llm = DeepSeekChatClient(load_llm_config())
     if args.command == "report-v2":
         runtime = build_report_v2_runtime(llm)
-        adapter = KernelNodeAdapter(llm, runtime, workspace=args.out)
+        adapter = KernelNodeAdapter(
+            llm,
+            runtime,
+            workspace=args.out,
+            checkpoints=FileCheckpointStore(args.out / "checkpoints"),
+        )
         outputs = WorkflowRunner(
             kernel=adapter,
             verifier=Verifier(),
-            store=_MemoryStore(),
+            store=JsonNodeStore(args.out / "nodes"),
             events=_Events(),
         ).run(
             build_report_v2_workflow(),
@@ -82,6 +90,7 @@ def main() -> int:
                     "language": args.language,
                 }
             },
+            resume=args.resume,
         )
         final = outputs["report.audit_finalize"]
         print(

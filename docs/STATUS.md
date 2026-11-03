@@ -9,14 +9,14 @@
 ## 当前状态
 
 ```text
-阶段：Phase 4.1 complete；Phase 4.2 S0–S9 done；L3 gate passed（简单 30/30，复杂 12/14，audit 13/14，soak 8/8）
+阶段：Phase 4.1 complete；Phase 4.2 S0–S9 done；S10.0–S10.3 done；L3 gate passed
 前端：Vue F1–F6 done；real API mode 已联调
-最后测试：122 passed / ruff clean
+最后测试：124 passed / ruff clean
 前端构建：web npm run build passed
-全链路 demo：100 papers / 35 fulltext / 186 claims / 13 sections / complete
+全链路 demo：100 papers / 35 fulltext / 186 claims / 23 sections / complete
 联调：topics → run → trace → report → paper；chat 基础链路
 当前契约：CONTRACTS 2.0 frozen
-真实联调：100 篇本地 corpus，fulltext 35/100，186 claims，13 sections，report complete
+真实联调：100 篇本地 corpus，fulltext 35/100，186 claims，23 sections，5135 words，report complete
 ```
 
 ---
@@ -26,9 +26,10 @@
 ```text
 Platform:
   interface/  topics / runs / router / cli
-  workflow/node/  NodeRunner + definitions
-  kernel/node/    ReAct loop
-  tools/packs/    source / corpus / claims / report / demo
+  workflow/       report_v2 + node runner + file store
+  kernel/agent/   AgentKernel + checkpoint + audit
+  kernel/node/    legacy ReAct loop
+  tools/packs/    source / corpus / claims / report / report_v2 / demo
   verify/         code + audit
   research/       corpus / claims / pdf / openalex
   storage/        db + report_store
@@ -48,34 +49,34 @@ Legacy:
 
 | 模块 | 目标状态 | 当前代码 |
 |---|---|---|
-| W Workflow | 特制任务外壳 | 4 Node report demo 已跑通；但 Node 单工具 + DemoOrchestrator 写死 |
-| K Kernel | 通用 Agent 内核，可独立完成复杂任务 | L3 gate passed；复杂 12/14，audit 13/14，soak 8/8 |
+| W Workflow | 特制任务外壳 | 5 Node report-v2 CLI/API 已跑通；batch write + legacy DemoOrchestrator 仍未清理 |
+| K Kernel | 通用 Agent 内核，可独立完成复杂任务 | L3 gate passed；AgentKernel 已被 API/CLI report 使用 |
 | T Tools | ToolRuntime + general/domain toolset | S2/S3 done：general tools、toolset、policy、spill |
 | V Verification | code + audit | dual Verifier 已接入 runner |
 | S Storage | artifact/state/report | 已有 |
-| I Interface | API/UI | Vue F1–F6 real API；full-chain 默认 |
-| R Research | source/evidence/report tools | report demo tools 已有 |
+| I Interface | API/UI | Vue F1–F6 real API；report-v2 默认 |
+| R Research | source/evidence/report tools | report_v2 tools + exact quote claims |
 | E Evaluation | scorecard/judge tools | 已有，未接入 |
 
 ---
 
 ## 当前阻塞
 
-1. 默认 API 是 4 Node full chain；`LIT_V2_DEMO_CHAIN=single` 才走单 Node 兼容模式；
+1. `LIT_V2_WORKFLOW=report-v2` 已是默认；demo100 仍保留 legacy 分支；
+2. S10.2 是 tool-level section 写入，Node 仍调用 report.write_v2 批量入口；
 3. 100 篇本地 corpus fulltext 35/100，其余 65 篇使用 abstract；
-4. demo.report 的 overview/synthesis 仍是确定性，10 个 analysis section 由 LLM 写；
-5. 前端默认仍用 mock adapter；real mode 已接 topics/trace/report/paper/chat；
-6. M5-P02 AI gold 不可用；
-7. 真实 Chat 仍是本地检索，不是 LLM 对话。
+4. S10.4 未移除生产 DemoOrchestrator；
+5. S10.5 尚未完成完整 report quality gate；
+6. 真实 Chat 仍是本地检索，不是 LLM 对话。
 
 ---
 
 ## 下一步
 
 ```text
-1. S10 Workflow core + report shell
-2. report workflow 使用通用 AgentKernel
-3. 报告质量优化
+1. S10.4 移除生产 DemoOrchestrator
+2. S10.5 report quality gate
+3. S10.6 最终 100 篇 API/CLI 门禁
 4. 最后再接 Chat workflow
 ```
 

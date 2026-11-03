@@ -16,6 +16,8 @@ from typing import Any
 from lit_agent_v2.contracts.node import WorkflowDefinition
 from lit_agent_v2.contracts.report import ReportDraft, Section
 from lit_agent_v2.demo.orchestrator import DemoOrchestrator
+from lit_agent_v2.kernel.agent.checkpoint import FileCheckpointStore
+from lit_agent_v2.kernel.agent.node import KernelNodeAdapter
 from lit_agent_v2.kernel.llm import DeepSeekChatClient, load_llm_config
 from lit_agent_v2.kernel.node.loop import Kernel
 from lit_agent_v2.kernel.node.ports import CheckpointPort, EventPort
@@ -34,6 +36,8 @@ from lit_agent_v2.workflow.node.definition import (
 )
 from lit_agent_v2.workflow.node.runner import WorkflowRunner
 from lit_agent_v2.workflow.node.state import WorkflowInterrupted
+from lit_agent_v2.workflow.report_v2 import build_report_v2_workflow
+from lit_agent_v2.workflow.report_v2_runtime import build_report_v2_runtime
 
 from .topics import TopicStore
 
@@ -176,7 +180,7 @@ class PlatformRunService:
         self.corpus_root = Path(corpus_root)
         self.llm = llm
         self.topics = TopicStore(db)
-        self.workflow_mode = os.environ.get("LIT_V2_DEMO_CHAIN", "full")
+        self.workflow_mode = os.environ.get("LIT_V2_WORKFLOW") or os.environ.get("LIT_V2_DEMO_CHAIN") or "report-v2"
         self._threads: dict[str, threading.Thread] = {}
         self._pause_events: dict[str, threading.Event] = {}
         self._lock = threading.Lock()
@@ -244,6 +248,8 @@ class PlatformRunService:
     def _workflow(
         self, topic: dict[str, Any], focus_hint: str | None, language: str
     ) -> WorkflowDefinition:
+        if self.workflow_mode in {"report-v2", "v2"}:
+            return build_report_v2_workflow()
         if self.workflow_mode == "full":
             return build_demo100_workflow()
         base = build_report_demo_workflow()
@@ -280,33 +286,58 @@ class PlatformRunService:
         events.emit("run.resumed" if resume else "run.started")
         try:
             llm = self.llm or DeepSeekChatClient(load_llm_config())
-            registry = ToolRegistry(
-                build_corpus_tools()
-                + build_claim_tools()
-                + build_report_tools(llm, language=language)
-                + build_demo_tools(llm)
-            )
-            orchestration_llm = llm
-            if self.workflow_mode == "full" and out_dir:
-                orchestration_llm = DemoOrchestrator(self.corpus_root, Path(out_dir))
-            kernel = Kernel(
-                orchestration_llm,
-                registry,
-                checkpoint_store=DbCheckpoints(self.db),
-                events=events,
-                should_stop=lambda: bool(
+            def should_stop() -> bool:
+                return bool(
                     self._pause_events.get(run_id, threading.Event()).is_set()
                     or self._state(run_id) != "running"
-                ),
-            )
-            store = DbNodeStore(self.db, events)
-            runner = WorkflowRunner(
-                kernel=kernel,
-                verifier=Verifier(),
-                store=store,
-                events=events,
-                control=lambda: self._state(run_id),
-            )
+                )
+            final_key = "report.generate"
+            if self.workflow_mode in {"report-v2", "v2"}:
+                runtime = build_report_v2_runtime(llm)
+                adapter = KernelNodeAdapter(
+                    llm,
+                    runtime,
+                    workspace=out_dir or str(self.corpus_root),
+                    events=events,
+                    checkpoints=FileCheckpointStore(
+                        Path(out_dir or "D:/lit-agent-store/v2-demo") / "checkpoints"
+                    ),
+                    should_stop=should_stop,
+                )
+                store = DbNodeStore(self.db, events)
+                runner = WorkflowRunner(
+                    kernel=adapter,
+                    verifier=Verifier(),
+                    store=store,
+                    events=events,
+                    control=lambda: self._state(run_id),
+                )
+                final_key = "report.audit_finalize"
+            else:
+                registry = ToolRegistry(
+                    build_corpus_tools()
+                    + build_claim_tools()
+                    + build_report_tools(llm, language=language)
+                    + build_demo_tools(llm)
+                )
+                orchestration_llm = llm
+                if self.workflow_mode == "full" and out_dir:
+                    orchestration_llm = DemoOrchestrator(self.corpus_root, Path(out_dir))
+                kernel = Kernel(
+                    orchestration_llm,
+                    registry,
+                    checkpoint_store=DbCheckpoints(self.db),
+                    events=events,
+                    should_stop=should_stop,
+                )
+                store = DbNodeStore(self.db, events)
+                runner = WorkflowRunner(
+                    kernel=kernel,
+                    verifier=Verifier(),
+                    store=store,
+                    events=events,
+                    control=lambda: self._state(run_id),
+                )
             outputs = runner.run(
                 workflow,
                 run_id=run_id,
@@ -321,7 +352,7 @@ class PlatformRunService:
                 },
                 resume=resume,
             )
-            output = outputs.get("report.generate", {})
+            output = outputs.get(final_key, {})
             if not output.get("content_md") and not output.get("report_path"):
                 raise RuntimeError("report node returned no content_md or report_path")
             report_id = self._persist_report(run_id, topic_id, output)

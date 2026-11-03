@@ -34,20 +34,19 @@ P3  Chat
 
 | ID | Module | Priority | Status | Title |
 |---|---|---|---|---|
-| TODO-201 | W/K | P0 | partial | WorkflowRunner 接入 KernelNodeAdapter（CLI 已完成，API 未完成） |
+| TODO-201 | W/K | P0 | done | WorkflowRunner 接入 KernelNodeAdapter（CLI + API） |
 | TODO-202 | W | P0 | done | 定义 5 节点 report workflow |
 | TODO-203 | R/T | P0 | done | source/evidence 领域工具与 schema |
 | TODO-204 | R/T | P0 | done | report.plan / write / audit 工具与 verifier |
 | TODO-205 | R/W | P0 | done | 100 篇真实 LLM 端到端报告（CLI） |
-| TODO-206 | W | P1 | open | Node checkpoint / resume / 局部重试 |
+| TODO-206 | W | P1 | done | Node checkpoint / resume / 局部重试（CLI 已验证） |
 | TODO-207 | W | P1 | open | 移除生产路径 DemoOrchestrator |
 | TODO-208 | R/V | P1 | open | 报告质量门禁 |
 
 ### TODO-201 · WorkflowRunner 接入 KernelNodeAdapter
 
 - Module：W/K
-- Status：partial（CLI 已完成；API 仍用旧路径）
-- 问题：当前 API 仍使用旧 `Kernel` + `DemoOrchestrator`，不是通用 `AgentKernel`。
+- Status：done（CLI + API 已接入；DemoOrchestrator 的移除见 TODO-207）
 - Acceptance：
   - `WorkflowRunner` 的 kernel port 使用 `KernelNodeAdapter`；
   - `NodeSpec` → `KernelTask` → `AgentKernel` → `NodeResult`；
@@ -123,7 +122,7 @@ P3  Chat
 ### TODO-206 · Node checkpoint / resume / 局部重试
 
 - Module：W
-- Status：open
+- Status：done（CLI resume 已验证）
 - Acceptance：
   - source 成功后重跑不重下载；
   - evidence 成功后重跑不重抽取；

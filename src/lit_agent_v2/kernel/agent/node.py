@@ -31,6 +31,7 @@ class KernelNodeAdapter:
         checkpoints: FileCheckpointStore | None = None,
         policy: KernelPolicy | None = None,
         verifier: Callable[[dict[str, Any]], list[str]] | None = None,
+        should_stop: Callable[[], bool] | None = None,
     ) -> None:
         self.llm = llm
         self.tools = tools
@@ -39,6 +40,7 @@ class KernelNodeAdapter:
         self.checkpoints = checkpoints
         self.policy = policy or KernelPolicy()
         self.verifier = verifier
+        self.should_stop = should_stop
 
     def run(self, node: NodeSpec, context: NodeContext) -> NodeResult:
         state = GeneralState(workspace=self.workspace)
@@ -56,6 +58,7 @@ class KernelNodeAdapter:
             self.tools,
             state,
             events=self.events,
+            should_stop=self.should_stop,
             checkpoints=self.checkpoints,
         ).run(task)
         return NodeResult(

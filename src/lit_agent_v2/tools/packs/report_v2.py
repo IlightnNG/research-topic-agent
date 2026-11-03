@@ -88,39 +88,108 @@ def plan_from_evidence(evidence_path: str, out_dir: str) -> dict[str, Any]:
     }
 
 
-def write_report(
+def write_one_section(
     plan_path: str,
+    section_id: str,
     evidence_path: str,
     out_dir: str,
     *,
     llm: Any | None,
     language: str = "en",
+    max_attempts: int = 3,
 ) -> dict[str, Any]:
     plan = _read(plan_path)
     evidence = _read(evidence_path)
     claims = list(evidence.get("claims") or [])
-    sections: list[dict[str, Any]] = []
-    fallback_used = 0
-    for raw in plan.get("sections") or []:
-        section = dict(raw)
-        body = ""
-        if llm is not None:
-            try:
-                result = write_section(section, claims, llm, language=language)
-                if result.get("ok"):
-                    body = str((result.get("section") or {}).get("body") or "")
-            except Exception:  # noqa: BLE001
-                body = ""
-        if not body:
-            body = _fallback_body(section, claims)
-            fallback_used += 1
+    section = next(
+        (
+            dict(item)
+            for item in plan.get("sections") or []
+            if str(item.get("section_id")) == section_id
+        ),
+        None,
+    )
+    if section is None:
+        raise ValueError(f"unknown section: {section_id}")
+    path = Path(out_dir) / "sections" / f"{section_id}.json"
+    if path.exists():
+        existing = _read(path)
+        if existing.get("ok"):
+            return {**existing, "resumed": True}
+
+    attempts = 0
+    problems: list[str] = []
+    body = ""
+    fallback = False
+    while attempts < max_attempts:
+        attempts += 1
+        if llm is None:
+            break
+        try:
+            result = write_section(section, claims, llm, language=language)
+        except Exception as exc:  # noqa: BLE001
+            problems.append(f"{type(exc).__name__}: {exc}")
+            continue
+        problems = [str(item) for item in result.get("problems") or []]
+        candidate = str((result.get("section") or {}).get("body") or "")
+        if result.get("ok") and candidate:
+            body = candidate
+            break
+        if candidate:
+            body = candidate
+    if not body:
+        body = _fallback_body(section, claims)
+        fallback = True
+    section["body"] = body
+    checked = check_section(section, claims)
+    if not checked.get("ok") and section.get("kind") != "paper_index":
+        body = _fallback_body(section, claims)
         section["body"] = body
+        fallback = True
         checked = check_section(section, claims)
-        if not checked.get("ok") and section.get("kind") != "paper_index":
-            body = _fallback_body(section, claims)
-            section["body"] = body
-            fallback_used += 1
-        sections.append(section)
+    is_index = section.get("kind") == "paper_index"
+    payload = {
+        "section_id": section_id,
+        "kind": section.get("kind"),
+        "title": section.get("title"),
+        "body": body,
+        "claim_ids": checked.get("refs", []),
+        "attempts": attempts,
+        "ok": bool(checked.get("ok")) or is_index,
+        "problems": [] if is_index else checked.get("problems", []),
+        "fallback": fallback,
+    }
+    _write(path, payload)
+    return {**payload, "section_path": str(path), "resumed": False}
+
+
+def assemble_sections(plan_path: str, evidence_path: str, out_dir: str) -> dict[str, Any]:
+    plan = _read(plan_path)
+    evidence = _read(evidence_path)
+    claims = list(evidence.get("claims") or [])
+    sections: list[dict[str, Any]] = []
+    missing: list[str] = []
+    for raw in plan.get("sections") or []:
+        section_id = str(raw.get("section_id"))
+        path = Path(out_dir) / "sections" / f"{section_id}.json"
+        if not path.exists():
+            missing.append(section_id)
+            continue
+        payload = _read(path)
+        if not payload.get("ok"):
+            missing.append(section_id)
+            continue
+        sections.append(
+            {
+                "section_id": section_id,
+                "kind": raw.get("kind"),
+                "title": raw.get("title"),
+                "body": payload.get("body", ""),
+                "claim_ids": payload.get("claim_ids", []),
+            }
+        )
+    if missing:
+        raise ValueError("missing or failed sections: " + ", ".join(missing))
     draft = assemble_report("Report", sections)
     draft["sections"] = sections
     draft["claims"] = claims
@@ -132,7 +201,38 @@ def write_report(
         "sections": len(sections),
         "word_count": draft["word_count"],
         "citation_coverage": draft["citation_coverage"],
-        "fallback_sections": fallback_used,
+    }
+
+
+def write_report(
+    plan_path: str,
+    evidence_path: str,
+    out_dir: str,
+    *,
+    llm: Any | None,
+    language: str = "en",
+) -> dict[str, Any]:
+    plan = _read(plan_path)
+    retried = 0
+    fallback_sections = 0
+    for raw in plan.get("sections") or []:
+        result = write_one_section(
+            plan_path,
+            str(raw.get("section_id")),
+            evidence_path,
+            out_dir,
+            llm=llm,
+            language=language,
+        )
+        if int(result.get("attempts", 1)) > 1:
+            retried += 1
+        if result.get("fallback"):
+            fallback_sections += 1
+    assembled = assemble_sections(plan_path, evidence_path, out_dir)
+    return {
+        **assembled,
+        "sections_retried": retried,
+        "fallback_sections": fallback_sections,
     }
 
 
@@ -237,6 +337,65 @@ def build_report_v2_tools(llm: Any | None = None) -> list[ToolSpec]:
             side_effect=True,
             timeout_s=30.0,
             handler=lambda args: plan_from_evidence(args["evidence_path"], args["out_dir"]),
+        ),
+        ToolSpec(
+            "report.write_section_v2",
+            "Write one planned section with local retries and persist sections/{id}.json.",
+            {
+                "type": "object",
+                "properties": {
+                    "plan_path": {"type": "string"},
+                    "section_id": {"type": "string"},
+                    "evidence_path": {"type": "string"},
+                    "out_dir": {"type": "string"},
+                    "language": {"type": "string"},
+                },
+                "required": ["plan_path", "section_id", "evidence_path", "out_dir"],
+            },
+            side_effect=True,
+            timeout_s=180.0,
+            handler=lambda args: write_one_section(
+                args["plan_path"],
+                args["section_id"],
+                args["evidence_path"],
+                args["out_dir"],
+                llm=llm,
+                language=str(args.get("language", "en")),
+            ),
+        ),
+        ToolSpec(
+            "report.check_section_v2",
+            "Check one persisted section file for citations and empty body.",
+            {
+                "type": "object",
+                "properties": {
+                    "section_path": {"type": "string"},
+                    "evidence_path": {"type": "string"},
+                },
+                "required": ["section_path", "evidence_path"],
+            },
+            handler=lambda args: check_section(
+                _read(args["section_path"]),
+                list(_read(args["evidence_path"]).get("claims") or []),
+            ),
+        ),
+        ToolSpec(
+            "report.assemble_v2",
+            "Assemble persisted section files into draft.json.",
+            {
+                "type": "object",
+                "properties": {
+                    "plan_path": {"type": "string"},
+                    "evidence_path": {"type": "string"},
+                    "out_dir": {"type": "string"},
+                },
+                "required": ["plan_path", "evidence_path", "out_dir"],
+            },
+            side_effect=True,
+            timeout_s=30.0,
+            handler=lambda args: assemble_sections(
+                args["plan_path"], args["evidence_path"], args["out_dir"]
+            ),
         ),
         ToolSpec(
             "report.write_v2",

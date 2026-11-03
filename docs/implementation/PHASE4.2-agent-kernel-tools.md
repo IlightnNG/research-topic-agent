@@ -1021,18 +1021,19 @@ context compaction observable
 | 子阶段 | 状态 | 结果 |
 |---|---|---|
 | S10.0 5 Node CLI | done | `report-v2` CLI 跑通 100 篇 |
-| S10.1 API 切 KernelNodeAdapter | open | API 仍走旧 Kernel + DemoOrchestrator |
-| S10.2 逐 section 写入 | open | 当前 `report.write_v2` 是批量 tool |
-| S10.3 checkpoint / resume | open | CLI 未接 Node checkpoint |
-| S10.4 移除生产 DemoOrchestrator | open | 生产 API 仍依赖 |
+| S10.1 API 切 KernelNodeAdapter | done | 100 篇 API run succeeded |
+| S10.2 逐 section 写入 | partial | tool-level per-section + retry 已完成 |
+| S10.3 checkpoint / resume | done | CLI resume 已验证；API 路径已接 |
+| S10.4 移除生产 DemoOrchestrator | open | 生产 API 仍有 legacy 分支 |
 | S10.5 report quality gate | open | 只有 schema/citation 基础检查 |
-| S10.6 100 篇端到端 | partial | CLI 通过；API 未通过 |
+| S10.6 100 篇端到端 | done | CLI 和 API 均 100 篇通过 |
 | S10.7 cleanup | open | 测试/文档/提交未完 |
 
 已记录：
 
 ```text
 docs/implementation/RESULTS-P4.2-S10.0.md
+docs/implementation/RESULTS-P4.2-S10.1-S10.3.md
 ```
 
 #### 4.2.10.1 S10.1 · API 切到 KernelNodeAdapter

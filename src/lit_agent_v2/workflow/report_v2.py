@@ -44,7 +44,9 @@ def report_v2_toolsets() -> dict[str, tuple[str, ...]]:
         ),
         "report.write": (
             "report.write_v2",
-            "report.check_section",
+            "report.write_section_v2",
+            "report.check_section_v2",
+            "report.assemble_v2",
             "context.compact",
             "artifact.put",
         ),
