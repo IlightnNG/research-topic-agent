@@ -10,12 +10,15 @@
 
 ```text
 Phase 4.2: complete
-Report workflow: 5 Node, API + CLI, 100 papers
+Report workflow: 5 Node, API + CLI
+Default demo: 20 papers; benchmark: 100 papers
 Fulltext: 98 / 100
 Claims: 196
 Sections: 23
-Quality gate: deterministic hard gate
+Quality gate: dynamic by target_papers + deterministic hard gate
 LLM audit: hard on explicit reject; fail-open if audit unavailable
+Source: local / online / auto
+UI: SSE live events, quality badge, section progress, paper title links
 Chat: deferred
 RAG / Qdrant / Kuzu: deferred
 ```

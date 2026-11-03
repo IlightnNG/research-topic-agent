@@ -104,6 +104,8 @@ API/UI 可读
 2026-11-03  DemoOrchestrator / demo package / demo100 CLI removed
 2026-11-03  Docs / TODO / phase4.2 收尾
 2026-11-03  SSE / kernel tool events / Markdown renderer 修复
+2026-11-03  online source mode / dynamic quality / default 20
+2026-11-03  paper title links / tool display revert
 2026-11-01  模块地图改为 W/K/T/V/S/I + R/E + C
 2026-11-01  M6-P01 API/UI 完成
 2026-11-01  M5-P02 AI gold 抽样分析：不可用

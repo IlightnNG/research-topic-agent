@@ -194,7 +194,7 @@ Prompt now includes:
 
 ```text
 At a Glance
-Papers N-M with **paper_id**
+Papers N-M with **paper title**
 Cross-Paper Synthesis
 Paper Index
 body only, no section heading
@@ -294,3 +294,24 @@ audit              accepted
 
 Local corpus still does not download; online mode uses OpenAlex search and
 downloads open PDF/HTML when available.
+
+
+---
+
+## 9. UI interaction cleanup
+
+```text
+tool input/output folding was reverted to the original full display
+thinking summary remains one line and expands on click
+tool name / call id remain in the header
+paper title links open a paper tab
+```
+
+## 10. Final commits
+
+```text
+3eb8c03 fix(runtime): add SSE, kernel event detail and markdown renderer
+c79227a fix(report): add format template, fold tool IO and improve write prompt
+da163b7 fix(report): use paper titles and enforce section format
+4e93ef9 feat(report): add online source mode, dynamic quality and paper title links
+```

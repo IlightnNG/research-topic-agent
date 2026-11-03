@@ -162,7 +162,19 @@ npm run build passed
 
 ---
 
-## 7. Cleanup
+## 7. Runtime hardening
+
+```text
+SSE /events
+kernel.tool_called + thinking.summary
+markdown marked + DOMPurify
+paper title links
+online source mode
+dynamic quality thresholds
+default paper limit = 20
+```
+
+## 8. Cleanup
 
 Removed：
 
@@ -182,7 +194,7 @@ single-node report flow remains only for old tests
 
 ---
 
-## 8. Tests
+## 9. Tests
 
 ```text
 128 passed
@@ -192,7 +204,7 @@ npm run build passed
 
 ---
 
-## 9. Deferred
+## 10. Deferred
 
 ```text
 Qdrant
