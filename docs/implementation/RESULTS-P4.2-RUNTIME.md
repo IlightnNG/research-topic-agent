@@ -200,3 +200,40 @@ Paper Index
 body only, no section heading
 one paragraph per paper
 ```
+
+
+---
+
+## 7. Paper titles and format enforcement
+
+Before:
+
+```text
+**W88095936.** ...
+```
+
+After:
+
+```text
+**[A schematic representation for cognitive tool-using agents.](#paper-W88095936)** ...
+```
+
+Rules:
+
+```text
+paper IDs are replaced with paper titles
+title links use #paper-<paper_id>
+ReportBody intercepts #paper-* clicks and opens a paper tab
+paper_index is generated deterministically from all evidence papers
+paper_analysis falls back to a deterministic title-linked paragraph if
+the LLM omits required paper titles
+```
+
+Quality on a fresh 100-paper run:
+
+```text
+sections  23
+words     7005
+quality   passed
+audit     accepted
+```
