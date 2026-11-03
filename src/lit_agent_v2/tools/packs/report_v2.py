@@ -93,7 +93,14 @@ def check_report_quality(
     target = max(1, int(target_papers or len(papers) or 100))
     min_papers = max(1, min(target, 100))
     min_fulltext = max(0, min(target, int(target * 0.2)))
-    min_claims = max(10, min(target, 100))
+    papers_with_text = sum(
+        1 for paper in papers if paper.get("fulltext") or paper.get("abstract")
+    )
+    papers_with_claims = len(
+        {str(claim.get("paper_id")) for claim in claims if claim.get("paper_id")}
+    )
+    min_claim_papers = min(papers_with_text, max(1, int(target * 0.8))) if papers_with_text else 0
+    min_claims = max(10, min_claim_papers)
     min_sections = max(3, min(10, (target + 4) // 5 + 2))
     min_words = max(800, min(3500, target * 25))
     fulltext = sum(1 for paper in papers if paper.get("fulltext"))
@@ -107,6 +114,10 @@ def check_report_quality(
         problems.append(f"fulltext {fulltext} < {min_fulltext} and state is not degraded")
     if len(claims) < min_claims:
         problems.append(f"claims {len(claims)} < {min_claims}")
+    if papers_with_claims < min_claim_papers:
+        problems.append(
+            f"papers with claims {papers_with_claims} < {min_claim_papers}"
+        )
     if len(sections) < min_sections:
         problems.append(f"sections {len(sections)} < {min_sections}")
     if not min_words <= words <= max_words:
@@ -164,6 +175,10 @@ def check_report_quality(
             "papers": len(papers),
             "fulltext": fulltext,
             "claims": len(claims),
+            "papers_with_text": papers_with_text,
+            "papers_with_claims": papers_with_claims,
+            "min_claims": min_claims,
+            "min_claim_papers": min_claim_papers,
             "sections": len(sections),
             "word_count": words,
             "citation_coverage": coverage,
@@ -177,11 +192,11 @@ def check_report_quality(
     }
 
 
-def _download_online(paper: dict[str, Any], out_dir: Path) -> bool:
+def _download_online(paper: dict[str, Any], out_dir: Path) -> str:
     paper_id = str(paper.get("paper_id") or "")
     target = out_dir / "fulltext" / f"{paper_id}.txt"
     if target.exists() and target.stat().st_size > 500:
-        return True
+        return target.read_text(encoding="utf-8", errors="ignore")
     for url, fetch in (
         (str(paper.get("pdf_url") or ""), download_pdf_text),
         (str(paper.get("html_url") or ""), download_html_text),
@@ -196,8 +211,8 @@ def _download_online(paper: dict[str, Any], out_dir: Path) -> bool:
             continue
         target.parent.mkdir(parents=True, exist_ok=True)
         target.write_text(text, encoding="utf-8")
-        return True
-    return False
+        return text
+    return ""
 
 
 def collect_online(
@@ -208,16 +223,33 @@ def collect_online(
     from_year: int | None = None,
     download_fulltext: bool = True,
 ) -> dict[str, Any]:
-    papers = OpenAlexAdapter().fetch(query, limit=limit, from_year=from_year)
+    candidates = OpenAlexAdapter().fetch(
+        query, limit=max(limit * 3, limit + 20), from_year=from_year
+    )
     unique: list[dict[str, Any]] = []
     seen: set[str] = set()
-    for paper in papers:
+    for paper in candidates:
         payload = dict(paper.__dict__)
         marker = str(payload.get("paper_id") or payload.get("title") or "").strip().lower()
         if not marker or marker in seen:
             continue
+        # Avoid filling the window with records that have no usable text at all.
+        if not (payload.get("abstract") or payload.get("pdf_url") or payload.get("html_url")):
+            continue
         seen.add(marker)
         unique.append(payload)
+        if len(unique) >= limit:
+            break
+    if len(unique) < limit:
+        for paper in candidates:
+            payload = dict(paper.__dict__)
+            marker = str(payload.get("paper_id") or payload.get("title") or "").strip().lower()
+            if not marker or marker in seen:
+                continue
+            seen.add(marker)
+            unique.append(payload)
+            if len(unique) >= limit:
+                break
     out = Path(out_dir)
     out.mkdir(parents=True, exist_ok=True)
     (out / "papers.jsonl").write_text(
@@ -226,8 +258,11 @@ def collect_online(
     )
     if download_fulltext:
         with ThreadPoolExecutor(max_workers=4) as pool:
-            list(pool.map(lambda paper: _download_online(paper, out), unique))
-    fulltext = sum(1 for paper in unique if (out / "fulltext" / f"{paper.get('paper_id')}.txt").exists())
+            texts = list(pool.map(lambda paper: _download_online(paper, out), unique))
+        for paper, text in zip(unique, texts, strict=True):
+            if text:
+                paper["fulltext"] = text
+    fulltext = sum(1 for paper in unique if paper.get("fulltext"))
     source_path = _write(
         out / "source.json",
         {"papers": unique, "count": len(unique), "limit": limit, "query": query},

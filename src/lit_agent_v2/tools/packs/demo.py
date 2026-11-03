@@ -65,7 +65,7 @@ def collect_source(root: str, out_dir: str, limit: int = 20) -> dict[str, Any]:
     }
 
 
-def extract_evidence(source_path: str, out_dir: str, limit: int = 2) -> dict[str, Any]:
+def extract_evidence(source_path: str, out_dir: str, limit: int = 4) -> dict[str, Any]:
     source = _read_json(Path(source_path))
     papers = list(source.get("papers") or [])
     claims: list[dict[str, Any]] = []
