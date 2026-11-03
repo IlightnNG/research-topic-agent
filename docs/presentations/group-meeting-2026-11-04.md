@@ -80,14 +80,40 @@
 
 ---
 
-# Slide 4 — Two-Layer Architecture
+# Slide 4 — Why This Is a Real Refactor
 
 ## English Copy
 
-- Kernel is generic: it knows Goal, Tool, Observation, Plan, Memory, Budget
-- Workflow is specialized: it owns report stages and domain rules
-- Node is the contract between them
-- Tools and verifiers attach at the edges
+- Old chain: four fixed nodes, each calling a scripted `demo.*` tool
+- New chain: a generic think → act → observe loop
+- Workflow fixes only stage boundaries, not the internal tool sequence
+- The Node contract replaces hard-coded orchestration
+
+## 中文讲解（speaker notes）
+
+- **Old chain: four fixed nodes, each calling a scripted `demo.*` tool**
+  - 为什么：必须先把“旧版到底是什么”说清楚，否则听众会以为只是改名字。
+  - 展示：旧版 4 个节点，每个节点只连一个 `demo.source` / `demo.evidence` / `demo.report` / `demo.finalize`。
+- **New chain: a generic think → act → observe loop**
+  - 为什么：这是本次重构的核心变化：Node 内部不再写死下一步调用。
+  - 展示：循环图：LLM 思考 → 选工具 → 观察结果 → 再思考/修复。
+- **Workflow fixes only stage boundaries, not the internal tool sequence**
+  - 为什么：澄清“全由 LLM 决定”不是取消阶段，而是取消阶段内部的硬编码；阶段边界仍由特制 Workflow 负责。
+  - 展示：一条固定阶段带 + 每个阶段内部由 LLM 自由选择工具。
+- **The Node contract replaces hard-coded orchestration**
+  - 为什么：说明旧 `DemoOrchestrator` 被 Node + Kernel 契约取代。
+  - 展示：删除线划掉 `DemoOrchestrator`，指向 `NodeSpec → KernelTask`。
+
+---
+
+# Slide 5 — Two-Layer Architecture in Detail
+
+## English Copy
+
+- Kernel is generic: Goal, Plan, Tool, Observation, Memory, Budget, Checkpoint
+- Workflow is specialized: stage order, inputs, outputs, toolsets, verifiers, budgets
+- Node is the contract between them, not a tool alias
+- Tools and verifiers attach at the Node boundary; no domain logic in the Kernel
 
 ## 中文讲解（speaker notes）
 
@@ -97,16 +123,42 @@
 - **Workflow is specialized...**
   - 为什么：强调 Workflow 不是通用平台，而是报告任务的特制外壳。
   - 展示：右侧 Workflow 色块，列 source / evidence / plan / write / finalize。
-- **Node is the contract between them**
+- **Node is the contract between them, not a tool alias**
   - 为什么：解释两层如何连接：Workflow 用 Node 把阶段任务交给 Kernel。
   - 展示：中间一个 Node 桥接块，箭头从 Workflow 指向 Kernel。
-- **Tools and verifiers attach at the edges**
-  - 为什么：说明 Tool 和 Verifier 不是内核领域逻辑，而是挂在 Node 边界。
+- **Tools and verifiers attach at the Node boundary; no domain logic in the Kernel**
+  - 为什么：说明 Tool 和 Verifier 属于领域层，内核只负责调度和执行。
   - 展示：Node 下方挂 ToolRuntime 和 Verifier 两个小方块。
 
 ---
 
-# Slide 5 — Generic Kernel
+# Slide 6 — Who Decides What
+
+## English Copy
+
+- Workflow decides: stage order, input/output contracts, toolset, verifier, budget
+- LLM decides: which tool, arguments, next step, and whether to repair
+- Kernel enforces: loop, cancellation, checkpoint, budget, schema
+- This avoids both a fixed script and an unconstrained agent
+
+## 中文讲解（speaker notes）
+
+- **Workflow decides: stage order, input/output contracts, toolset, verifier, budget**
+  - 为什么：说明“特制”体现在哪里：阶段与验收由领域代码决定。
+  - 展示：左侧 Workflow 列：Order / Schema / Toolset / Verifier / Budget。
+- **LLM decides: which tool, arguments, next step, and whether to repair**
+  - 为什么：说明“全由 LLM 思考”发生在 Node 内部，而不是让 LLM 重写整个流程。
+  - 展示：右侧 LLM 列：Tool choice / Args / Next step / Repair。
+- **Kernel enforces: loop, cancellation, checkpoint, budget, schema**
+  - 为什么：强调自由不是失控，内核仍负责硬约束。
+  - 展示：中间 Kernel 列：Loop / Cancel / Checkpoint / Budget / Schema。
+- **This avoids both a fixed script and an unconstrained agent**
+  - 为什么：总结设计取舍：既不是旧式硬编码，也不是完全自由，而是“受约束的自主”。
+  - 展示：底部一句话 “Constrained autonomy”。
+
+---
+
+# Slide 7 — Generic Kernel
 
 ## English Copy
 
@@ -132,7 +184,7 @@
 
 ---
 
-# Slide 6 — Report Workflow: Five Nodes
+# Slide 8 — Report Workflow: Five Nodes
 
 ## English Copy
 
@@ -158,7 +210,7 @@
 
 ---
 
-# Slide 7 — Node Contract in Practice
+# Slide 9 — Node Contract in Practice
 
 ## English Copy
 
@@ -184,7 +236,7 @@
 
 ---
 
-# Slide 8 — Tool Layer and Source Choice
+# Slide 10 — Tool Layer and Source Choice
 
 ## English Copy
 
@@ -210,7 +262,7 @@
 
 ---
 
-# Slide 9 — Quality and Observability
+# Slide 11 — Quality and Observability
 
 ## English Copy
 
@@ -236,7 +288,7 @@
 
 ---
 
-# Slide 10 — Current Features
+# Slide 12 — Current Features
 
 ## English Copy
 
@@ -262,14 +314,14 @@
 
 ---
 
-# Slide 11 — Results
+# Slide 13 — Results and Engineering Validation
 
 ## English Copy
 
 - 100-paper benchmark: 98 fulltext, 196 claims, 23 sections
 - 20-paper demo: 19 fulltext, 38 claims, 7 sections
-- Citation coverage: 1.0; quality gate: passed
-- The report is generated end-to-end by the generic kernel
+- Citation coverage 1.0; quality gate passed; audit accepted
+- 128 tests; Ruff clean; frontend build passing; L3 gate passed
 
 ## 中文讲解（speaker notes）
 
@@ -279,42 +331,16 @@
 - **20-paper demo...**
   - 为什么：给出当前默认 demo 的真实结果，和 benchmark 区分。
   - 展示：20 / 19 / 38 / 7 四个数字。
-- **Citation coverage: 1.0; quality gate: passed**
+- **Citation coverage 1.0; quality gate passed; audit accepted**
   - 为什么：强调结果不是“看起来像报告”，而是通过硬性检查。
   - 展示：coverage 1.0 + green pass。
-- **The report is generated end-to-end by the generic kernel**
-  - 为什么：把结果和架构主张连起来，说明不是旧流水线包装。
-  - 展示：5 个 Node committed 的 trace 截图。
+- **128 tests; Ruff clean; frontend build passing; L3 gate passed**
+  - 为什么：用可复现的工程指标支撑“能用”，而不只是展示一次 demo。
+  - 展示：四行命令/结果，底部写 30/30、12/14、8/8。
 
 ---
 
-# Slide 12 — Engineering Validation
-
-## English Copy
-
-- 128 tests passing; Ruff clean; frontend build passing
-- Failure paths covered: tool error, max steps, audit, resume
-- API and CLI share the same five-node workflow
-- L3 gate: simple 30/30, complex 12/14, soak 8/8
-
-## 中文讲解（speaker notes）
-
-- **128 tests...**
-  - 为什么：用可复现的工程指标支撑“能用”，而不是只展示一个 demo。
-  - 展示：测试输出截图，三行命令结果。
-- **Failure paths covered...**
-  - 为什么：说明失败不是没测，而是有专门的失败路径测试。
-  - 展示：测试文件名列表：kernel failures / stress / report v2。
-- **API and CLI share the same five-node workflow**
-  - 为什么：说明不是只为 CLI 做了一个演示分支。
-  - 展示：API 和 CLI 都指向 `build_report_v2_workflow()`。
-- **L3 gate...**
-  - 为什么：说明内核在报告之外也做过真实任务验证。
-  - 展示：30/30、12/14、8/8 三组数字。
-
----
-
-# Slide 13 — Limitations
+# Slide 14 — Limitations
 
 ## English Copy
 
@@ -340,40 +366,108 @@
 
 ---
 
-# Slide 14 — Next Steps
+# Slide 15 — Future Hard Problems
 
 ## English Copy
 
-- 4.3: add Qdrant, Kuzu, and a real RAG retrieval path
-- Scale evaluation: more topics, larger corpora, retrieval quality
-- Chat: reuse the same kernel and retrieval port
-- Report UX: quality trends and section-level comparison
+- High-quality paper retrieval: coverage, precision, PDF parsing, paywalls
+- Real RAG: chunking, embeddings, hybrid search, reranking, traceable evidence
+- Three-database collaboration: SQLite + Qdrant + Kuzu consistency and ingestion
+- Report format: making the LLM follow a stable template and citation contract
 
 ## 中文讲解（speaker notes）
 
-- **4.3: add Qdrant, Kuzu...**
-  - 为什么：明确下一阶段的技术主线，不是继续堆报告模板。
-  - 展示：SQLite / Qdrant / Kuzu 三库示意图。
-- **Scale evaluation...**
-  - 为什么：说明当前 20/100 只是测试规模，下一步要看泛化。
-  - 展示：20 → 100 → larger corpus 的箭头。
-- **Chat: reuse the same kernel and retrieval port**
-  - 为什么：强调架构复用，不是为 Chat 再写一套 agent。
-  - 展示：Kernel 同时连 Report Workflow 和 Chat Workflow。
-- **Report UX: quality trends...**
-  - 为什么：说明前端下一步不是装饰，而是帮助评估质量。
-  - 展示：quality trend 折线图草图。
+- **High-quality paper retrieval...**
+  - 为什么：当前 demo 只用本地 corpus 或简单在线检索，真实场景要先解决论文覆盖率和质量。
+  - 展示：检索漏斗：query → candidates → dedupe → fulltext → usable papers；标出 paywall / parsing / long tail。
+- **Real RAG...**
+  - 为什么：当前是 exact-quote 证据，不是完整向量 RAG；要说明下一步的技术难点。
+  - 展示：chunk → embedding → hybrid retrieval → rerank → citation；强调“可追溯证据”比“相似度”更重要。
+- **Three-database collaboration...**
+  - 为什么：SQLite / Qdrant / Kuzu 各自解决不同问题，但一致性、重建和 D 盘存储是工程难点。
+  - 展示：三库图：SQLite 元数据、Qdrant 向量、Kuzu 关系；中间放 ingestion / outbox。
+- **Report format...**
+  - 为什么：LLM 仍然会偏离模板，报告格式和模板需要变成可验收契约，而不只是 prompt。
+  - 展示：prompt → draft → post-check → fallback 的闭环；标出“模板不是提示词，是契约”。
 
 ---
 
-# Slide 15 — Closing
+# Slide 16 — Proposed Report Template
+
+## English Copy
+
+- Current: At a Glance → Papers N-M → Cross-Paper Synthesis → Paper Index
+- Proposed: add Scope, Method, Evidence Notes, Open Problems, Limitations
+- Every section has a job, a citation rule, and a target length
+- The template should be a contract, not only a prompt
+
+## 中文讲解（speaker notes）
+
+- **Current: At a Glance → ... → Paper Index**
+  - 为什么：先承认当前模板已经能产出报告，但结构还比较“论文清单式”。
+  - 展示：当前 5 类 section 的简图。
+- **Proposed: add Scope, Method, Evidence Notes, Open Problems, Limitations**
+  - 为什么：让报告从“论文摘要集合”升级为“有研究判断的综述”。
+  - 展示：提议模板全文（下方）。
+- **Every section has a job, a citation rule, and a target length**
+  - 为什么：格式统一不能靠模型自觉，必须把 section 变成可验收契约。
+  - 展示：一个 section card：Goal / Citation / Length / Verifier。
+- **The template should be a contract, not only a prompt**
+  - 为什么：这是未来报告质量的关键方向，也是想请导师给意见的地方。
+  - 展示：prompt → schema → verifier → fallback。
+
+### Proposed template (English, on slide)
+
+```text
+# <Report title>
+
+## Executive Summary
+## Scope and Method
+## Research Landscape
+## Paper-by-Paper Analysis
+## Cross-Paper Synthesis
+## Evidence and Citation Notes
+## Open Problems
+## Limitations
+## Paper Index
+```
+
+---
+
+# Slide 17 — Questions for the Advisor
+
+## English Copy
+
+- Which sections are essential for this report to be useful?
+- What balance do you expect: paper-by-paper vs cross-paper synthesis?
+- What is the minimum evidence and citation standard?
+- Should we prioritize RAG / three databases, or report depth first?
+
+## 中文讲解（speaker notes）
+
+- **Which sections are essential...**
+  - 为什么：当前模板是工程视角，不确定导师/读者真正需要的章节。
+  - 展示：当前模板 + 提议模板并排，留出批注空间。
+- **What balance...**
+  - 为什么：报告可能太像论文列表，也可能过度综合；需要导师定义“综述感”。
+  - 展示：两个极端：Paper list ↔ Synthesis；中间标理想比例。
+- **What is the minimum evidence...**
+  - 为什么：引用覆盖、quote 长度、允不允许 abstract-only，会直接影响质量门禁。
+  - 展示：citation coverage / exact quote / abstract-only 三个指标。
+- **Should we prioritize RAG / three databases...**
+  - 为什么：下一步资源有限，需要导师判断先补检索基础设施还是先提升报告深度。
+  - 展示：两条路线：RAG/3DB vs report depth；标出时间成本。
+
+---
+
+# Slide 18 — Closing
 
 ## English Copy
 
 - General kernel, specialized workflows
 - A working evidence-grounded report demo
 - Honest limits, clear next steps
-- Feedback welcome: node granularity, quality thresholds, demo scope
+- Feedback welcome: node granularity, quality thresholds, report scope
 
 ## 中文讲解（speaker notes）
 
@@ -388,4 +482,4 @@
   - 展示：Limitations / Next 两列。
 - **Feedback welcome...**
   - 为什么：把组会变成讨论，而不是单向汇报。
-  - 展示：三个问题作为结尾：节点粒度是否合理？质量阈值是否合适？demo 范围是否足够？
+  - 展示：三个问题作为结尾：节点粒度是否合理？质量阈值是否合适？报告范围是否足够？
