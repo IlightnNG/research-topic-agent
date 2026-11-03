@@ -11,7 +11,7 @@
 ```text
 阶段：Phase 4.1 complete；Phase 4.2 S0–S9 done；L3 gate passed（简单 30/30，复杂 12/14，audit 13/14，soak 8/8）
 前端：Vue F1–F6 done；real API mode 已联调
-最后测试：119 passed / ruff clean
+最后测试：122 passed / ruff clean
 前端构建：web npm run build passed
 全链路 demo：100 papers / 35 fulltext / 186 claims / 13 sections / complete
 联调：topics → run → trace → report → paper；chat 基础链路

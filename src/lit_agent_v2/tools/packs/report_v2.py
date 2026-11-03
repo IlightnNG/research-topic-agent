@@ -1,0 +1,282 @@
+"""Report workflow v2 domain tools.
+
+The tools are deterministic at the boundaries and use the LLM only for section
+writing. Each Node can still inspect, plan, check and recover through the
+general toolset exposed by the workflow.
+"""
+
+from __future__ import annotations
+
+import json
+import re
+from pathlib import Path
+from typing import Any
+
+from lit_agent_v2.contracts.tool import ToolSpec
+from lit_agent_v2.tools.packs.demo import (
+    collect_source,
+    extract_evidence,
+    finalize_demo,
+)
+from lit_agent_v2.tools.packs.report import (
+    assemble_report,
+    check_section,
+    persist_report,
+    plan_report,
+    write_section,
+)
+
+__all__ = ["build_report_v2_tools"]
+
+_CITATION = re.compile(r"\[C(\d+)\]")
+
+
+def _read(path: str | Path) -> dict[str, Any]:
+    return json.loads(Path(path).read_text(encoding="utf-8"))
+
+
+def _write(path: str | Path, value: Any) -> str:
+    target = Path(path)
+    target.parent.mkdir(parents=True, exist_ok=True)
+    target.write_text(json.dumps(value, ensure_ascii=False, indent=2), encoding="utf-8")
+    return str(target)
+
+
+def _fallback_body(section: dict[str, Any], claims: list[dict[str, Any]]) -> str:
+    paper_ids = [str(value) for value in section.get("paper_ids") or []]
+    selected = [
+        claim
+        for claim in claims
+        if not paper_ids or str(claim.get("paper_id")) in paper_ids
+    ][:6]
+    if not selected:
+        return "No exact-quote evidence was available for this section."
+    lines = []
+    for claim in selected:
+        quote = str(claim.get("quote") or claim.get("text") or "").strip()
+        if quote:
+            lines.append(f'"{quote}" [{claim.get("claim_id")}].')
+    return " ".join(lines) if lines else "No exact-quote evidence was available."
+
+
+def _coverage(sections: list[dict[str, Any]]) -> float:
+    body_sections = [s for s in sections if s.get("kind") != "paper_index"]
+    if not body_sections:
+        return 0.0
+    cited = sum(1 for section in body_sections if _CITATION.search(str(section.get("body") or "")))
+    return cited / len(body_sections)
+
+
+def plan_from_evidence(evidence_path: str, out_dir: str) -> dict[str, Any]:
+    evidence = _read(evidence_path)
+    papers = list(evidence.get("papers") or [])
+    claims = list(evidence.get("claims") or [])
+    plan = plan_report(papers, chunk_size=5)
+    path = _write(Path(out_dir) / "plan.json", plan)
+    sections = list(plan.get("sections") or [])
+    covered = {
+        str(claim.get("paper_id"))
+        for claim in claims
+        if claim.get("paper_id")
+    }
+    return {
+        "plan_path": path,
+        "sections": len(sections),
+        "section_ids": [section.get("section_id") for section in sections],
+        "papers_covered": len(covered),
+        "coverage": len(covered) / len(papers) if papers else 0.0,
+    }
+
+
+def write_report(
+    plan_path: str,
+    evidence_path: str,
+    out_dir: str,
+    *,
+    llm: Any | None,
+    language: str = "en",
+) -> dict[str, Any]:
+    plan = _read(plan_path)
+    evidence = _read(evidence_path)
+    claims = list(evidence.get("claims") or [])
+    sections: list[dict[str, Any]] = []
+    fallback_used = 0
+    for raw in plan.get("sections") or []:
+        section = dict(raw)
+        body = ""
+        if llm is not None:
+            try:
+                result = write_section(section, claims, llm, language=language)
+                if result.get("ok"):
+                    body = str((result.get("section") or {}).get("body") or "")
+            except Exception:  # noqa: BLE001
+                body = ""
+        if not body:
+            body = _fallback_body(section, claims)
+            fallback_used += 1
+        section["body"] = body
+        checked = check_section(section, claims)
+        if not checked.get("ok") and section.get("kind") != "paper_index":
+            body = _fallback_body(section, claims)
+            section["body"] = body
+            fallback_used += 1
+        sections.append(section)
+    draft = assemble_report("Report", sections)
+    draft["sections"] = sections
+    draft["claims"] = claims
+    draft["papers"] = len(evidence.get("papers") or [])
+    draft["citation_coverage"] = _coverage(sections)
+    path = _write(Path(out_dir) / "draft.json", draft)
+    return {
+        "draft_path": path,
+        "sections": len(sections),
+        "word_count": draft["word_count"],
+        "citation_coverage": draft["citation_coverage"],
+        "fallback_sections": fallback_used,
+    }
+
+
+def finalize_report(draft_path: str, evidence_path: str, out_dir: str) -> dict[str, Any]:
+    draft = _read(draft_path)
+    evidence = _read(evidence_path)
+    sections = list(draft.get("sections") or [])
+    claims = list(evidence.get("claims") or [])
+    problems = []
+    for section in sections:
+        if section.get("kind") == "paper_index":
+            continue
+        checked = check_section(section, claims)
+        if not checked.get("ok"):
+            problems.append(f"{section.get('section_id')}: {checked.get('problems')}")
+    if problems:
+        raise ValueError("; ".join(problems))
+    assembled = assemble_report(
+        str(draft.get("title") or "Report"),
+        sections,
+        state=str(draft.get("state") or "complete"),
+    )
+    papers = list(evidence.get("papers") or [])
+    fulltext = sum(1 for paper in papers if paper.get("fulltext"))
+    state = "complete" if papers and fulltext / len(papers) >= 0.3 else "degraded"
+    persisted = persist_report(
+        out_dir,
+        assembled["title"],
+        assembled["content_md"],
+        claims,
+    )
+    report_payload = _read(persisted["path"])
+    report_payload.update(
+        {
+            "papers": len(papers),
+            "fulltext": fulltext,
+            "fulltext_ratio": fulltext / len(papers) if papers else 0.0,
+            "sections": sections,
+            "state": state,
+            "citation_coverage": _coverage(sections),
+        }
+    )
+    _write(persisted["path"], report_payload)
+    final = finalize_demo(persisted["path"], out_dir)
+    final["papers"] = len(papers)
+    final["sections"] = len(sections)
+    final["word_count"] = persisted["word_count"]
+    final["state"] = state
+    final["citation_coverage"] = _coverage(sections)
+    final["report_path"] = persisted["path"]
+    final["markdown_path"] = persisted["markdown_path"]
+    final["path"] = persisted["markdown_path"]
+    return final
+
+
+def build_report_v2_tools(llm: Any | None = None) -> list[ToolSpec]:
+    return [
+        ToolSpec(
+            "source.collect",
+            "Collect a local corpus, deduplicate papers and write source.json.",
+            {
+                "type": "object",
+                "properties": {
+                    "root": {"type": "string"},
+                    "out_dir": {"type": "string"},
+                    "limit": {"type": "integer"},
+                },
+                "required": ["root", "out_dir"],
+            },
+            side_effect=True,
+            timeout_s=60.0,
+            handler=lambda args: collect_source(
+                args["root"], args["out_dir"], int(args.get("limit", 100))
+            ),
+        ),
+        ToolSpec(
+            "evidence.extract",
+            "Extract exact-quote claims and write evidence.json.",
+            {
+                "type": "object",
+                "properties": {
+                    "source_path": {"type": "string"},
+                    "out_dir": {"type": "string"},
+                },
+                "required": ["source_path", "out_dir"],
+            },
+            side_effect=True,
+            timeout_s=120.0,
+            handler=lambda args: extract_evidence(args["source_path"], args["out_dir"]),
+        ),
+        ToolSpec(
+            "report.plan_v2",
+            "Build a report plan from evidence and write plan.json.",
+            {
+                "type": "object",
+                "properties": {
+                    "evidence_path": {"type": "string"},
+                    "out_dir": {"type": "string"},
+                },
+                "required": ["evidence_path", "out_dir"],
+            },
+            side_effect=True,
+            timeout_s=30.0,
+            handler=lambda args: plan_from_evidence(args["evidence_path"], args["out_dir"]),
+        ),
+        ToolSpec(
+            "report.write_v2",
+            "Write all planned sections and write draft.json. Falls back to deterministic evidence text.",
+            {
+                "type": "object",
+                "properties": {
+                    "plan_path": {"type": "string"},
+                    "evidence_path": {"type": "string"},
+                    "out_dir": {"type": "string"},
+                    "language": {"type": "string"},
+                },
+                "required": ["plan_path", "evidence_path", "out_dir"],
+            },
+            side_effect=True,
+            timeout_s=600.0,
+            handler=lambda args: write_report(
+                args["plan_path"],
+                args["evidence_path"],
+                args["out_dir"],
+                llm=llm,
+                language=str(args.get("language", "en")),
+            ),
+        ),
+        ToolSpec(
+            "report.finalize_v2",
+            "Check sections, assemble, persist and hash the final report.",
+            {
+                "type": "object",
+                "properties": {
+                    "draft_path": {"type": "string"},
+                    "evidence_path": {"type": "string"},
+                    "out_dir": {"type": "string"},
+                },
+                "required": ["draft_path", "evidence_path", "out_dir"],
+            },
+            side_effect=True,
+            timeout_s=60.0,
+            handler=lambda args: finalize_report(
+                args["draft_path"], args["evidence_path"], args["out_dir"]
+            ),
+        ),
+    ]

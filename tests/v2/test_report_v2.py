@@ -1,0 +1,78 @@
+"""Report workflow v2 shape and deterministic tool-chain tests."""
+
+from __future__ import annotations
+
+import json
+from pathlib import Path
+
+from lit_agent_v2.tools.packs.report_v2 import (
+    finalize_report,
+    plan_from_evidence,
+    write_report,
+)
+from lit_agent_v2.workflow.report_v2 import (
+    REPORT_V2_NODES,
+    build_report_v2_workflow,
+    report_v2_toolsets,
+)
+from lit_agent_v2.workflow.report_v2_runtime import build_report_v2_runtime
+
+
+def test_workflow_has_five_multi_tool_nodes() -> None:
+    definition = build_report_v2_workflow()
+    assert [node.id for node in definition.nodes] == list(REPORT_V2_NODES)
+    for node in definition.nodes:
+        assert len(node.tools) >= 3
+        assert node.toolset == node.id
+        assert any(name in node.tools for name in ("context.inspect", "context.compact", "plan.update"))
+
+
+def test_runtime_exposes_node_toolsets() -> None:
+    runtime = build_report_v2_runtime(None)
+    for node_id in REPORT_V2_NODES:
+        names = {spec.name for spec in runtime.specs(node_id)}
+        assert names == set(report_v2_toolsets()[node_id])
+
+
+def test_report_v2_tool_chain(tmp_path: Path) -> None:
+    corpus = tmp_path / "corpus"
+    corpus.mkdir()
+    papers = []
+    for index in range(8):
+        paper_id = f"P{index}"
+        abstract = (
+            f"Tool agents solve tasks with explicit calls in environment {index}. "
+            f"Evidence shows recovery improves success for task {index}. "
+            f"The evaluation separates correctness from recoverability in run {index}."
+        )
+        papers.append(
+            {"paper_id": paper_id, "title": f"Paper {index}", "abstract": abstract}
+        )
+    (corpus / "papers.jsonl").write_text(
+        "\n".join(json.dumps(paper) for paper in papers), encoding="utf-8"
+    )
+    out = tmp_path / "out"
+    from lit_agent_v2.tools.packs.demo import collect_source, extract_evidence
+
+    source = collect_source(str(corpus), str(out), limit=100)
+    assert source["papers"] == 8
+    evidence = extract_evidence(source["source_path"], str(out))
+    assert evidence["claims"] > 0
+    plan = plan_from_evidence(evidence["evidence_path"], str(out))
+    assert plan["sections"] >= 3
+    draft = write_report(
+        plan["plan_path"],
+        evidence["evidence_path"],
+        str(out),
+        llm=None,
+    )
+    assert draft["sections"] >= 3
+    assert draft["citation_coverage"] > 0
+    final = finalize_report(
+        draft["draft_path"], evidence["evidence_path"], str(out)
+    )
+    assert final["papers"] == 8
+    assert final["sections"] >= 3
+    assert final["citation_coverage"] > 0
+    assert Path(final["report_path"]).exists()
+    assert Path(final["path"]).exists()

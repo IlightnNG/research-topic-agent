@@ -2,7 +2,7 @@
 
 > 版本：2.1（2026-11-03）
 > 类型：详细设计与迁移方案
-> 状态：Kernel done；L3 gate passed；下一 S10 report workflow；Chat 后置
+> 状态：Kernel done；L3 gate passed；S10.0 report CLI 已跑通；API/resume 未完成；Chat 后置
 > 优先级：report workflow v2 > report quality > D 盘约束 > 三库/RAG > Chat
 > 依据：DSH `core/tools`、`core/agent-loop`、`compaction` 与 Phase 4.1 实现
 
@@ -710,8 +710,8 @@ Phase 4.2 的 Workflow 目标只有报告：
 Chat 后置
 ```
 
-当前代码仍是 `demo100` 的旧 4 Node + `DemoOrchestrator`。
-下面是 S10 要迁移到的目标结构，不是已完成状态。
+当前 CLI 已有 `report-v2` 5 Node 实现；API 仍是旧 `demo100` + `DemoOrchestrator`。
+下面是完整迁移目标，API 和 resume 仍未完成。
 
 架构约束：
 
@@ -749,11 +749,11 @@ Kernel 只执行通用任务
 
 | Node | 输入 | 工具集 | 输出 | 阶段 Verifier | 预算 |
 |---|---|---|---|---|---|
-| `source.collect` | `request` | `source.search`, `source.fetch_pdf`, `source.fetch_html`, `fulltext.extract`, `corpus.store`, `corpus.dedupe`, `corpus.stats`, `context.inspect` | `SourceArtifact` | schema / unique / fulltext ratio | 12 steps / 0.80 USD |
-| `evidence.extract` | `source.collect` | `corpus.read`, `claims.extract`, `quote.check`, `claims.filter`, `claims.dedupe`, `evidence.stats`, `context.compact` | `EvidenceArtifact` | schema / exact quote / purity / min claims | 16 steps / 0.80 USD |
-| `report.plan` | `evidence.extract`, `requirements` | `evidence.coverage`, `report.plan`, `outline.check`, `plan.update` | `ReportPlan` | required sections / coverage / no empty section | 6 steps / 0.20 USD |
-| `report.write` | `report.plan`, `evidence.extract` | `report.write_section`, `report.check_section`, `citation.check`, `context.compact` | `ReportDraft` | per-section citation / word gate / grounding | 24 steps / 0.80 USD |
-| `report.audit_finalize` | `report.write`, `requirements` | `report.assemble`, `report.persist`, `verify.code`, `verify.audit`, `artifact.hash` | `FinalReport` | assemble / citation coverage / code / audit | 8 steps / 0.30 USD |
+| `source.collect` | `request` | `source.collect`, `corpus.stats`, `context.inspect`, `plan.update` | `SourceArtifact` | schema / unique / fulltext ratio | 6 steps / 0.20 USD |
+| `evidence.extract` | `source.collect` | `evidence.extract`, `corpus.papers`, `claims.extract`, `quote.check`, `context.compact` | `EvidenceArtifact` | schema / exact quote / purity / min claims | 8 steps / 0.30 USD |
+| `report.plan` | `evidence.extract`, `requirements` | `report.plan_v2`, `context.inspect`, `plan.update`, `artifact.put` | `ReportPlan` | required sections / coverage / no empty section | 6 steps / 0.20 USD |
+| `report.write` | `report.plan`, `evidence.extract` | `report.write_v2`, `report.check_section`, `context.compact`, `artifact.put` | `ReportDraft` | per-section citation / word gate / grounding | 12 steps / 1.20 USD |
+| `report.audit_finalize` | `report.write`, `requirements` | `report.finalize_v2`, `report.assemble`, `report.persist`, `verify.code`, `context.inspect` | `FinalReport` | assemble / citation coverage / code / audit | 8 steps / 0.30 USD |
 
 可选：
 
@@ -1017,16 +1017,18 @@ context compaction observable
 
 已完成 30 个真实简单任务和 14 个复杂任务；L3 gate passed，详见 `RESULTS-P4.2-L3-GATE.md`。
 
-### 4.2.10 Workflow core + report shell · next
+### 4.2.10 Workflow core + report shell · in progress
 
 只有 Kernel 门禁通过后才开始。当前 Kernel 门禁已通过。
 
-- WorkflowRunner 接入 `KernelNodeAdapter`
-- 移除生产路径 `DemoOrchestrator`
-- 五节点 report workflow
+- CLI 已接入 `KernelNodeAdapter`
+- 五节点 report workflow 已跑通 100 篇
 - 每 Node >= 3 tools
-- Node 输出/checkpoint 持久化
-- 真实 100 篇端到端报告
+- API 仍走旧 Kernel + DemoOrchestrator
+- Node checkpoint / resume 未接
+- 真实 100 篇 CLI 报告已通过
+
+S10.0 记录：`RESULTS-P4.2-S10.0.md`。
 
 ### 4.2.11 Report optimization
 

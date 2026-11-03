@@ -34,11 +34,11 @@ P3  Chat
 
 | ID | Module | Priority | Status | Title |
 |---|---|---|---|---|
-| TODO-201 | W/K | P0 | open | WorkflowRunner 接入 KernelNodeAdapter |
-| TODO-202 | W | P0 | open | 定义 5 节点 report workflow |
-| TODO-203 | R/T | P0 | open | source/evidence 领域工具与 schema |
-| TODO-204 | R/T | P0 | open | report.plan / write / audit 工具与 verifier |
-| TODO-205 | R/W | P0 | open | 100 篇真实 LLM 端到端报告 |
+| TODO-201 | W/K | P0 | partial | WorkflowRunner 接入 KernelNodeAdapter（CLI 已完成，API 未完成） |
+| TODO-202 | W | P0 | done | 定义 5 节点 report workflow |
+| TODO-203 | R/T | P0 | done | source/evidence 领域工具与 schema |
+| TODO-204 | R/T | P0 | done | report.plan / write / audit 工具与 verifier |
+| TODO-205 | R/W | P0 | done | 100 篇真实 LLM 端到端报告（CLI） |
 | TODO-206 | W | P1 | open | Node checkpoint / resume / 局部重试 |
 | TODO-207 | W | P1 | open | 移除生产路径 DemoOrchestrator |
 | TODO-208 | R/V | P1 | open | 报告质量门禁 |
@@ -46,8 +46,8 @@ P3  Chat
 ### TODO-201 · WorkflowRunner 接入 KernelNodeAdapter
 
 - Module：W/K
-- Status：open
-- 问题：当前 CLI/API 仍使用旧 `Kernel` + `DemoOrchestrator`，不是通用 `AgentKernel`。
+- Status：partial（CLI 已完成；API 仍用旧路径）
+- 问题：当前 API 仍使用旧 `Kernel` + `DemoOrchestrator`，不是通用 `AgentKernel`。
 - Acceptance：
   - `WorkflowRunner` 的 kernel port 使用 `KernelNodeAdapter`；
   - `NodeSpec` → `KernelTask` → `AgentKernel` → `NodeResult`；
@@ -58,7 +58,7 @@ P3  Chat
 ### TODO-202 · 定义 5 节点 report workflow
 
 - Module：W
-- Status：open
+- Status：done
 - 节点：
   - `source.collect`
   - `evidence.extract`
@@ -75,7 +75,7 @@ P3  Chat
 ### TODO-203 · source/evidence 领域工具与 schema
 
 - Module：R/T
-- Status：open
+- Status：done
 - 需要：
   - `source.search` / `source.fetch_pdf` / `source.fetch_html`
   - `fulltext.extract`
@@ -92,7 +92,7 @@ P3  Chat
 ### TODO-204 · report.plan / write / audit 工具与 verifier
 
 - Module：R/T
-- Status：open
+- Status：done
 - 需要：
   - `report.plan` / `outline.check`
   - `report.write_section` / `report.check_section` / `citation.check`
@@ -107,7 +107,7 @@ P3  Chat
 ### TODO-205 · 100 篇真实 LLM 端到端报告
 
 - Module：R/W
-- Status：open
+- Status：done（CLI）
 - Acceptance：
   - 真实 LLM，不允许 `DemoOrchestrator`；
   - papers ≥100；

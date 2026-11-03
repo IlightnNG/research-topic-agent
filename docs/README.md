@@ -32,6 +32,7 @@ Current documents only.
 | [`implementation/RESULTS-P4.2-S6-S9.md`](implementation/RESULTS-P4.2-S6-S9.md) | S6–S9: hardening, node entry, observability, benchmark |
 | [`implementation/RESULTS-P4.2-S9-L3.md`](implementation/RESULTS-P4.2-S9-L3.md) | early real-LLM benchmark record |
 | [`implementation/RESULTS-P4.2-L3-GATE.md`](implementation/RESULTS-P4.2-L3-GATE.md) | final L3 gate result |
+| [`implementation/RESULTS-P4.2-S10.0.md`](implementation/RESULTS-P4.2-S10.0.md) | S10.0: 5-node report CLI |
 | [`implementation/RESULTS-P4.1.9.md`](implementation/RESULTS-P4.1.9.md) | legacy cleanup and Phase 4.1 close |
 | [`archive/README.md`](archive/README.md) | historical docs index |
 | [`modules/README.md`](modules/README.md) | platform module map + legacy M1–M6 mapping |

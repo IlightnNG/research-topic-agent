@@ -8,6 +8,7 @@ from pathlib import Path
 from typing import Any
 
 from lit_agent_v2.contracts.verdict import Verdict
+from lit_agent_v2.kernel.agent.node import KernelNodeAdapter
 from lit_agent_v2.kernel.llm import DeepSeekChatClient, load_llm_config
 from lit_agent_v2.kernel.node.loop import Kernel
 from lit_agent_v2.tools.packs.demo import build_demo_tools
@@ -15,6 +16,8 @@ from lit_agent_v2.tools.registry import ToolRegistry
 from lit_agent_v2.verify.verdict import Verifier
 from lit_agent_v2.workflow.node.definition import build_demo100_workflow
 from lit_agent_v2.workflow.node.runner import WorkflowRunner
+from lit_agent_v2.workflow.report_v2 import build_report_v2_workflow
+from lit_agent_v2.workflow.report_v2_runtime import build_report_v2_runtime
 
 __all__ = ["main"]
 
@@ -53,11 +56,51 @@ def main() -> int:
     demo = sub.add_parser("demo100", help="run the 100-paper full Node chain")
     demo.add_argument("--corpus", type=Path, default=DEFAULT_CORPUS)
     demo.add_argument("--out", type=Path, default=DEFAULT_OUT)
+    v2 = sub.add_parser("report-v2", help="run the 5-node report workflow on the generic AgentKernel")
+    v2.add_argument("--corpus", type=Path, default=DEFAULT_CORPUS)
+    v2.add_argument("--out", type=Path, default=DEFAULT_OUT)
+    v2.add_argument("--language", default="en")
     args = parser.parse_args()
 
     args.out.mkdir(parents=True, exist_ok=True)
+    llm = DeepSeekChatClient(load_llm_config())
+    if args.command == "report-v2":
+        runtime = build_report_v2_runtime(llm)
+        adapter = KernelNodeAdapter(llm, runtime, workspace=args.out)
+        outputs = WorkflowRunner(
+            kernel=adapter,
+            verifier=Verifier(),
+            store=_MemoryStore(),
+            events=_Events(),
+        ).run(
+            build_report_v2_workflow(),
+            run_id="report-v2-cli",
+            inputs={
+                "request": {
+                    "root": str(args.corpus),
+                    "out_dir": str(args.out),
+                    "language": args.language,
+                }
+            },
+        )
+        final = outputs["report.audit_finalize"]
+        print(
+            json.dumps(
+                {
+                    "report_path": final.get("report_path"),
+                    "papers": final.get("papers"),
+                    "claims": final.get("claims"),
+                    "sections": final.get("sections"),
+                    "words": final.get("word_count"),
+                    "state": final.get("state"),
+                    "citation_coverage": final.get("citation_coverage"),
+                },
+                ensure_ascii=False,
+            )
+        )
+        return 0
     kernel = Kernel(
-        DeepSeekChatClient(load_llm_config()),
+        llm,
         ToolRegistry(build_demo_tools()),
         events=_Events(),
     )

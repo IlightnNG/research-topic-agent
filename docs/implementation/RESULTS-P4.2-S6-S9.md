@@ -248,7 +248,7 @@ See [`RESULTS-P4.2-S9-L3.md`](RESULTS-P4.2-S9-L3.md).
 ## Tests
 
 ```text
-119 passed
+122 passed
 ruff clean
 ```
 
