@@ -188,7 +188,9 @@ class PlatformRunService:
         topic_id: str,
         focus_hint: str | None,
         language: str,
-        limit: int = 40,
+        limit: int = 20,
+        source_mode: str = "local",
+        query: str | None = None,
     ) -> dict[str, Any]:
         topic = self.topics.get(topic_id)
         if topic is None:
@@ -215,6 +217,8 @@ class PlatformRunService:
                             "focus_hint": focus_hint,
                             "language": language,
                             "limit": limit,
+                            "source_mode": source_mode,
+                            "query": query or focus_hint,
                             "root": str(self.corpus_root),
                             "out_dir": out_dir,
                         }
@@ -279,6 +283,9 @@ class PlatformRunService:
     ) -> None:
         events = DbEvents(self.db, run_id)
         events.emit("run.resumed" if resume else "run.started")
+        with self.db.connect() as conn:
+            run_row = conn.execute("SELECT request_json FROM runs WHERE id=?", (run_id,)).fetchone()
+        run_request = _loads(run_row["request_json"], {}) if run_row else {}
         try:
             llm = self.llm or DeepSeekChatClient(load_llm_config())
             def should_stop() -> bool:
@@ -339,6 +346,9 @@ class PlatformRunService:
                         "topic_id": topic_id,
                         "focus_hint": focus_hint,
                         "language": language,
+                        "limit": int(run_request.get("limit", 20)),
+                        "source_mode": str(run_request.get("source_mode", "local")),
+                        "query": run_request.get("query"),
                         "out_dir": out_dir,
                     }
                 },

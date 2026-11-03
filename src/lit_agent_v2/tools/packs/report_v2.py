@@ -9,11 +9,14 @@ from __future__ import annotations
 
 import json
 import re
+from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 from typing import Any
 
 from lit_agent_v2.contracts.tool import ToolSpec
 from lit_agent_v2.kernel.agent.audit import LLMAuditor
+from lit_agent_v2.research.openalex import OpenAlexAdapter
+from lit_agent_v2.research.pdf import download_html_text, download_pdf_text
 from lit_agent_v2.tools.packs.demo import (
     collect_source,
     extract_evidence,
@@ -81,16 +84,18 @@ def check_report_quality(
     report: dict[str, Any],
     evidence: dict[str, Any],
     *,
-    min_papers: int = 100,
-    min_fulltext: int = 35,
-    min_claims: int = 100,
-    min_sections: int = 10,
-    min_words: int = 3500,
+    target_papers: int | None = None,
     max_words: int = 8000,
 ) -> dict[str, Any]:
     papers = list(evidence.get("papers") or [])
     claims = list(evidence.get("claims") or [])
     sections = list(report.get("sections") or [])
+    target = max(1, int(target_papers or len(papers) or 100))
+    min_papers = max(1, min(target, 100))
+    min_fulltext = max(0, min(target, int(target * 0.2)))
+    min_claims = max(10, min(target, 100))
+    min_sections = max(3, min(10, (target + 4) // 5 + 2))
+    min_words = max(800, min(3500, target * 25))
     fulltext = sum(1 for paper in papers if paper.get("fulltext"))
     body = str(report.get("content_md") or "")
     words = len(body.split())
@@ -155,6 +160,7 @@ def check_report_quality(
         "accepted": not problems,
         "problems": problems,
         "metrics": {
+            "target_papers": target,
             "papers": len(papers),
             "fulltext": fulltext,
             "claims": len(claims),
@@ -168,6 +174,71 @@ def check_report_quality(
             "uncovered_claims": max(0, len(claims) - len(cited_claim_ids)),
             "duplicate_sentences": duplicate_sentences,
         },
+    }
+
+
+def _download_online(paper: dict[str, Any], out_dir: Path) -> bool:
+    paper_id = str(paper.get("paper_id") or "")
+    target = out_dir / "fulltext" / f"{paper_id}.txt"
+    if target.exists() and target.stat().st_size > 500:
+        return True
+    for url, fetch in (
+        (str(paper.get("pdf_url") or ""), download_pdf_text),
+        (str(paper.get("html_url") or ""), download_html_text),
+    ):
+        if not url:
+            continue
+        try:
+            text = fetch(url)
+        except Exception:  # noqa: BLE001
+            continue
+        if len(text.strip()) < 500:
+            continue
+        target.parent.mkdir(parents=True, exist_ok=True)
+        target.write_text(text, encoding="utf-8")
+        return True
+    return False
+
+
+def collect_online(
+    query: str,
+    out_dir: str,
+    *,
+    limit: int = 20,
+    from_year: int | None = None,
+    download_fulltext: bool = True,
+) -> dict[str, Any]:
+    papers = OpenAlexAdapter().fetch(query, limit=limit, from_year=from_year)
+    unique: list[dict[str, Any]] = []
+    seen: set[str] = set()
+    for paper in papers:
+        payload = dict(paper.__dict__)
+        marker = str(payload.get("paper_id") or payload.get("title") or "").strip().lower()
+        if not marker or marker in seen:
+            continue
+        seen.add(marker)
+        unique.append(payload)
+    out = Path(out_dir)
+    out.mkdir(parents=True, exist_ok=True)
+    (out / "papers.jsonl").write_text(
+        "\n".join(json.dumps(paper, ensure_ascii=False) for paper in unique),
+        encoding="utf-8",
+    )
+    if download_fulltext:
+        with ThreadPoolExecutor(max_workers=4) as pool:
+            list(pool.map(lambda paper: _download_online(paper, out), unique))
+    fulltext = sum(1 for paper in unique if (out / "fulltext" / f"{paper.get('paper_id')}.txt").exists())
+    source_path = _write(
+        out / "source.json",
+        {"papers": unique, "count": len(unique), "limit": limit, "query": query},
+    )
+    return {
+        "source_path": source_path,
+        "papers": len(unique),
+        "fulltext": fulltext,
+        "fulltext_ratio": fulltext / len(unique) if unique else 0.0,
+        "limit": limit,
+        "state": "complete" if unique and fulltext / len(unique) >= 0.3 else "degraded",
     }
 
 
@@ -205,7 +276,21 @@ def _title_link(paper_id: str, title: str) -> str:
     return f"[{label}](#paper-{paper_id})"
 
 
-def _normalize_body(body: str, section: dict[str, Any], titles: dict[str, str]) -> str:
+def _link_titles(body: str, section: dict[str, Any], titles: dict[str, str]) -> str:
+    for raw_id in section.get("paper_ids") or []:
+        paper_id = str(raw_id)
+        title = titles.get(paper_id)
+        if not title or f"](#paper-{paper_id})" in body:
+            continue
+        link = _title_link(paper_id, title)
+        pattern = rf"(?<!\[)(?<!\(){re.escape(title)}(?!\]|\()"
+        body = re.sub(pattern, link, body, count=1)
+    return body
+
+
+def _normalize_body(
+    body: str, section: dict[str, Any], titles: dict[str, str]
+) -> str:
     body = body.strip()
     body = re.sub(r"^\s*#{1,6}\s+[^\n]*\n+", "", body, count=1)
     for paper_id in section.get("paper_ids") or []:
@@ -291,7 +376,7 @@ def write_one_section(
         section["body"] = body
         fallback = True
         checked = check_section(section, claims)
-    body = _normalize_body(body, section, titles)
+    body = _link_titles(_normalize_body(body, section, titles), section, titles)
     section["body"] = body
     checked = check_section(section, claims)
     if section.get("kind") == "paper_analysis":
@@ -390,7 +475,6 @@ def _write_next_section_tool(
     if events is not None:
         events.emit(
             "section.written",
-            node_id=getattr(context, "node_id", None),
             section_id=result.get("section_id"),
             written=result.get("written"),
             remaining=result.get("remaining"),
@@ -400,7 +484,6 @@ def _write_next_section_tool(
         if not result.get("ok"):
             events.emit(
                 "section.failed",
-                node_id=getattr(context, "node_id", None),
                 section_id=result.get("section_id"),
                 written=result.get("written"),
                 remaining=result.get("remaining"),
@@ -521,6 +604,7 @@ def finalize_report(
             "state": state,
         },
         evidence,
+        target_papers=evidence.get("target_papers"),
     )
     if strict_quality and not quality["accepted"]:
         raise ValueError("E_REPORT_QUALITY: " + "; ".join(quality["problems"]))
@@ -544,6 +628,7 @@ def finalize_report(
     report_payload = _read(persisted["path"])
     report_payload.update(
         {
+            "target_papers": quality["metrics"].get("target_papers"),
             "papers": len(papers),
             "fulltext": fulltext,
             "fulltext_ratio": fulltext / len(papers) if papers else 0.0,
@@ -602,6 +687,30 @@ def audit_report(llm: Any, report_path: str, evidence_path: str) -> dict[str, An
 def build_report_v2_tools(llm: Any | None = None) -> list[ToolSpec]:
     return [
         ToolSpec(
+            "source.collect_online",
+            "Search OpenAlex, download open PDF/HTML fulltext, and write a local corpus.",
+            {
+                "type": "object",
+                "properties": {
+                    "query": {"type": "string"},
+                    "out_dir": {"type": "string"},
+                    "limit": {"type": "integer"},
+                    "from_year": {"type": "integer"},
+                    "download_fulltext": {"type": "boolean"},
+                },
+                "required": ["query", "out_dir"],
+            },
+            side_effect=True,
+            timeout_s=900.0,
+            handler=lambda args: collect_online(
+                args["query"],
+                args["out_dir"],
+                limit=int(args.get("limit", 20)),
+                from_year=args.get("from_year"),
+                download_fulltext=bool(args.get("download_fulltext", True)),
+            ),
+        ),
+        ToolSpec(
             "source.collect",
             "Collect a local corpus, deduplicate papers and write source.json.",
             {
@@ -616,7 +725,7 @@ def build_report_v2_tools(llm: Any | None = None) -> list[ToolSpec]:
             side_effect=True,
             timeout_s=60.0,
             handler=lambda args: collect_source(
-                args["root"], args["out_dir"], int(args.get("limit", 100))
+                args["root"], args["out_dir"], int(args.get("limit", 20))
             ),
         ),
         ToolSpec(

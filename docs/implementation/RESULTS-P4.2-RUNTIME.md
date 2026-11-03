@@ -237,3 +237,60 @@ words     7005
 quality   passed
 audit     accepted
 ```
+
+
+---
+
+## 8. Source mode / dynamic quality / default 20
+
+Added:
+
+```text
+source.collect_online
+source.search
+source.fetch_pdf
+source.fetch_html
+```
+
+Request fields:
+
+```text
+source_mode = local | online | auto
+query
+limit
+```
+
+UI New Run now exposes:
+
+```text
+Source: local / online / auto
+Paper limit: default 20
+```
+
+Quality thresholds are no longer fixed at 100. They derive from
+`target_papers` in `evidence.json`:
+
+```text
+target = requested limit
+min_papers = target
+min_claims = target
+min_fulltext = 20% of target
+min_sections = based on target
+```
+
+20-paper run:
+
+```text
+papers             20
+fulltext           19
+claims             38
+sections           7
+word_count         1602
+state              complete
+citation_coverage  1.0
+quality gate       passed
+audit              accepted
+```
+
+Local corpus still does not download; online mode uses OpenAlex search and
+downloads open PDF/HTML when available.

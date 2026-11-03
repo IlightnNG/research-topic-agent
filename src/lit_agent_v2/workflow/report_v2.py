@@ -25,6 +25,9 @@ def report_v2_toolsets() -> dict[str, tuple[str, ...]]:
     return {
         "source.collect": (
             "source.collect",
+            "source.collect_online",
+            "source.search",
+            "source.fetch_pdf",
             "corpus.stats",
             "context.inspect",
             "plan.update",
@@ -71,9 +74,11 @@ def build_report_v2_workflow(
         NodeSpec(
             id="source.collect",
             goal=(
-                "Call source.collect with root and out_dir from request. "
-                "Then call context.inspect. Return final JSON with source_path, papers, "
-                "fulltext, fulltext_ratio, state."
+                "Use source_mode/query/root/out_dir/limit from request. If source_mode is "
+                "online or query is provided without a usable local root, call "
+                "source.collect_online with query/out_dir/limit. Otherwise call source.collect "
+                "with root/out_dir/limit. Then call context.inspect. Return final JSON with "
+                "source_path, papers, fulltext, fulltext_ratio, state."
             ),
             tools=report_v2_toolsets()["source.collect"],
             toolset="source.collect",
@@ -142,7 +147,7 @@ def build_report_v2_workflow(
                 "required": ["draft_path", "sections", "word_count", "citation_coverage"],
             },
             verifier=VerifierProfile(code=("schema",), audit=None),
-            max_steps=30,
+            max_steps=60,
             max_usd=1.50,
             max_tokens=20000,
         ),

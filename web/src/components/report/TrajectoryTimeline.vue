@@ -114,6 +114,7 @@ function toolTone(result?: TraceEvent): 'accent' | 'success' | 'danger' {
 }
 
 function failedReason(event: TraceEvent): string {
+  if (event.reasons?.length) return event.reasons.join('; ')
   return event.error || event.reason || event.summary || 'Node failed without a reason.'
 }
 

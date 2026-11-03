@@ -40,7 +40,9 @@ class TopicCreateBody(BaseModel):
 class RunCreateBody(BaseModel):
     focus_hint: str | None = None
     language: str = "en"
-    limit: int = 40
+    limit: int = 20
+    source_mode: str = "local"
+    query: str | None = None
 
 
 class MessageBody(BaseModel):
@@ -110,6 +112,8 @@ def build_platform_router(
                 focus_hint=body.focus_hint,
                 language=body.language,
                 limit=body.limit,
+                source_mode=body.source_mode,
+                query=body.query,
             )
         except ValueError as exc:
             code = str(exc)

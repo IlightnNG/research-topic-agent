@@ -55,6 +55,9 @@ def main() -> int:
     v2.add_argument("--corpus", type=Path, default=DEFAULT_CORPUS)
     v2.add_argument("--out", type=Path, default=DEFAULT_OUT)
     v2.add_argument("--language", default="en")
+    v2.add_argument("--limit", type=int, default=20)
+    v2.add_argument("--source-mode", choices=("local", "online", "auto"), default="local")
+    v2.add_argument("--query", default=None)
     v2.add_argument("--resume", action="store_true")
     args = parser.parse_args()
 
@@ -81,6 +84,9 @@ def main() -> int:
                     "root": str(args.corpus),
                     "out_dir": str(args.out),
                     "language": args.language,
+                    "limit": args.limit,
+                    "source_mode": args.source_mode,
+                    "query": args.query,
                 }
             },
             resume=args.resume,

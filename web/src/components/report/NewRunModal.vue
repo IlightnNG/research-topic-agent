@@ -19,12 +19,16 @@ const emit = defineEmits<{
 const form = reactive({
   focus_hint: '',
   language: 'en' as ReportLanguage,
+  source_mode: 'local' as 'local' | 'online' | 'auto',
+  limit: 20,
 })
 
 function submit(): void {
   emit('create', {
     focus_hint: form.focus_hint.trim() || null,
     language: form.language,
+    source_mode: form.source_mode,
+    limit: form.limit,
   })
 }
 
@@ -34,6 +38,8 @@ watch(
     if (open) {
       form.focus_hint = ''
       form.language = props.defaultLanguage ?? 'en'
+      form.source_mode = 'local'
+      form.limit = 20
     }
   },
 )
@@ -50,6 +56,18 @@ watch(
           placeholder="e.g. multi-agent evaluation, RAG citation quality, low-latency FPGA inference"
         />
         <small>Leave blank to use the topic's normalized direction. The focus must stay inside it.</small>
+      </label>
+      <label>
+        <span>Source</span>
+        <select v-model="form.source_mode">
+          <option value="local">Local corpus</option>
+          <option value="online">Online search + download</option>
+          <option value="auto">Auto</option>
+        </select>
+      </label>
+      <label>
+        <span>Paper limit</span>
+        <input v-model.number="form.limit" type="number" min="1" max="100" />
       </label>
       <label>
         <span>Report language</span>
@@ -98,7 +116,8 @@ label em {
 }
 
 textarea,
-select {
+select,
+input[type='number'] {
   width: 100%;
   padding: 8px 10px;
   border: 1px solid var(--border-strong);

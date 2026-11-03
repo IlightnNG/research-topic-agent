@@ -40,7 +40,7 @@ def _papers(root: Path) -> list[dict[str, Any]]:
     return papers
 
 
-def collect_source(root: str, out_dir: str, limit: int = 100) -> dict[str, Any]:
+def collect_source(root: str, out_dir: str, limit: int = 20) -> dict[str, Any]:
     corpus = _papers(Path(root))
     seen: set[str] = set()
     unique: list[dict[str, Any]] = []
@@ -53,13 +53,14 @@ def collect_source(root: str, out_dir: str, limit: int = 100) -> dict[str, Any]:
         if len(unique) >= limit:
             break
     path = Path(out_dir) / "source.json"
-    _write_json(path, {"papers": unique, "count": len(unique)})
+    _write_json(path, {"papers": unique, "count": len(unique), "limit": limit})
     fulltext = sum(1 for paper in unique if paper.get("fulltext"))
     return {
         "source_path": str(path),
         "papers": len(unique),
         "fulltext": fulltext,
         "fulltext_ratio": fulltext / len(unique) if unique else 0.0,
+        "limit": limit,
         "state": "degraded" if fulltext < len(unique) * 0.3 else "complete",
     }
 
@@ -80,7 +81,15 @@ def extract_evidence(source_path: str, out_dir: str, limit: int = 2) -> dict[str
             data["paper_id"] = paper_id
             claims.append(data)
     path = Path(out_dir) / "evidence.json"
-    _write_json(path, {"claims": claims, "papers": papers, "count": len(claims)})
+    _write_json(
+        path,
+        {
+            "claims": claims,
+            "papers": papers,
+            "count": len(claims),
+            "target_papers": source.get("limit"),
+        },
+    )
     return {
         "evidence_path": str(path),
         "claims": len(claims),

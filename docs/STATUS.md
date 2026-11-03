@@ -13,7 +13,8 @@
 前端：Vue F1–F6 done；real API mode 已联调
 最后测试：128 passed / ruff clean
 前端构建：web npm run build passed
-全链路 demo：100 papers / 98 fulltext / 196 claims / 23 sections / complete
+全链路 benchmark：100 papers / 98 fulltext / 196 claims / 23 sections / complete
+默认 demo：20 papers，可在 New Run 选择 local/online/auto
 联调：topics → run → trace → report → paper；chat 基础链路
 当前契约：CONTRACTS 2.0 frozen
 真实联调：100 篇本地 corpus，fulltext 98/100，196 claims，23 sections，5115 words，report complete

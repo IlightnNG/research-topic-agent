@@ -27,6 +27,7 @@ class _NodeEventSink:
         self.node_id = node_id
 
     def emit(self, event_type: str, **payload: Any) -> None:
+        payload.pop("node_id", None)
         self.sink.emit(event_type, node_id=self.node_id, **payload)
 
 
@@ -60,6 +61,7 @@ class KernelNodeAdapter:
             max_usd=node.max_usd,
             max_tokens=node.max_tokens,
             timeout_s=node.timeout_s,
+            max_tool_calls=max(self.policy.max_tool_calls, node.max_steps * 2),
         )
         task = KernelTask(
             task_id=f"{context.run_id}:{node.id}",

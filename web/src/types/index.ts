@@ -55,6 +55,8 @@ export interface CreateTopicInput {
 export interface CreateRunInput {
   focus_hint?: string | null
   language: ReportLanguage
+  source_mode?: 'local' | 'online' | 'auto'
+  limit?: number
 }
 
 export type TabKind = 'trajectory' | 'report' | 'paper'
@@ -144,6 +146,7 @@ export interface TraceEvent {
   after?: number
   error?: string
   reason?: string
+  reasons?: string[]
   state?: RunState
   checkpoint?: Checkpoint
   task?: string
