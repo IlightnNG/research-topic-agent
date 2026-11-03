@@ -69,14 +69,20 @@ function renderItems(nodeId: string): RenderItem[] {
   for (let index = 0; index < events.length; index += 1) {
     const event = events[index]
     if (event.type === 'context.compacted') continue
-    if (event.type === 'tool.called') {
+    if (event.type === 'kernel.checkpoint' || event.type === 'kernel.step_started') continue
+    if (event.type === 'section.written' || event.type === 'section.failed') continue
+    if (event.type === 'tool.called' || event.type === 'kernel.tool_called') {
       const result = events
         .slice(index + 1)
-        .find((candidate) => candidate.type === 'tool.result' && candidate.call_id === event.call_id)
+        .find(
+          (candidate) =>
+            (candidate.type === 'tool.result' || candidate.type === 'kernel.tool_result') &&
+            candidate.call_id === event.call_id,
+        )
       items.push({ kind: 'tool', event, result })
       continue
     }
-    if (event.type === 'tool.result') {
+    if (event.type === 'tool.result' || event.type === 'kernel.tool_result') {
       if (items.some((item) => item.kind === 'tool' && item.event.call_id === event.call_id)) continue
       items.push({ kind: 'result', event })
       continue
@@ -85,6 +91,7 @@ function renderItems(nodeId: string): RenderItem[] {
       items.push({ kind: 'thinking', event })
       continue
     }
+    if (event.type === 'kernel.assistant_delta') continue
     items.push({ kind: 'event', event })
   }
   return items
@@ -195,6 +202,7 @@ watch(
                       <span class="tool__icon">⚙</span>
                       <code>{{ item.event.tool }}</code>
                       <span class="tool__id">{{ item.event.call_id }}</span>
+                      <span v-if="item.event.step" class="tool__id">step {{ item.event.step }}</span>
                       <StatusBadge :tone="toolTone(item.result)">{{ toolLabel(item.result) }}</StatusBadge>
                     </header>
                     <pre v-if="item.event.args_preview" class="tool__args">{{ item.event.args_preview }}</pre>

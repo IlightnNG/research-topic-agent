@@ -31,6 +31,7 @@ These are execution records, not active plans.
 | [RESULTS-P4.2-S10.2b.md](RESULTS-P4.2-S10.2b.md) | Node-level section loop |
 | [RESULTS-P4.2-S10.4-S10.7.md](RESULTS-P4.2-S10.4-S10.7.md) | demo removal / quality |
 | [RESULTS-P4.2-4.2.11.md](RESULTS-P4.2-4.2.11.md) | report optimization |
+| [RESULTS-P4.2-RUNTIME.md](RESULTS-P4.2-RUNTIME.md) | SSE / kernel events / markdown runtime fixes |
 
 ---
 

@@ -2,18 +2,22 @@
 
 from __future__ import annotations
 
+import asyncio
+import json
 import uuid
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, HTTPException, Request
+from fastapi.responses import StreamingResponse
 from pydantic import BaseModel, Field
 
 from lit_agent_v2.composition import build_chat_service
 from lit_agent_v2.domains.chat.store import ChatStore
 from lit_agent_v2.storage.db import Database
 from lit_agent_v2.storage.report_store import ReportStore
+from lit_agent_v2.workflow.events import EventReader
 
 from .runs import PlatformRunService
 from .topics import TopicStore
@@ -118,6 +122,48 @@ def build_platform_router(
         if run is None:
             raise HTTPException(status_code=404, detail="E_RUN_NOT_FOUND")
         return run
+
+    @router.get("/runs/{run_id}/events")
+    async def stream_events(run_id: str, request: Request) -> StreamingResponse:
+        if runs.get(run_id) is None:
+            raise HTTPException(status_code=404, detail="E_RUN_NOT_FOUND")
+        reader = EventReader(db)
+
+        async def generate():
+            last_seq = 0
+            heartbeat = 0
+            while True:
+                if await request.is_disconnected():
+                    break
+                events = reader.after(run_id, last_seq)
+                for event in events:
+                    last_seq = int(event["seq"])
+                    payload = {
+                        "seq": event["seq"],
+                        "type": event["type"],
+                        "node_id": event["node_id"],
+                        "ts": event["ts"],
+                        "payload": event["payload"],
+                    }
+                    yield f"id: {event['seq']}\nevent: {event['type']}\ndata: {json.dumps(payload, ensure_ascii=False, default=str)}\n\n"
+                run = runs.get(run_id)
+                state = str((run or {}).get("state") or "")
+                if state in {"succeeded", "failed", "paused", "aborted", "degraded"} and not events:
+                    break
+                heartbeat += 1
+                if heartbeat % 15 == 0:
+                    yield ": keep-alive\n\n"
+                await asyncio.sleep(0.4)
+
+        return StreamingResponse(
+            generate(),
+            media_type="text/event-stream",
+            headers={
+                "Cache-Control": "no-cache",
+                "Connection": "keep-alive",
+                "X-Accel-Buffering": "no",
+            },
+        )
 
     @router.get("/runs/{run_id}/trace")
     def get_trace(run_id: str) -> dict[str, Any]:

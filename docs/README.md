@@ -19,6 +19,7 @@
 | [`design/README.md`](design/README.md) | design docs index |
 | [`implementation/PHASE4.2-agent-kernel-tools.md`](implementation/PHASE4.2-agent-kernel-tools.md) | Phase 4.2 final plan / record |
 | [`implementation/RESULTS-P4.2.md`](implementation/RESULTS-P4.2.md) | **Phase 4.2 final result** |
+| [`implementation/RESULTS-P4.2-RUNTIME.md`](implementation/RESULTS-P4.2-RUNTIME.md) | SSE / kernel events / markdown runtime fixes |
 | [`archive/README.md`](archive/README.md) | historical docs index |
 | [`modules/README.md`](modules/README.md) | platform module map |
 

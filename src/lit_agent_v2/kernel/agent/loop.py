@@ -115,6 +115,14 @@ class AgentKernel:
                     task, {}, history, step, usage, cost, metrics, "failed", "E_MODEL_FAILED"
                 )
             if step_usage is not None:
+                reasoning = str(getattr(step_usage, "reasoning", "") or "").strip()
+                if reasoning:
+                    self._emit(
+                        "thinking.summary",
+                        task=task.task_id,
+                        step=step,
+                        text=reasoning[:2000],
+                    )
                 usage["prompt_tokens"] = int(usage.get("prompt_tokens", 0)) + int(
                     getattr(step_usage, "prompt_tokens", 0) or 0
                 )
@@ -134,6 +142,14 @@ class AgentKernel:
                     )
                 continue
 
+            thought = str(action.get("thought") or "").strip()
+            if thought:
+                self._emit(
+                    "thinking.summary",
+                    task=task.task_id,
+                    step=step,
+                    text=thought[:1000],
+                )
             if action.get("action") == "final":
                 output = action.get("outputs")
                 problems = self._validate_output(task, output)
@@ -217,6 +233,15 @@ class AgentKernel:
                 )
             invalid = 0
             history.append({"role": "assistant", "tool_calls": calls})
+            for call in calls:
+                self._emit(
+                    "kernel.tool_called",
+                    task=task.task_id,
+                    step=step,
+                    call_id=call["id"],
+                    tool=call["name"],
+                    args_preview=json.dumps(call["args"], ensure_ascii=False, default=str)[:1200],
+                )
             metrics["tool_calls"] += len(calls)
             results = schedule_tool_calls(
                 self.tools,
@@ -256,6 +281,7 @@ class AgentKernel:
                     tool=call["name"],
                     ok=result.ok,
                     error_code=result.error_code,
+                    summary=(result.content or "")[:1200],
                 )
             self.state.history[:] = history
             self._checkpoint(task, step, usage, cost)
@@ -368,6 +394,7 @@ class AgentKernel:
             'or {"action":"final","outputs":{}}.\n'
             f"Task: {task.goal}\n"
             f"Output schema: {json.dumps(task.output_schema, ensure_ascii=False)}\n"
+            'You may include a short one-line "thought" field next to action.\n' 
             f"Visible tools: {json.dumps(tools, ensure_ascii=False)}"
         )
         return [

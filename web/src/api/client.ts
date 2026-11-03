@@ -172,6 +172,18 @@ export const api = {
       'run.paused',
       'run.resumed',
       'run.finished',
+      'kernel.started',
+      'kernel.step_started',
+      'kernel.checkpoint',
+      'kernel.tool_called',
+      'kernel.tool_result',
+      'kernel.model_retry',
+      'kernel.repair',
+      'kernel.context_compacted',
+      'kernel.finished',
+      'kernel.assistant_delta',
+      'section.written',
+      'section.failed',
     ]
     for (const type of types) {
       source.addEventListener(type, (raw) => {

@@ -105,6 +105,9 @@ kernel.assistant_delta
 kernel.no_progress_warning
 kernel.tool_called
 kernel.tool_result
+thinking.summary
+section.written
+section.failed
 kernel.model_retry
 kernel.repair
 kernel.step_finished

@@ -21,6 +21,15 @@ from lit_agent_v2.tools.runtime import ToolRuntime
 __all__ = ["KernelNodeAdapter"]
 
 
+class _NodeEventSink:
+    def __init__(self, sink: Any, node_id: str) -> None:
+        self.sink = sink
+        self.node_id = node_id
+
+    def emit(self, event_type: str, **payload: Any) -> None:
+        self.sink.emit(event_type, node_id=self.node_id, **payload)
+
+
 class KernelNodeAdapter:
     def __init__(
         self,
@@ -61,11 +70,14 @@ class KernelNodeAdapter:
             policy=policy,
             verifier=self.verifier,
         )
+        node_events = (
+            _NodeEventSink(self.events, node.id) if self.events is not None else None
+        )
         result = AgentKernel(
             self.llm,
             self.tools,
             state,
-            events=self.events,
+            events=node_events,
             should_stop=self.should_stop,
             checkpoints=self.checkpoints,
         ).run(task)

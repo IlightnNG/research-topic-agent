@@ -117,6 +117,16 @@ export type TraceEventType =
   | 'context.compacted'
   | 'section.written'
   | 'section.failed'
+  | 'kernel.started'
+  | 'kernel.step_started'
+  | 'kernel.checkpoint'
+  | 'kernel.tool_called'
+  | 'kernel.tool_result'
+  | 'kernel.model_retry'
+  | 'kernel.repair'
+  | 'kernel.context_compacted'
+  | 'kernel.finished'
+  | 'kernel.assistant_delta'
 
 export interface TraceEvent {
   id: string
@@ -136,6 +146,8 @@ export interface TraceEvent {
   reason?: string
   state?: RunState
   checkpoint?: Checkpoint
+  task?: string
+  step?: number
   section_id?: string
   written?: number
   remaining?: number
@@ -147,6 +159,8 @@ export interface RunTrace {
   nodes: NodeTrace[]
   events: TraceEvent[]
   checkpoint?: Checkpoint
+  task?: string
+  step?: number
   section_id?: string
   written?: number
   remaining?: number
