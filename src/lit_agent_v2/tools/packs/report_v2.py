@@ -44,20 +44,29 @@ def _write(path: str | Path, value: Any) -> str:
 
 
 def _fallback_body(section: dict[str, Any], claims: list[dict[str, Any]]) -> str:
+    titles = section.get("paper_titles") or {}
     paper_ids = [str(value) for value in section.get("paper_ids") or []]
-    selected = [
-        claim
-        for claim in claims
-        if not paper_ids or str(claim.get("paper_id")) in paper_ids
-    ][:6]
-    if not selected:
-        return "No exact-quote evidence was available for this section."
-    lines = []
-    for claim in selected:
-        quote = str(claim.get("quote") or claim.get("text") or "").strip()
-        if quote:
-            lines.append(f'"{quote}" [{claim.get("claim_id")}].')
-    return " ".join(lines) if lines else "No exact-quote evidence was available."
+    if not paper_ids:
+        selected = claims[:6]
+        return " ".join(
+            f'"{claim.get("quote") or claim.get("text") or ""}" [{claim.get("claim_id")}].'
+            for claim in selected
+            if claim.get("quote") or claim.get("text")
+        ) or "No exact-quote evidence was available for this section."
+    lines: list[str] = []
+    for paper_id in paper_ids:
+        selected = [claim for claim in claims if str(claim.get("paper_id")) == paper_id][:2]
+        if not selected:
+            continue
+        title = titles.get(paper_id, paper_id)
+        quotes = " ".join(
+            f'"{claim.get("quote") or claim.get("text") or ""}" [{claim.get("claim_id")}].'
+            for claim in selected
+            if claim.get("quote") or claim.get("text")
+        )
+        if quotes:
+            lines.append(f"**[{title}](#paper-{paper_id}).** {quotes}")
+    return "\n\n".join(lines) or "No exact-quote evidence was available for this section."
 
 
 def _coverage(sections: list[dict[str, Any]]) -> float:
@@ -183,6 +192,34 @@ def plan_from_evidence(evidence_path: str, out_dir: str) -> dict[str, Any]:
     }
 
 
+def _paper_titles(evidence: dict[str, Any]) -> dict[str, str]:
+    return {
+        str(paper.get("paper_id")): str(paper.get("title") or paper.get("paper_id") or "")
+        for paper in evidence.get("papers") or []
+        if paper.get("paper_id")
+    }
+
+
+def _title_link(paper_id: str, title: str) -> str:
+    label = title.replace("[", "(").replace("]", ")").strip() or paper_id
+    return f"[{label}](#paper-{paper_id})"
+
+
+def _normalize_body(body: str, section: dict[str, Any], titles: dict[str, str]) -> str:
+    body = body.strip()
+    body = re.sub(r"^\s*#{1,6}\s+[^\n]*\n+", "", body, count=1)
+    for paper_id in section.get("paper_ids") or []:
+        title = titles.get(str(paper_id))
+        if not title:
+            continue
+        body = re.sub(
+            rf"(?<![A-Za-z0-9_#-]){re.escape(str(paper_id))}(?![A-Za-z0-9_])",
+            _title_link(str(paper_id), title),
+            body,
+        )
+    return re.sub(r"\n{3,}", "\n\n", body).strip()
+
+
 def write_one_section(
     plan_path: str,
     section_id: str,
@@ -206,6 +243,12 @@ def write_one_section(
     )
     if section is None:
         raise ValueError(f"unknown section: {section_id}")
+    titles = _paper_titles(evidence)
+    section["paper_titles"] = {
+        str(pid): titles[str(pid)]
+        for pid in section.get("paper_ids") or []
+        if str(pid) in titles
+    }
     path = Path(out_dir) / "sections" / f"{section_id}.json"
     if path.exists():
         existing = _read(path)
@@ -216,7 +259,13 @@ def write_one_section(
     problems: list[str] = []
     body = ""
     fallback = False
-    while attempts < max_attempts:
+    if section.get("kind") == "paper_index":
+        body = "\n".join(
+            f"- {_title_link(str(pid), title)}"
+            for pid, title in titles.items()
+        )
+        attempts = 1
+    while not body and attempts < max_attempts:
         attempts += 1
         if llm is None:
             break
@@ -242,6 +291,19 @@ def write_one_section(
         section["body"] = body
         fallback = True
         checked = check_section(section, claims)
+    body = _normalize_body(body, section, titles)
+    section["body"] = body
+    checked = check_section(section, claims)
+    if section.get("kind") == "paper_analysis":
+        paper_ids = [str(pid) for pid in section.get("paper_ids") or []]
+        missing_titles = [
+            pid for pid in paper_ids if titles.get(pid) and titles[pid] not in body
+        ]
+        if missing_titles:
+            body = _fallback_body(section, claims)
+            section["body"] = body
+            checked = check_section(section, claims)
+            fallback = True
     is_index = section.get("kind") == "paper_index"
     payload = {
         "section_id": section_id,

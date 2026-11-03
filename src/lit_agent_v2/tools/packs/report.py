@@ -62,10 +62,10 @@ REPORT_TEMPLATE = """# <Report title>
 Two to four sentences that summarize the corpus, its main themes, and its scope.
 
 ## Papers 1-5
-**<paper_id>.** One paragraph for the paper, using only supplied claims. Every factual sentence ends with its [C#] citation.
+**<paper title>.** One paragraph for the paper, using only supplied claims. Every factual sentence ends with its [C#] citation.
 
 ## Papers 6-10
-**<paper_id>.** Same structure as above.
+**<paper title>.** Same structure as above.
 
 ## Cross-Paper Synthesis
 Two to three paragraphs: agreements, tensions, and open gaps across papers.
@@ -165,6 +165,7 @@ def write_section(
         "Follow this report-wide format template:\n"
         f"{REPORT_TEMPLATE}\n"
         f"Section kind: {kind}\nTitle: {title}\nPaper ids: {paper_ids}\n"
+        f"Paper titles: {section.get('paper_titles') or {}}\n"
         f"Rules: {rules}\nClaims: {claim_lines}"
     )
     payload, _usage = llm.chat_json(

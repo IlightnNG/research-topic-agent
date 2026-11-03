@@ -16,12 +16,12 @@ Two to four sentences summarizing the corpus, its main themes, and its scope.
 
 ## Papers 1-5
 
-**<paper_id>.** One paragraph for the paper, using supplied claims only.
+**<paper title>.** One paragraph for the paper, using supplied claims only.
 Every factual sentence ends with its [C#] citation.
 
 ## Papers 6-10
 
-**<paper_id>.** Same structure as above.
+**<paper title>.** Same structure as above.
 
 ## Cross-Paper Synthesis
 
@@ -29,7 +29,7 @@ Two to three paragraphs covering agreements, tensions, and open gaps across pape
 
 ## Paper Index
 
-- <paper_id>: <paper title>
+- [<paper title>](#paper-<paper_id>)
 ```
 
 ---

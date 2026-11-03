@@ -79,6 +79,8 @@ def test_report_v2_tool_chain(tmp_path: Path) -> None:
     assert draft["citation_coverage"] > 0
     evidence_doc = json.loads(Path(evidence["evidence_path"]).read_text(encoding="utf-8"))
     draft_doc = json.loads(Path(draft["draft_path"]).read_text(encoding="utf-8"))
+    assert "#paper-P0" in draft_doc["sections"][-1]["body"]
+    assert "#paper-P0" in draft_doc["sections"][1]["body"]
     quality = check_report_quality(draft_doc, evidence_doc)
     assert quality["metrics"]["sections"] == draft["sections"]
     assert quality["metrics"]["section_metrics"]
@@ -133,7 +135,7 @@ def test_section_retry_and_checkpoint(tmp_path: Path, monkeypatch) -> None:  # n
 
     class LLM:
         def chat_json(self, messages, **kwargs):  # noqa: ANN001, ARG002
-            return {"body": "Evidence shows recovery improves success [C1]."}, None
+            return {"body": "**Paper.** Evidence shows recovery improves success [C1]."}, None
 
     original = report_v2.write_section
     calls = {"n": 0}

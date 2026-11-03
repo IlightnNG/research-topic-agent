@@ -48,6 +48,13 @@ const html = computed(() => {
 
 function onClick(event: MouseEvent): void {
   const target = event.target as HTMLElement | null
+  const anchor = target?.closest('a[href^="#paper-"]') as HTMLAnchorElement | null
+  if (anchor) {
+    event.preventDefault()
+    const paperId = decodeURIComponent(anchor.getAttribute('href')?.slice('#paper-'.length) || '')
+    if (paperId) emit('openPaper', paperId)
+    return
+  }
   const button = target?.closest('button.citation') as HTMLButtonElement | null
   if (button?.dataset.paperId) emit('openPaper', button.dataset.paperId)
 }
