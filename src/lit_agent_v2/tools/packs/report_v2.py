@@ -943,9 +943,9 @@ def build_report_v2_tools(llm: Any | None = None) -> list[ToolSpec]:
                 args["draft_path"],
                 args["evidence_path"],
                 args["out_dir"],
-                strict_quality=bool(args.get("strict_quality", True)),
+                strict_quality=True,
                 llm=llm,
-                strict_audit=bool(args.get("strict_audit", True)),
+                strict_audit=True,
             ),
         ),
     ]

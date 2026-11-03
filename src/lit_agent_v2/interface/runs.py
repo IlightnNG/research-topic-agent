@@ -681,8 +681,21 @@ class PlatformRunService:
             conn.execute("DELETE FROM reports WHERE run_id=?", (run_id,))
         return True
 
-    def paper(self, paper_id: str) -> dict[str, Any] | None:
-        path = self.corpus_root / "papers.jsonl"
+    @staticmethod
+    def _paper_payload(paper_id: str, paper: dict[str, Any]) -> dict[str, Any]:
+        return {
+            "id": paper_id,
+            "title": paper.get("title", ""),
+            "authors": paper.get("authors", []),
+            "year": paper.get("year"),
+            "venue": paper.get("venue", ""),
+            "abstract": paper.get("abstract", ""),
+            "source_url": paper.get("url") or paper.get("html_url") or "",
+            "pdf_url": paper.get("pdf_url") or "",
+        }
+
+    @staticmethod
+    def _find_paper_file(path: Path, paper_id: str) -> dict[str, Any] | None:
         if not path.exists():
             return None
         for line in path.read_text(encoding="utf-8").splitlines():
@@ -690,14 +703,25 @@ class PlatformRunService:
                 continue
             paper = json.loads(line)
             if str(paper.get("paper_id")) == paper_id:
-                return {
-                    "id": paper_id,
-                    "title": paper.get("title", ""),
-                    "authors": paper.get("authors", []),
-                    "year": paper.get("year"),
-                    "venue": paper.get("venue", ""),
-                    "abstract": paper.get("abstract", ""),
-                    "source_url": paper.get("url") or paper.get("html_url") or "",
-                    "pdf_url": paper.get("pdf_url") or "",
-                }
+                return paper
+        return None
+
+    def paper(self, paper_id: str) -> dict[str, Any] | None:
+        # Local corpus is the common path.
+        paper = self._find_paper_file(self.corpus_root / "papers.jsonl", paper_id)
+        if paper is not None:
+            return self._paper_payload(paper_id, paper)
+        # Online runs keep their own papers.jsonl inside out_dir.
+        with self.db.connect() as conn:
+            rows = conn.execute(
+                "SELECT request_json FROM runs ORDER BY created_at DESC"
+            ).fetchall()
+        for row in rows:
+            request = _loads(row["request_json"], {})
+            out_dir = request.get("out_dir")
+            if not out_dir:
+                continue
+            paper = self._find_paper_file(Path(str(out_dir)) / "papers.jsonl", paper_id)
+            if paper is not None:
+                return self._paper_payload(paper_id, paper)
         return None

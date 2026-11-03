@@ -56,6 +56,7 @@ export interface CreateRunInput {
   focus_hint?: string | null
   language: ReportLanguage
   source_mode?: 'local' | 'online' | 'auto'
+  query?: string | null
   limit?: number
 }
 

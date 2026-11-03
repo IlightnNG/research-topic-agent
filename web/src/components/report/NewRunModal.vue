@@ -20,6 +20,7 @@ const form = reactive({
   focus_hint: '',
   language: 'en' as ReportLanguage,
   source_mode: 'local' as 'local' | 'online' | 'auto',
+  query: '',
   limit: 20,
 })
 
@@ -28,6 +29,7 @@ function submit(): void {
     focus_hint: form.focus_hint.trim() || null,
     language: form.language,
     source_mode: form.source_mode,
+    query: form.query.trim() || null,
     limit: form.limit,
   })
 }
@@ -39,6 +41,7 @@ watch(
       form.focus_hint = ''
       form.language = props.defaultLanguage ?? 'en'
       form.source_mode = 'local'
+      form.query = ''
       form.limit = 20
     }
   },
@@ -64,6 +67,10 @@ watch(
           <option value="online">Online search + download</option>
           <option value="auto">Auto</option>
         </select>
+      </label>
+      <label>
+        <span>Online search query <em>for online mode</em></span>
+        <input v-model="form.query" type="search" placeholder="e.g. tool-using LLM agents" />
       </label>
       <label>
         <span>Paper limit</span>
@@ -117,6 +124,7 @@ label em {
 
 textarea,
 select,
+input[type='search'],
 input[type='number'] {
   width: 100%;
   padding: 8px 10px;
