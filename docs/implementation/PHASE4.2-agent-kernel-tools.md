@@ -1,9 +1,9 @@
 # Phase 4.2 · Generic Agent Kernel + Specialized Workflows
 
-> 版本：2.0（2026-11-02）
+> 版本：2.1（2026-11-03）
 > 类型：详细设计与迁移方案
-> 状态：in progress；S0–S9 done；L3 gate passed；下一 S10 Workflow
-> 优先级：通用 Kernel + 通用 Tools 优先；报告 Workflow 后置
+> 状态：Kernel done；L3 gate passed；下一 S10 report workflow；Chat 后置
+> 优先级：report workflow v2 > report quality > D 盘约束 > 三库/RAG > Chat
 > 依据：DSH `core/tools`、`core/agent-loop`、`compaction` 与 Phase 4.1 实现
 
 ---
@@ -701,65 +701,201 @@ workflow/
 
 不存在 `profiles/generic` 或“通用报告 Workflow”。
 
-### 9.2 报告 Workflow
+### 9.2 报告 Workflow v2（5 个核心 Node）
+
+Phase 4.2 的 Workflow 目标只有报告：
 
 ```text
-1. source.collect
-   下载全文、检索、去重、corpus
-2. evidence.extract
-   阅读、claims、quote 校验、去重
-3. report.generate
-   plan、逐节写作、citation check、assemble
-4. finalize
-   persist、code/audit verify
+先完成 report
+Chat 后置
 ```
 
-每个 Node 至少 3 个工具，且包含 `context.*` / `plan.*`：
+当前代码仍是 `demo100` 的旧 4 Node + `DemoOrchestrator`。
+下面是 S10 要迁移到的目标结构，不是已完成状态。
+
+架构约束：
 
 ```text
-source.collect:
-  source.search, source.fetch_pdf, fulltext.extract,
-  corpus.store, corpus.dedupe, context.inspect, plan.update
-
-evidence.extract:
-  corpus.read, claims.extract, quote.check,
-  claims.dedupe, evidence.stats, context.compact
-
-report.generate:
-  report.plan, report.write_section,
-  report.check_section, report.assemble,
-  citation.check, context.compact
-
-finalize:
-  report.persist, verify.code, verify.audit, artifact.get
+Kernel 不 import report / paper / claim
+Node 拥有领域 tools / prompt / schema / verifier
+Workflow 只负责拆阶段、传产物、控制顺序和重试
+领域规则不能进入 Kernel
 ```
 
-报告优化只改：
+#### 9.2.1 总体链路
 
 ```text
-workflow 拆分
-stage prompt
-domain tools
-domain verifier
-budget
+request
+  → source.collect
+  → evidence.extract
+  → [map.classify]        可选，仅 features.classification=true
+  → report.plan
+  → report.write
+  → report.audit_finalize
 ```
 
-不改 Kernel。
-
-### 9.3 Chat Workflow
-
-Phase 4.2 先预留：
+原则：
 
 ```text
-chat.py
-  retrieve
-  answer
-  citation verify
+一个 Node 一个可验收的阶段产物
+Node 拥有领域约束
+Kernel 只执行通用任务
+每个 Agent Node 至少 3 个工具
+禁止单工具 Agent Node
+生产路径禁止 DemoOrchestrator
 ```
 
-后续复用同一 Kernel。
+#### 9.2.2 Node 契约
 
----
+| Node | 输入 | 工具集 | 输出 | 阶段 Verifier | 预算 |
+|---|---|---|---|---|---|
+| `source.collect` | `request` | `source.search`, `source.fetch_pdf`, `source.fetch_html`, `fulltext.extract`, `corpus.store`, `corpus.dedupe`, `corpus.stats`, `context.inspect` | `SourceArtifact` | schema / unique / fulltext ratio | 12 steps / 0.80 USD |
+| `evidence.extract` | `source.collect` | `corpus.read`, `claims.extract`, `quote.check`, `claims.filter`, `claims.dedupe`, `evidence.stats`, `context.compact` | `EvidenceArtifact` | schema / exact quote / purity / min claims | 16 steps / 0.80 USD |
+| `report.plan` | `evidence.extract`, `requirements` | `evidence.coverage`, `report.plan`, `outline.check`, `plan.update` | `ReportPlan` | required sections / coverage / no empty section | 6 steps / 0.20 USD |
+| `report.write` | `report.plan`, `evidence.extract` | `report.write_section`, `report.check_section`, `citation.check`, `context.compact` | `ReportDraft` | per-section citation / word gate / grounding | 24 steps / 0.80 USD |
+| `report.audit_finalize` | `report.write`, `requirements` | `report.assemble`, `report.persist`, `verify.code`, `verify.audit`, `artifact.hash` | `FinalReport` | assemble / citation coverage / code / audit | 8 steps / 0.30 USD |
+
+可选：
+
+```text
+map.classify
+  evidence.extract → map.classify → report.plan
+  只有 features.classification=true 才插入
+  不作为核心链路
+```
+
+`scorecard.build` 不进入本轮核心链路，评估后置。
+
+#### 9.2.3 每个 Node 为什么这样设计
+
+**source.collect**
+
+```text
+职责：获取论文、全文、去重、统计覆盖
+为什么单独：检索/下载最贵且最不稳定，失败后不应重跑写作
+关键验收：unique、fulltext ratio、来源可追溯
+```
+
+**evidence.extract**
+
+```text
+职责：阅读论文、抽取 exact-quote claims、过滤、去重
+为什么单独：证据质量决定报告上限；可复用、可重建
+关键验收：quote 原文命中、claim 不是作者/参考文献
+```
+
+**report.plan**
+
+```text
+职责：把 evidence 变成可验收的大纲
+为什么单独：先验收结构，再花费写作文本；避免边写边改结构
+关键验收：section 数、必需类型、evidence 覆盖
+```
+
+**report.write**
+
+```text
+职责：逐 section 写作、引用、局部重试
+为什么单独：写作最不稳定；单节失败不应重跑全篇
+关键验收：每个 section 有 citation、事实有 claim 支撑
+```
+
+**report.audit_finalize**
+
+```text
+职责：组装、持久化、code/audit 双验收
+为什么单独：发布必须经过独立门禁，不能与写作混在一起
+关键验收：citation coverage、文件存在、hash、audit
+```
+
+#### 9.2.4 产物与交换
+
+Node 之间传引用，不传大文本：
+
+```text
+SourceArtifact
+  source_path
+  papers
+  fulltext_ratio
+  state
+
+EvidenceArtifact
+  evidence_path
+  papers
+  claims
+  quote_checks
+
+ReportPlan
+  plan_path
+  sections
+  coverage
+
+ReportDraft
+  draft_path
+  sections
+  word_count
+  citation_coverage
+
+FinalReport
+  report_path
+  content_sha
+  state
+  papers
+  claims
+```
+
+大文件放在 `D:\lit-agent-store`，SQLite 只存索引、状态、指标和路径。
+
+#### 9.2.5 端到端报告验收
+
+必须用真实 LLM 跑完整链路，不允许用 `DemoOrchestrator`：
+
+```text
+100 篇论文
+fulltext >= 35，或显式 degraded
+claims >= 100
+sections >= 10
+word_count 3500–8000
+citation_coverage = 1.0
+每个 Node 通过 stage verifier
+最终 final verifier + audit 通过
+report.md 和 report.json 可打开
+run 状态 complete
+```
+
+#### 9.2.6 S10 实施顺序
+
+```text
+S10.0 KernelNodeAdapter 接入 WorkflowRunner
+S10.1 定义 5 节点 WorkflowDefinition
+S10.2 补齐 source/evidence 领域工具与 schema
+S10.3 补齐 plan/write/audit 工具与 verifier
+S10.4 本地 100 篇 corpus 端到端跑通
+S10.5 checkpoint/resume 与失败恢复
+S10.6 移除生产 DemoOrchestrator
+S10.7 回归、指标、文档、提交
+```
+
+S10 不包含：
+
+```text
+Chat
+Qdrant
+Kuzu
+```
+
+### 9.3 Chat Workflow · deferred
+
+Chat 不进入 Phase 4.2 交付：
+
+```text
+ConversationSession
+retrieve
+answer
+citation verify
+```
+
+等 report workflow 稳定后，复用同一 Kernel 和同一 RetrievalPort 再做。
 
 ## 10. 迁移顺序
 
@@ -879,26 +1015,29 @@ context compaction observable
 禁止修改 Workflow
 ```
 
-已完成 30 个真实 LLM 简单任务（30/30）；复杂多步 L3 仍未完成。
+已完成 30 个真实简单任务和 14 个复杂任务；L3 gate passed，详见 `RESULTS-P4.2-L3-GATE.md`。
 
-### 4.2.10 Workflow core + report shell
+### 4.2.10 Workflow core + report shell · next
 
-只有 Kernel 门禁通过后才开始：
+只有 Kernel 门禁通过后才开始。当前 Kernel 门禁已通过。
 
-- WorkflowRunner
-- NodeSpec -> KernelTask
-- report workflow
-- 移除生产 `DemoOrchestrator`
-- 每个 Agent Node >= 3 tools
+- WorkflowRunner 接入 `KernelNodeAdapter`
+- 移除生产路径 `DemoOrchestrator`
+- 五节点 report workflow
+- 每 Node >= 3 tools
+- Node 输出/checkpoint 持久化
+- 真实 100 篇端到端报告
 
 ### 4.2.11 Report optimization
 
 - 100 篇 fulltext
-- 多工具 Node
-- citation / audit
-- 报告质量改进
+- 分节写作与局部重试
+- citation / evidence / audit
+- 报告质量门禁
 
-### 4.2.12 Chat
+### 4.2.12 Chat · deferred
+
+Report workflow 稳定后再做：
 
 - ConversationSession
 - chat workflow
@@ -924,7 +1063,29 @@ NodeKernelAdapter smoke 通过
 日志/错误系统完整
 ```
 
-详见 [`docs/KERNEL-MATURITY.md`](../KERNEL-MATURITY.md)。
+当前状态：passed。
+
+详见 [`docs/KERNEL-MATURITY.md`](../KERNEL-MATURITY.md) 与
+[`RESULTS-P4.2-L3-GATE.md`](RESULTS-P4.2-L3-GATE.md)。
+
+## 10.2 Report Workflow 门禁
+
+```text
+5 个 Node 全部通过 stage verifier
+100 篇真实 LLM 端到端
+report.md / report.json 可打开
+citation_coverage = 1
+run state complete
+不依赖 DemoOrchestrator
+Node checkpoint / resume 可用
+```
+
+未通过：
+
+```text
+不允许宣称 report workflow 完成
+不允许进入 Chat
+```
 
 ---
 
@@ -945,7 +1106,9 @@ kernel max_steps / budget
 checkpoint resume
 Kernel task A–E
 workflow report
-workflow chat
+workflow report resume
+workflow report 100-paper e2e
+workflow chat deferred
 100-paper fulltext
 no report imports in kernel
 no DemoOrchestrator in src

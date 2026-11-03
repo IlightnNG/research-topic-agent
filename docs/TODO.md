@@ -1,258 +1,306 @@
 # TODO
 
-> 版本：2.0（2026-10-31）
+> 版本：3.0（2026-11-03）
 > 管理规则见 `docs/CONVENTIONS.md` §5。
-> 每个 TODO 只属于一个模块；完成后保留。
+> 当前优先级：**Report workflow > Report quality > D 盘存储整理 > 三库/RAG > Chat**。
+> 旧的 M1–M6 待办已清理；历史记录保留在 git 历史中。
 
 ---
 
-## 0. 架构 2.0 迁移
+## 0. 当前路线
+
+```text
+P0  Report workflow v2
+    KernelNodeAdapter 接入
+    5 个特制 Node
+    100 篇端到端真实报告
+
+P1  Report quality
+    citation / audit / fulltext / 分节重试
+
+P1  D 盘存储约束
+    大文件不落 C 盘
+
+P2  三库 / RAG
+    整条 report 链路连续稳定后再做
+
+P3  Chat
+    report 稳定后再复用 Kernel
+```
+
+---
+
+## 1. Report Workflow v2
 
 | ID | Module | Priority | Status | Title |
 |---|---|---|---|---|
-| TODO-101 | W | P0 | done | NodeSpec 增加 goal/tools/verifier/optional |
-| TODO-102 | T | P0 | done | ToolRegistry 包装所有外部交互（core） |
-| TODO-103 | K | P0 | done | Kernel 接收 NodeContext/tool allowlist |
-| TODO-104 | R | P0 | done | report.generate 改为 agent node |
-| TODO-105 | R | P0 | done | report.plan 工具产出可选 sections |
-| TODO-106 | V | P0 | done | code + audit 双 Verifier |
-| TODO-107 | W | P1 | done | Workflow optional/skip 节点 |
-| TODO-108 | R | P1 | open | demo profile 100 篇报告 |
-| TODO-109 | E | P2 | open | scorecard 作为可选 Node |
+| TODO-201 | W/K | P0 | open | WorkflowRunner 接入 KernelNodeAdapter |
+| TODO-202 | W | P0 | open | 定义 5 节点 report workflow |
+| TODO-203 | R/T | P0 | open | source/evidence 领域工具与 schema |
+| TODO-204 | R/T | P0 | open | report.plan / write / audit 工具与 verifier |
+| TODO-205 | R/W | P0 | open | 100 篇真实 LLM 端到端报告 |
+| TODO-206 | W | P1 | open | Node checkpoint / resume / 局部重试 |
+| TODO-207 | W | P1 | open | 移除生产路径 DemoOrchestrator |
+| TODO-208 | R/V | P1 | open | 报告质量门禁 |
 
-旧 M1–M6 TODO 保留为历史记录。
+### TODO-201 · WorkflowRunner 接入 KernelNodeAdapter
+
+- Module：W/K
+- Status：open
+- 问题：当前 CLI/API 仍使用旧 `Kernel` + `DemoOrchestrator`，不是通用 `AgentKernel`。
+- Acceptance：
+  - `WorkflowRunner` 的 kernel port 使用 `KernelNodeAdapter`；
+  - `NodeSpec` → `KernelTask` → `AgentKernel` → `NodeResult`；
+  - 每 Node 有独立 toolset / output schema / verifier / budget；
+  - 旧 `DemoOrchestrator` 只在 demo flag 下保留；
+  - workflow 单测覆盖 adapter 边界。
+
+### TODO-202 · 定义 5 节点 report workflow
+
+- Module：W
+- Status：open
+- 节点：
+  - `source.collect`
+  - `evidence.extract`
+  - `report.plan`
+  - `report.write`
+  - `report.audit_finalize`
+- Acceptance：
+  - 每个 Node ≥3 tools；
+  - 至少一个 `context.*` 或 `plan.*`；
+  - Node 输出是引用路径，不是大文本；
+  - optional `map.classify` 只在 classification 开启时插入；
+  - `WorkflowDefinition.validate()` 通过。
+
+### TODO-203 · source/evidence 领域工具与 schema
+
+- Module：R/T
+- Status：open
+- 需要：
+  - `source.search` / `source.fetch_pdf` / `source.fetch_html`
+  - `fulltext.extract`
+  - `corpus.store` / `corpus.dedupe` / `corpus.stats`
+  - `corpus.read`
+  - `claims.extract` / `quote.check` / `claims.filter` / `claims.dedupe`
+  - `evidence.stats` / `evidence.coverage`
+- Acceptance：
+  - `SourceArtifact` / `EvidenceArtifact` schema 固定；
+  - exact quote 可复算；
+  - 作者列表、references、截断句被拒绝；
+  - 工具输出落 D 盘 artifact。
+
+### TODO-204 · report.plan / write / audit 工具与 verifier
+
+- Module：R/T
+- Status：open
+- 需要：
+  - `report.plan` / `outline.check`
+  - `report.write_section` / `report.check_section` / `citation.check`
+  - `report.assemble` / `report.persist`
+  - `verify.code` / `verify.audit` / `artifact.hash`
+- Acceptance：
+  - section 级 citation / word gate；
+  - 单 section 失败可局部重试；
+  - finalize 有 code + audit 双验收；
+  - `ReportPlan` / `ReportDraft` / `FinalReport` schema 固定。
+
+### TODO-205 · 100 篇真实 LLM 端到端报告
+
+- Module：R/W
+- Status：open
+- Acceptance：
+  - 真实 LLM，不允许 `DemoOrchestrator`；
+  - papers ≥100；
+  - fulltext ≥35，或显式 degraded；
+  - claims ≥100；
+  - sections ≥10；
+  - word_count 3500–8000；
+  - citation_coverage = 1.0；
+  - report.md + report.json 可打开；
+  - run state complete；
+  - 全过程 metrics / events 落库。
+
+### TODO-206 · Node checkpoint / resume / 局部重试
+
+- Module：W
+- Status：open
+- Acceptance：
+  - source 成功后重跑不重下载；
+  - evidence 成功后重跑不重抽取；
+  - 单 section 失败只重写该 section；
+  - 进程中断后可从 Node checkpoint 恢复；
+  - 测试覆盖 committed / failed / degraded。
+
+### TODO-207 · 移除生产路径 DemoOrchestrator
+
+- Module：W
+- Status：open
+- 前置：TODO-205 通过。
+- Acceptance：
+  - 生产 API/CLI 不再 import `DemoOrchestrator`；
+  - `test_no_demo_orchestrator_in_src` 通过；
+  - demo 仅保留为离线样本或测试 fixture。
+
+### TODO-208 · 报告质量门禁
+
+- Module：R/V
+- Status：open
+- Acceptance：
+  - citation coverage = 1；
+  - claim purity / exact quote；
+  - section 覆盖；
+  - audit accepted；
+  - 失败原因可定位到 Node / section；
+  - 指标写入 kernel_metrics / report metrics。
 
 ---
 
-## 1. 索引
+## 2. D 盘存储约束
 
-| ID | Module | Phase | Priority | Status | Title |
-|---|---|---|---|---|---|
-| TODO-001 | M3 | M3-P01 | P0 | done | Claim 类型校验与作者列表过滤 |
-| TODO-002 | M3 | M3-P01 | P0 | done | Claim purity 真计算 |
-| TODO-003 | M4 | M4-P01 | P0 | done | 全报告 claim 计数一致 |
-| TODO-004 | M4 | M4-P01 | P0 | done | Paper Index metadata 完整 |
-| TODO-005 | M4 | M4-P01 | P0 | done | 正文真实 claim 覆盖，禁止 ledger 刷分 |
-| TODO-006 | M4 | M4-P01 | P0 | done | 动态方向质量 / min size / max share |
-| TODO-007 | M4 | M4-P02 | P1 | done | 分方向 LLM writer |
-| TODO-008 | M5 | M5-P01 | P1 | done | 模块分 + 方向分评分卡 |
-| TODO-009 | M5 | M5-P02 | P1 | open | 100 篇 gold（schema/calibration 已完成） |
-| TODO-010 | M2 | M2-P01 | P1 | open | 全文率 ≥30%（10 篇 3/10，100 篇待复跑） |
-| TODO-011 | M1 | M1-P01 | P1 | done | Kernel ReAct + step checkpoint |
-| TODO-012 | M6 | M6-P01 | P2 | done | 生产 UI / 错误格式 |
-| TODO-013 | M1 | M1-P02 | P1 | open | 事件单写者与 module/severity |
-| TODO-014 | M5 | M5-P03 | P2 | open | 自动调参闭环 |
-| TODO-015 | M4 | M4-P02 | P1 | done | 分方向实时 section 流 |
+> 大文件不得落 C 盘。P1，必须在批量论文导入前完成。
 
----
+| ID | Module | Priority | Status | Title |
+|---|---|---|---|---|
+| TODO-209 | S | P1 | open | 统一 D 盘 storage root 与启动检查 |
+| TODO-210 | S | P1 | open | 论文/全文/artifact/report 路径迁移 |
+| TODO-211 | S | P1 | open | 临时目录与模型缓存固定到 D |
 
-## 2. 详情
+目标布局：
 
-### TODO-001 · Claim 类型校验与作者列表过滤
+```text
+D:\lit-agent-store\
+  data\
+    v2.sqlite
+  corpus\
+    papers.jsonl
+    pdf\
+    fulltext\
+    chunks\
+  artifacts\
+  reports\
+  qdrant\
+  kuzu\
+  cache\
+    hf\
+    embeddings\
+    retrieval\
+  temp\
+  logs\
+  benchmarks\
+```
 
-- Module：M3
-- Phase：M3-P01
-- Priority：P0
-- Status：done
-- Evidence：
-  - `Tongxin Yuan, Zhiwei He, ...` 被当 claim；
-  - `Faria Huq, ...` 被当 claim；
-  - `claim.purity = 1.0`。
-- Acceptance：
-  - 作者列表、机构、references、致谢、版权全部拒绝；
-  - 截断句拒绝；
-  - 每条 claim 有 type；
-  - fixture 覆盖 6 类负样本。
-- Links：`docs/modules/research/README.md`
+规则：
 
-### TODO-002 · Claim purity 真计算
+```text
+SQLite      只存元数据、索引、状态、指标、路径
+PDF         只存 D:\lit-agent-store\corpus\pdf
+fulltext    只存 D:\lit-agent-store\corpus\fulltext
+report      只存 D:\lit-agent-store\reports
+artifact    只存 D:\lit-agent-store\artifacts
+Qdrant      只存 D:\lit-agent-store\qdrant
+Kuzu        只存 D:\lit-agent-store\kuzu
+HF cache    HF_HOME=D:\lit-agent-store\cache\hf
+TEMP/TMP    D:\lit-agent-store\temp
+```
 
-- Module：M3
-- Phase：M3-P01
-- Priority：P0
-- Evidence：当前 `research_claims += 1` 与 `claims += 1` 同步，purity 恒 1。
-- Acceptance：
-  - research/non-research 分开计数；
-  - purity 可复算；
-  - 负样本 purity < 1；
-  - 指标落库。
-- Links：`docs/modules/research/README.md`
+Acceptance：
 
-### TODO-003 · 全报告 claim 计数一致
-
-- Module：M4
-- Phase：M4-P01
-- Priority：P0
-- Evidence：概述 185；D1/D2/D3 各 6；ledger 只到 C103。
-- Acceptance：
-  - overview = sections = matrix = ledger；
-  - 不一致 verifier reject；
-  - 测试覆盖 mismatch。
-- Links：`docs/modules/research/README.md`
-
-### TODO-004 · Paper Index metadata 完整
-
-- Module：M4
-- Phase：M4-P01
-- Priority：P0
-- Evidence：`| W... | W... |`，无标题/作者/venue。
-- Acceptance：
-  - index 含 title/authors/venue/year/url；
-  - metadata 缺失论文标记；
-  - 测试覆盖。
-- Links：`docs/modules/research/README.md`
-
-### TODO-005 · 正文真实 claim 覆盖
-
-- Module：M4
-- Phase：M4-P01
-- Priority：P0
-- Evidence：86 篇只写 6 条；ledger 刷 coverage=1。
-- Acceptance：
-  - `report.claim_coverage` 只算正文实际引用；
-  - 每方向正文覆盖 ≥0.8；
-  - ledger/index 不计 coverage。
-- Links：`docs/modules/research/README.md`
-
-### TODO-006 · 方向质量
-
-- Module：M4
-- Phase：M4-P01
-- Priority：P0
-- Evidence：3 方向；max_share 0.86；`Agents / Wang`。
-- Acceptance：
-  - 动态方向数；
-  - min size ≥3；
-  - max_share ≤0.6；
-  - 禁止作者/venue 名；
-  - 不达标 → degraded。
-- Links：`docs/modules/research/README.md`
-
-### TODO-007 · 分方向 LLM writer
-
-- Module：M4
-- Phase：M4-P02
-- Priority：P1
-- Evidence：writer 是确定性模板；open questions 全相同；differences 不可比。
-- Acceptance：
-  - 每方向 EvidencePack；
-  - LLM 写 section；
-  - code gate + verifier；
-  - 失败只重写该 section；
-  - 与模板对比审计。
-- Links：`docs/modules/research/README.md`
-
-### TODO-008 · 模块分 + 方向分评分卡
-
-- Module：M5
-- Phase：M5-P01
-- Priority：P1
-- Evidence：当前 score = 0.5×F1 + 0.3×citation + 0.2×字数；字数进入评分。
-- Acceptance：
-  - 模块权重；
-  - 方向分；
-  - 硬门禁；
-  - confidence；
-  - 字数只做 gate。
-- Links：`docs/modules/evaluation/README.md`
-
-### TODO-009 · 100 篇 gold + LLM judge
-
-- Module：M5
-- Phase：M5-P02
-- Priority：P1
-- Evidence：只有 20 篇 silver；无 judge。
-- Acceptance：
-  - 3×100 金标；
-  - double annotation；
-  - judge 校准；
-  - 数据集 hash 冻结。
-- Links：`docs/modules/evaluation/README.md`
-
-### TODO-010 · 全文率 ≥30%
-
-- Module：M2
-- Phase：M2-P01
-- Priority：P1
-- Evidence：100 篇只有 5 篇全文。
-- Acceptance：
-  - 多源 PDF/HTML；
-  - fulltext ratio ≥0.3；
-  - abstract-only 明示；
-  - 失败降级记录。
-- Links：`docs/modules/research/README.md`
-
-### TODO-011 · Kernel ReAct + step checkpoint
-
-- Module：M1
-- Phase：M1-P01
-- Priority：P1
-- Evidence：minimal action loop；仅 Node 边界 pause。
-- Acceptance：
-  - LLM completer；
-  - step checkpoint；
-  - no-progress；
-  - cost；
-  - token/step 事件。
-- Links：`docs/modules/workflow/README.md`
-
-### TODO-012 · 生产 UI / 错误格式
-
-- Module：M6
-- Phase：M6-P01
-- Priority：P2
-- Evidence：只有最小 timeline；错误未统一。
-- Acceptance：
-  - 新 timeline；
-  - 错误响应；
-  - SSE replay；
-  - e2e。
-- Links：`docs/modules/interface/README.md`
-
-### TODO-013 · 事件单写者
-
-- Module：M1
-- Phase：M1-P02
-- Priority：P1
-- Evidence：EventLog 用 MAX(seq)+1，并发可能冲突。
-- Acceptance：
-  - 单写者/allocator；
-  - seq 连续；
-  - 并发测试。
-- Links：`docs/LOGGING.md`
-
-### TODO-014 · 自动调参闭环
-
-- Module：M5
-- Phase：M5-P03
-- Priority：P2
-- Evidence：Tuner 有，但只有 20 篇 silver；阈值无差异。
-- Acceptance：
-  - 参数网格；
-  - Pareto；
-  - experiments；
-  - 硬指标回退拒绝；
-  - 可复跑。
-- Links：`docs/modules/evaluation/README.md`
-
-### TODO-015 · 分方向实时 section 流
-
-- Module：M4
-- Phase：M4-P02
-- Priority：P1
-- Evidence：当前 section 生成后 emit；writer 仍整篇构造。
-- Acceptance：
-  - 每 section 生成即 emit；
-  - SSE 可见；
-  - 失败 section 单独重试。
-- Links：`docs/modules/research/README.md`
+```text
+启动时校验 root 不在 C 盘
+路径不存在自动创建
+测试检查 PDF/fulltext/Qdrant/Kuzu 路径
+浏览器 localStorage 只存 UI 偏好
+```
 
 ---
 
-## 3. 已完成
+## 3. 三库 / RAG · deferred
 
-| ID | 内容 | 日期 |
-|---|---|---|
-| — | v2 独立包 | 2026-10-31 |
-| — | 旧代码/文档移出仓库 | 2026-10-31 |
-| — | OpenAlex/PDF/100 篇真实联调 | 2026-10-31 |
+> 触发条件：report 链路连续 3 次稳定通过，且论文量 ≥500 或检索指标不达标。
+> 在触发前不引入 Qdrant / Kuzu。
+
+### 3.1 三库职责
+
+```text
+SQLite
+  论文元数据、authors、runs、nodes、events、claims、citations、reports
+  事实源 / 事务边界
+
+Qdrant
+  摘要 + 全文 chunk 的 embedding
+  payload: paper_id, chunk_id, section, page, text, content_hash
+  semantic / hybrid retrieval
+
+Kuzu
+  Paper / Author / Venue / Topic
+  AUTHORED_BY / CITES / SIMILAR_TO / BELONGS_TO
+  关系查询
+```
+
+### 3.2 TODO
+
+| ID | Module | Priority | Status | Title |
+|---|---|---|---|---|
+| TODO-301 | S/RAG | P2 | deferred | Qdrant collection + D 盘 storage |
+| TODO-302 | S/RAG | P2 | deferred | embedding / chunking / reindex |
+| TODO-303 | S/RAG | P2 | deferred | hybrid retrieval + rerank |
+| TODO-304 | S/RAG | P2 | deferred | Kuzu schema 与作者/引用图 |
+| TODO-305 | S/RAG | P2 | deferred | 三库一致性 / ingestion outbox |
+| TODO-306 | E/RAG | P2 | deferred | RAG recall / citation 评估 |
+
+### 3.3 实施原则
+
+```text
+1. SQLite 仍是 source of truth
+2. Qdrant / Kuzu 都是可重建索引，不是唯一事实源
+3. 先加 RetrievalPort，再接 Qdrant，最后接 Kuzu
+4. 先 Qdrant，后 Kuzu
+5. 不在工具里三写，统一走 ingestion service
+6. 每次索引写入带 content_hash / schema_version
+```
+
+### 3.4 现在不做的理由
+
+```text
+当前 100 篇 demo 不需要向量库
+workflow 还未稳定，检索接口会反复改
+三库一致性成本高
+先把 report 完整跑通，才能评估 RAG 的真实收益
+```
+
+---
+
+## 4. Chat · deferred
+
+| ID | Module | Priority | Status | Title |
+|---|---|---|---|---|
+| TODO-401 | C | P3 | deferred | Chat workflow |
+| TODO-402 | E | P3 | deferred | scorecard 可选 Node |
+
+Chat 需要：
+
+```text
+ConversationSession
+retrieve
+answer
+citation verify
+```
+
+等 report workflow 稳定后，复用同一 Kernel 和同一 RetrievalPort。
+
+---
+
+## 5. 已完成
+
+```text
+Phase 4.1 报告基线
+100 篇报告链路
+工具契约 / ToolRuntime
+通用 AgentKernel
+checkpoint / metrics / logs / errors
+30 简单 + 14 复杂真实 LLM benchmark
+trace-aware audit repair
+L3 gate passed
+```
+
+旧 TODO-001–015、TODO-101–109 已合并或清理；需要追溯时看 git 历史。
