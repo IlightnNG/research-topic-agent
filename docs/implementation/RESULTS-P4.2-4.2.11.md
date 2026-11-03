@@ -1,6 +1,6 @@
 # RESULTS · Phase 4.2.11 Report Optimization
 
-> Status：mostly done；LLM audit hard gate remains open
+> Status：done；hard audit accepted on final 100-paper run
 > Date：2026-11-03
 > Report：100 papers / 98 fulltext / 196 claims / 23 sections
 
@@ -64,7 +64,7 @@ accepted           true
 
 ---
 
-## 3. LLM audit reliability · improved, still advisory
+## 3. LLM audit reliability · hard gate
 
 Added:
 
@@ -85,8 +85,9 @@ Status:
 
 ```text
 compact audit JSON works
-full-report audit remains unstable
-hard gate is still NOT enabled
+explicit reject -> hard fail
+audit unavailable -> fail-open + status=unavailable
+final 100-paper report: audit accepted
 ```
 
 ---
@@ -184,7 +185,7 @@ npm run build passed
 ## 7. Tests
 
 ```text
-127 passed
+128 passed
 ruff clean
 npm run build passed
 ```
@@ -200,13 +201,4 @@ section cursor loop
 
 ---
 
-## 8. Remaining
-
-```text
-LLM audit hard gate
-2/100 fulltext failures
-quality gate display for final report
-parallel sections
-```
-
-4.2.11.2 remains open; other 4.2.11 items are implemented.
+> 4.2.11 complete。剩余改进属于 4.3 / backlog：2/100 fulltext、audit 校准、parallel sections。

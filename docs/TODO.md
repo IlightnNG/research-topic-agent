@@ -1,294 +1,34 @@
 # TODO
 
-> 版本：3.0（2026-11-03）
-> 管理规则见 `docs/CONVENTIONS.md` §5。
-> 当前优先级：**Report workflow > Report quality > D 盘存储整理 > 三库/RAG > Chat**。
-> 旧的 M1–M6 待办已清理；历史记录保留在 git 历史中。
+> 版本：4.0（2026-11-03）
+> 状态：Phase 4.2 已完成；下一阶段 4.3 暂缓。
+> 原则：RAG / Qdrant / Kuzu 先不做；先保持 report 链路稳定。
 
 ---
 
-## 0. 当前路线
+## 0. 当前结论
 
 ```text
-P0  Report workflow v2
-    KernelNodeAdapter 接入
-    5 个特制 Node
-    100 篇端到端真实报告
-
-P1  Report quality
-    citation / audit / fulltext / 分节重试
-
-P1  D 盘存储约束
-    大文件不落 C 盘
-
-P2  三库 / RAG
-    整条 report 链路连续稳定后再做
-
-P3  Chat
-    report 稳定后再复用 Kernel
+Phase 4.2: complete
+Report workflow: 5 Node, API + CLI, 100 papers
+Fulltext: 98 / 100
+Claims: 196
+Sections: 23
+Quality gate: deterministic hard gate
+LLM audit: hard on explicit reject; fail-open if audit unavailable
+Chat: deferred
+RAG / Qdrant / Kuzu: deferred
 ```
+
+当前没有必须立即完成的 report workflow 项。
 
 ---
 
-## 1. Report Workflow v2
+## 1. Phase 4.3 · deferred
 
-| ID | Module | Priority | Status | Title |
-|---|---|---|---|---|
-| TODO-201 | W/K | P0 | done | WorkflowRunner 接入 KernelNodeAdapter（CLI + API） |
-| TODO-202 | W | P0 | done | 定义 5 节点 report workflow |
-| TODO-203 | R/T | P0 | done | source/evidence 领域工具与 schema |
-| TODO-204 | R/T | P0 | done | report.plan / write / audit 工具与 verifier |
-| TODO-205 | R/W | P0 | done | 100 篇真实 LLM 端到端报告（CLI） |
-| TODO-206 | W | P1 | done | Node checkpoint / resume / 局部重试（CLI 已验证；Node-level loop 已接） |
-| TODO-207 | W | P1 | done | 移除生产路径 DemoOrchestrator |
-| TODO-208 | R/V | P1 | done | 报告质量门禁（deterministic） |
+> 触发条件：report 链路连续稳定，且论文量/检索质量需要 semantic retrieval。
 
-### TODO-201 · WorkflowRunner 接入 KernelNodeAdapter
-
-- Module：W/K
-- Status：done（CLI + API 已接入；DemoOrchestrator 的移除见 TODO-207）
-- Acceptance：
-  - `WorkflowRunner` 的 kernel port 使用 `KernelNodeAdapter`；
-  - `NodeSpec` → `KernelTask` → `AgentKernel` → `NodeResult`；
-  - 每 Node 有独立 toolset / output schema / verifier / budget；
-  - 旧 `DemoOrchestrator` 只在 demo flag 下保留；
-  - workflow 单测覆盖 adapter 边界。
-
-### TODO-202 · 定义 5 节点 report workflow
-
-- Module：W
-- Status：done
-- 节点：
-  - `source.collect`
-  - `evidence.extract`
-  - `report.plan`
-  - `report.write`
-  - `report.audit_finalize`
-- Acceptance：
-  - 每个 Node ≥3 tools；
-  - 至少一个 `context.*` 或 `plan.*`；
-  - Node 输出是引用路径，不是大文本；
-  - optional `map.classify` 只在 classification 开启时插入；
-  - `WorkflowDefinition.validate()` 通过。
-
-### TODO-203 · source/evidence 领域工具与 schema
-
-- Module：R/T
-- Status：done
-- 需要：
-  - `source.search` / `source.fetch_pdf` / `source.fetch_html`
-  - `fulltext.extract`
-  - `corpus.store` / `corpus.dedupe` / `corpus.stats`
-  - `corpus.read`
-  - `claims.extract` / `quote.check` / `claims.filter` / `claims.dedupe`
-  - `evidence.stats` / `evidence.coverage`
-- Acceptance：
-  - `SourceArtifact` / `EvidenceArtifact` schema 固定；
-  - exact quote 可复算；
-  - 作者列表、references、截断句被拒绝；
-  - 工具输出落 D 盘 artifact。
-
-### TODO-204 · report.plan / write / audit 工具与 verifier
-
-- Module：R/T
-- Status：done
-- 需要：
-  - `report.plan` / `outline.check`
-  - `report.write_section` / `report.check_section` / `citation.check`
-  - `report.assemble` / `report.persist`
-  - `verify.code` / `verify.audit` / `artifact.hash`
-- Acceptance：
-  - section 级 citation / word gate；
-  - 单 section 失败可局部重试；
-  - finalize 有 code + audit 双验收；
-  - `ReportPlan` / `ReportDraft` / `FinalReport` schema 固定。
-
-### TODO-205 · 100 篇真实 LLM 端到端报告
-
-- Module：R/W
-- Status：done（CLI）
-- Acceptance：
-  - 真实 LLM，不允许 `DemoOrchestrator`；
-  - papers ≥100；
-  - fulltext ≥35，或显式 degraded；
-  - claims ≥100；
-  - sections ≥10；
-  - word_count 3500–8000；
-  - citation_coverage = 1.0；
-  - report.md + report.json 可打开；
-  - run state complete；
-  - 全过程 metrics / events 落库。
-
-### TODO-206 · Node checkpoint / resume / 局部重试
-
-- Module：W
-- Status：done（CLI resume 已验证）
-- Acceptance：
-  - source 成功后重跑不重下载；
-  - evidence 成功后重跑不重抽取；
-  - 单 section 失败只重写该 section；
-  - 进程中断后可从 Node checkpoint 恢复；
-  - 测试覆盖 committed / failed / degraded。
-
-### TODO-207 · 移除生产路径 DemoOrchestrator
-
-- Module：W
-- Status：done
-- 前置：TODO-205 通过。
-- Acceptance：
-  - 生产 API/CLI 不再 import `DemoOrchestrator`；
-  - `test_no_demo_orchestrator_in_src` 通过；
-  - demo 仅保留为离线样本或测试 fixture。
-
-### TODO-212 · Section quality metrics
-
-- Module：R/V
-- Status：done
-- Acceptance：
-  - per-section words / citations / claim refs；
-  - cited / uncovered claims；
-  - duplicate sentences；
-  - 写入 report quality JSON。
-
-### TODO-213 · LLM audit hard gate
-
-- Module：R/V
-- Status：partial（compact summary 已修；hard gate 未开）
-- 问题：长报告 audit JSON 不稳定。
-- Acceptance：
-  - audit 输出可解析；
-  - score 校准；
-  - hard/advisory 策略明确；
-  - 失败可重试/repair。
-
-### TODO-214 · Fulltext quality
-
-- Module：R
-- Status：done（98/100）
-- 问题：100 篇只有 35 fulltext。
-- Acceptance：
-  - 多源 PDF/HTML；
-  - abstract-only 明示；
-  - fulltext ratio 提升；
-  - 来源可追溯。
-
-### TODO-215 · API resume interruption test
-
-- Module：I/W
-- Status：done
-- Acceptance：
-  - pause → 进程重启 → resume；
-  - section checkpoint 恢复；
-  - 不重复 report；
-  - 测试真实 API 路径。
-
-### TODO-216 · Report progress UI
-
-- Module：I
-- Status：partial（section 进度已完成）
-- Acceptance：
-  - 5 Node 进度；
-  - section 进度；
-  - quality gate 展示；
-  - failed section retry。
-
-### TODO-208 · 报告质量门禁
-
-- Module：R/V
-- Status：done（deterministic；LLM audit advisory）
-- Acceptance：
-  - citation coverage = 1；
-  - claim purity / exact quote；
-  - section 覆盖；
-  - audit accepted；
-  - 失败原因可定位到 Node / section；
-  - 指标写入 kernel_metrics / report metrics。
-
----
-
-## 2. D 盘存储约束
-
-> 大文件不得落 C 盘。P1，必须在批量论文导入前完成。
-
-| ID | Module | Priority | Status | Title |
-|---|---|---|---|---|
-| TODO-209 | S | P1 | open | 统一 D 盘 storage root 与启动检查 |
-| TODO-210 | S | P1 | open | 论文/全文/artifact/report 路径迁移 |
-| TODO-211 | S | P1 | open | 临时目录与模型缓存固定到 D |
-
-目标布局：
-
-```text
-D:\lit-agent-store\
-  data\
-    v2.sqlite
-  corpus\
-    papers.jsonl
-    pdf\
-    fulltext\
-    chunks\
-  artifacts\
-  reports\
-  qdrant\
-  kuzu\
-  cache\
-    hf\
-    embeddings\
-    retrieval\
-  temp\
-  logs\
-  benchmarks\
-```
-
-规则：
-
-```text
-SQLite      只存元数据、索引、状态、指标、路径
-PDF         只存 D:\lit-agent-store\corpus\pdf
-fulltext    只存 D:\lit-agent-store\corpus\fulltext
-report      只存 D:\lit-agent-store\reports
-artifact    只存 D:\lit-agent-store\artifacts
-Qdrant      只存 D:\lit-agent-store\qdrant
-Kuzu        只存 D:\lit-agent-store\kuzu
-HF cache    HF_HOME=D:\lit-agent-store\cache\hf
-TEMP/TMP    D:\lit-agent-store\temp
-```
-
-Acceptance：
-
-```text
-启动时校验 root 不在 C 盘
-路径不存在自动创建
-测试检查 PDF/fulltext/Qdrant/Kuzu 路径
-浏览器 localStorage 只存 UI 偏好
-```
-
----
-
-## 3. 三库 / RAG · deferred
-
-> 触发条件：report 链路连续 3 次稳定通过，且论文量 ≥500 或检索指标不达标。
-> 在触发前不引入 Qdrant / Kuzu。
-
-### 3.1 三库职责
-
-```text
-SQLite
-  论文元数据、authors、runs、nodes、events、claims、citations、reports
-  事实源 / 事务边界
-
-Qdrant
-  摘要 + 全文 chunk 的 embedding
-  payload: paper_id, chunk_id, section, page, text, content_hash
-  semantic / hybrid retrieval
-
-Kuzu
-  Paper / Author / Venue / Topic
-  AUTHORED_BY / CITES / SIMILAR_TO / BELONGS_TO
-  关系查询
-```
-
-### 3.2 TODO
+### 1.1 RAG / 三库
 
 | ID | Module | Priority | Status | Title |
 |---|---|---|---|---|
@@ -299,59 +39,125 @@ Kuzu
 | TODO-305 | S/RAG | P2 | deferred | 三库一致性 / ingestion outbox |
 | TODO-306 | E/RAG | P2 | deferred | RAG recall / citation 评估 |
 
-### 3.3 实施原则
+职责：
 
 ```text
-1. SQLite 仍是 source of truth
-2. Qdrant / Kuzu 都是可重建索引，不是唯一事实源
-3. 先加 RetrievalPort，再接 Qdrant，最后接 Kuzu
-4. 先 Qdrant，后 Kuzu
-5. 不在工具里三写，统一走 ingestion service
-6. 每次索引写入带 content_hash / schema_version
+SQLite
+  论文元数据、runs、nodes、events、claims、citations、reports
+
+Qdrant
+  摘要/全文 chunk embedding
+  semantic / hybrid retrieval
+
+Kuzu
+  Paper / Author / Venue / Topic
+  AUTHORED_BY / CITES / SIMILAR_TO / BELONGS_TO
 ```
 
-### 3.4 现在不做的理由
+原则：
 
 ```text
-当前 100 篇 demo 不需要向量库
-workflow 还未稳定，检索接口会反复改
+SQLite 是 source of truth
+Qdrant / Kuzu 是可重建索引
+先 Qdrant，后 Kuzu
+统一 ingestion service，不在工具里三写
+每条索引记录带 content_hash / schema_version
+```
+
+现在不做：
+
+```text
+100 篇 demo 不需要向量库
+report workflow 刚稳定，检索接口不应现在改
 三库一致性成本高
-先把 report 完整跑通，才能评估 RAG 的真实收益
 ```
 
----
-
-## 4. Chat · deferred
+### 1.2 D 盘约束
 
 | ID | Module | Priority | Status | Title |
 |---|---|---|---|---|
-| TODO-401 | C | P3 | deferred | Chat workflow |
-| TODO-402 | E | P3 | deferred | scorecard 可选 Node |
+| TODO-311 | S | P1 | open | 统一 D 盘 storage root 与启动检查 |
+| TODO-312 | S | P1 | open | 论文/全文/artifact/report 路径迁移 |
+| TODO-313 | S | P1 | open | 临时目录与模型缓存固定到 D |
 
-Chat 需要：
+目标：
 
 ```text
-ConversationSession
-retrieve
-answer
-citation verify
+D:\lit-agent-store\
+  data\v2.sqlite
+  corpus\pdf
+  corpus\fulltext
+  corpus\chunks
+  artifacts
+  reports
+  qdrant
+  kuzu
+  cache\hf
+  cache\embeddings
+  temp
+  logs
 ```
 
-等 report workflow 稳定后，复用同一 Kernel 和同一 RetrievalPort。
+规则：
+
+```text
+PDF / fulltext / report / artifact / Qdrant / Kuzu 全部 D 盘
+SQLite 只存元数据、索引、状态、路径
+HF_HOME、TEMP、TMP 固定 D 盘
+启动检查 root 不在 C 盘
+```
+
+### 1.3 Chat
+
+| ID | Module | Priority | Status | Title |
+|---|---|---|---|---|
+| TODO-321 | C | P3 | deferred | Chat workflow |
+
+依赖：
+
+```text
+report workflow 稳定
+RetrievalPort 可用
+```
 
 ---
 
-## 5. 已完成
+## 2. Report backlog
+
+| ID | Module | Priority | Status | Title |
+|---|---|---|---|---|
+| TODO-331 | R/V | P2 | open | LLM audit 校准与 fail-open 监控 |
+| TODO-332 | R | P2 | open | 剩余 2/100 fulltext |
+| TODO-333 | R/V | P3 | deferred | 并行 section 写入 |
+| TODO-334 | I | P3 | deferred | 质量历史趋势 / 对比视图 |
+
+说明：
 
 ```text
-Phase 4.1 报告基线
-100 篇报告链路
-工具契约 / ToolRuntime
-通用 AgentKernel
-checkpoint / metrics / logs / errors
-30 简单 + 14 复杂真实 LLM benchmark
-trace-aware audit repair
-L3 gate passed
+4.2.11.2 已实现 hard-on-explicit-reject
+audit 基础设施不可用时 fail-open，并记录 audit.status=unavailable
+这不是长期理想状态，但保证流程可跑
 ```
 
-旧 TODO-001–015、TODO-101–109 已合并或清理；需要追溯时看 git 历史。
+---
+
+## 3. 已完成 · Phase 4.2
+
+```text
+AgentKernel + tools + scheduler + checkpoint
+L3 gate passed
+5 Node report workflow
+API + CLI
+Node-level section loop
+per-section retry + checkpoint
+100 papers / 98 fulltext / 196 claims / 23 sections
+deterministic quality gate
+compact LLM audit
+section progress UI
+failed section retry API + UI
+API pause/resume real probe
+DemoOrchestrator removed
+demo package/scripts cleaned
+```
+
+旧 TODO-001–015、TODO-101–109、TODO-201–216 已合并；历史在 git 中。

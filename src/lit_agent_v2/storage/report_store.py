@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 from datetime import UTC, datetime
 
 from lit_agent_v2.contracts.report import ReportDraft
@@ -106,6 +107,12 @@ class ReportStore:
             ).fetchall()
         if report is None:
             return None
+        report_payload = dict(report)
+        if report_payload.get("metrics_json"):
+            try:
+                report_payload["quality"] = json.loads(report_payload["metrics_json"])
+            except (TypeError, ValueError):
+                report_payload["quality"] = None
         links_by_section: dict[str, list[dict[str, str]]] = {}
         for row in citations:
             links_by_section.setdefault(str(row["section_id"]), []).append(
@@ -120,7 +127,7 @@ class ReportStore:
             section = dict(row)
             section["paper_links"] = links_by_section.get(str(row["section_id"]), [])
             payload_sections.append(section)
-        return {"report": dict(report), "sections": payload_sections}
+        return {"report": report_payload, "sections": payload_sections}
 
     def by_run(self, run_id: str) -> str | None:
         with self.db.connect() as conn:

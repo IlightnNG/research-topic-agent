@@ -2,7 +2,7 @@
 
 > 版本：2.1（2026-11-03）
 > 类型：详细设计与迁移方案
-> 状态：Kernel done；S10 done；4.2.11 in progress；Chat 后置
+> 状态：Phase 4.2 complete；Chat / RAG 后置
 > 优先级：report workflow v2 > report quality > D 盘约束 > 三库/RAG > Chat
 > 依据：DSH `core/tools`、`core/agent-loop`、`compaction` 与 Phase 4.1 实现
 
@@ -1370,7 +1370,7 @@ Qdrant
 Kuzu
 ```
 
-### 4.2.11 Report optimization · in progress
+### 4.2.11 Report optimization · done
 
 S10.5 已有 deterministic quality gate；本节继续做报告质量，不改 Kernel。
 
@@ -1404,7 +1404,7 @@ empty sections = 0
 reference problems = 0
 ```
 
-#### 4.2.11.2 LLM audit hard gate · partial
+#### 4.2.11.2 LLM audit hard gate · done
 
 当前：
 
@@ -1413,21 +1413,23 @@ deterministic gate = hard
 LLM audit = advisory
 ```
 
-新增 `LLMAuditor.audit_summary()`，改用紧凑指标摘要而不是完整 5k 字报告；audit JSON 稳定性明显改善。
+新增 `LLMAuditor.audit_summary()`，改用紧凑指标摘要而不是完整 5k 字报告。
 
-但完整报告 audit 仍不稳定，因此：
+策略：
 
 ```text
-deterministic gate = hard
-LLM audit = advisory
+deterministic quality gate = hard
+LLM audit = hard on explicit reject
+audit infrastructure unavailable = fail-open + audit.status=unavailable
 ```
 
-还缺：
+真实 100 篇最终报告：
 
 ```text
-score calibration
-hard/advisory policy
-audit 失败 repair
+audit accepted
+```
+
+这保证流程可跑，同时明确拒绝会阻止发布。
 
 #### 4.2.11.3 Fulltext quality · done
 
@@ -1458,7 +1460,7 @@ create -> pause at report.write -> paused -> resume -> succeeded
 无重复 report
 ```
 
-#### 4.2.11.5 Report UX · partial
+#### 4.2.11.5 Report UX · done
 
 已完成：
 
@@ -1466,14 +1468,9 @@ create -> pause at report.write -> paused -> resume -> succeeded
 5 Node 进度
 section 进度条
 section.written 事件
-npm run build
-```
-
-待补：
-
-```text
 quality gate 展示
-失败 section 重试按钮
+failed section retry API + UI
+npm run build
 ```
 
 #### 4.2.11.6 Exit criteria
@@ -1496,11 +1493,15 @@ Report workflow 稳定后再做：
 - 真实 LLM
 - streaming 可后置
 
-### 4.2.13 Cleanup
+### 4.2.13 Cleanup · done
 
-- 删除 `demo.orchestrator`
-- 删除单工具 demo
-- docs / tests / commit
+- 删除 `src/lit_agent_v2/demo/`
+- 删除 `scripts/demo100.py`
+- 删除 CLI `demo100`
+- 删除 production `DemoOrchestrator` 分支
+- 更新 TODO / STATUS / TESTING
+- 更新 phase4.2 收尾文档
+- tests / frontend build / commit
 
 ---
 

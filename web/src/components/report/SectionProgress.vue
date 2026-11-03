@@ -3,6 +3,7 @@ import { computed } from 'vue'
 import type { TraceEvent } from '@/types'
 
 const props = defineProps<{ events: TraceEvent[] }>()
+const emit = defineEmits<{ retry: [sectionId: string] }>()
 
 const sectionEvents = computed(() =>
   props.events.filter((event) => event.type === 'section.written'),
@@ -13,6 +14,10 @@ const written = computed(() => latest.value?.written ?? 0)
 const percentage = computed(() =>
   total.value ? Math.round((written.value / total.value) * 100) : 0,
 )
+const failed = computed(() => {
+  const event = [...sectionEvents.value].reverse().find((item) => item.type === 'section.failed')
+  return event?.section_id
+})
 </script>
 
 <template>
@@ -24,6 +29,9 @@ const percentage = computed(() =>
     <div class="section-progress__bar" aria-hidden="true">
       <span :style="{ width: `${percentage}%` }"></span>
     </div>
+    <button v-if="failed" class="section-progress__retry" @click="emit('retry', failed)">
+      Retry failed section: {{ failed }}
+    </button>
   </div>
 </template>
 
@@ -50,6 +58,17 @@ const percentage = computed(() =>
   overflow: hidden;
   border-radius: 999px;
   background: var(--border);
+}
+
+.section-progress__retry {
+  margin-top: 8px;
+  border: 0;
+  background: transparent;
+  color: var(--accent);
+  cursor: pointer;
+  font-family: var(--font-mono);
+  font-size: 10px;
+  padding: 0;
 }
 
 .section-progress__bar span {

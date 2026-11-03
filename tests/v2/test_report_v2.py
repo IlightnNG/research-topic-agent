@@ -207,3 +207,49 @@ def test_section_cursor_loop(tmp_path: Path) -> None:
     draft = assemble_sections(str(pp), str(ep), str(out))
     assert draft["sections"] == 2
     assert draft["citation_coverage"] == 1.0
+
+
+def test_hard_audit_rejects_before_persist(tmp_path: Path) -> None:
+    out = tmp_path / "out"
+    out.mkdir()
+    evidence = {
+        "claims": [{"claim_id": "C1", "paper_id": "P1", "quote": "Evidence.", "text": "Evidence."}],
+        "papers": [{"paper_id": "P1"}],
+    }
+    draft = {
+        "title": "R",
+        "content_md": "Evidence [C1].",
+        "sections": [
+            {
+                "section_id": "s1",
+                "kind": "overview",
+                "title": "Overview",
+                "body": "Evidence [C1].",
+            }
+        ],
+        "claims": evidence["claims"],
+        "papers": 1,
+    }
+    ep = out / "evidence.json"
+    dp = out / "draft.json"
+    ep.write_text(json.dumps(evidence), encoding="utf-8")
+    dp.write_text(json.dumps(draft), encoding="utf-8")
+
+    class RejectLLM:
+        def chat_json(self, messages, **kwargs):  # noqa: ANN001, ARG002
+            return {
+                "verdict": "repair",
+                "scores": {"relevance": 1, "grounding": 1, "completeness": 1, "clarity": 1},
+                "problems": ["not grounded"],
+            }, None
+
+    with pytest.raises(ValueError, match="E_REPORT_AUDIT"):
+        finalize_report(
+            str(dp),
+            str(ep),
+            str(out),
+            strict_quality=False,
+            llm=RejectLLM(),
+            strict_audit=True,
+        )
+    assert not (out / "report.json").exists()

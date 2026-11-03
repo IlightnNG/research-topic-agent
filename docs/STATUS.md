@@ -9,14 +9,14 @@
 ## 当前状态
 
 ```text
-阶段：Phase 4.1 complete；Phase 4.2 S0–S9 done；S10.0–S10.7 done；4.2.11 mostly done；L3 gate passed
+阶段：Phase 4.1 complete；Phase 4.2 complete；L3 gate passed
 前端：Vue F1–F6 done；real API mode 已联调
-最后测试：127 passed / ruff clean
+最后测试：128 passed / ruff clean
 前端构建：web npm run build passed
-全链路 demo：100 papers / 35 fulltext / 186 claims / 23 sections / complete
+全链路 demo：100 papers / 98 fulltext / 196 claims / 23 sections / complete
 联调：topics → run → trace → report → paper；chat 基础链路
 当前契约：CONTRACTS 2.0 frozen
-真实联调：100 篇本地 corpus，fulltext 35/100，186 claims，23 sections，5135 words，report complete
+真实联调：100 篇本地 corpus，fulltext 98/100，196 claims，23 sections，5115 words，report complete
 ```
 
 ---
@@ -49,12 +49,12 @@ Legacy:
 
 | 模块 | 目标状态 | 当前代码 |
 |---|---|---|
-| W Workflow | 特制任务外壳 | 5 Node report-v2 CLI/API 已跑通；batch write + legacy DemoOrchestrator 仍未清理 |
+| W Workflow | 特制任务外壳 | 5 Node report-v2 CLI/API；Node-level section loop；DemoOrchestrator 已删除 |
 | K Kernel | 通用 Agent 内核，可独立完成复杂任务 | L3 gate passed；AgentKernel 已被 API/CLI report 使用 |
 | T Tools | ToolRuntime + general/domain toolset | S2/S3 done：general tools、toolset、policy、spill |
 | V Verification | code + audit | dual Verifier 已接入 runner |
 | S Storage | artifact/state/report | 已有 |
-| I Interface | API/UI | Vue F1–F6 real API；report-v2 默认 |
+| I Interface | API/UI | 5 Node / section progress / quality badge / failed section retry |
 | R Research | source/evidence/report tools | report_v2 tools + exact quote claims |
 | E Evaluation | scorecard/judge tools | 已有，未接入 |
 
@@ -62,10 +62,10 @@ Legacy:
 
 ## 当前阻塞
 
-1. `LIT_V2_WORKFLOW=report-v2` 已是默认；demo100 仅保留 legacy；
-2. S10.2b Node-level section loop 已是默认；批量 write 仅兼容；
-3. 100 篇本地 corpus fulltext 35/100，其余 65 篇使用 abstract；
-4. quality gate 是 deterministic；LLM audit compact summary 可用但仍 advisory；
+1. 剩余 2/100 fulltext；
+2. LLM audit 基础设施不可用时 fail-open，需监控；
+3. RAG / Qdrant / Kuzu 仍 deferred；
+4. D 盘 root guard 仍 open；
 5. 真实 Chat 仍是本地检索，不是 LLM 对话。
 
 ---
@@ -73,10 +73,10 @@ Legacy:
 ## 下一步
 
 ```text
-1. 4.2.11.2 LLM audit hard gate
-2. 4.2.11.5 quality UI / failed section retry
+1. 4.3 RAG / 三库（deferred）
+2. D 盘 root guard
 3. Chat workflow
-4. 三库/RAG 仍 deferred
+4. 剩余 fulltext / audit 校准
 ```
 
 Demo 目标：

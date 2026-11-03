@@ -74,6 +74,13 @@ export const api = {
     return request<Run>(`/api/v2/runs/${runId}/resume`, { method: 'POST' })
   },
 
+  retrySection(runId: string, sectionId: string): Promise<Run> {
+    if (USE_MOCK) return mockApi.resumeRun(runId)
+    return request<Run>(`/api/v2/runs/${runId}/sections/${sectionId}/retry`, {
+      method: 'POST',
+    })
+  },
+
   deleteRun(runId: string): Promise<void> {
     if (USE_MOCK) return mockApi.deleteRun(runId)
     return request<void>(`/api/v2/runs/${runId}`, { method: 'DELETE' })
@@ -94,6 +101,7 @@ export const api = {
         title: string
         state: string
         word_count: number
+        quality?: Report['quality']
       }
       sections: Report['sections']
     }>(`/api/v2/reports/${link.report_id}`)
@@ -104,6 +112,7 @@ export const api = {
       state: payload.report.state,
       word_count: payload.report.word_count,
       sections: payload.sections,
+      quality: payload.report.quality,
     }
   },
 

@@ -14,7 +14,7 @@ const props = defineProps<{
   busy?: boolean
 }>()
 
-const emit = defineEmits<{ pause: []; resume: [] }>()
+const emit = defineEmits<{ pause: []; resume: []; retrySection: [sectionId: string] }>()
 
 interface RenderItem {
   kind: 'tool' | 'thinking' | 'result' | 'event'
@@ -182,6 +182,7 @@ watch(
             <SectionProgress
               v-if="node.node_id === 'report.write'"
               :events="eventsFor(node.node_id)"
+              @retry="emit('retrySection', $event)"
             />
 
             <div v-if="renderItems(node.node_id).length" class="events">

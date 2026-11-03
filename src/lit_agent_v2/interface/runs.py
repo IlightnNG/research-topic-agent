@@ -26,13 +26,11 @@ from lit_agent_v2.tools.packs.claims import build_claim_tools
 from lit_agent_v2.tools.packs.corpus import build_corpus_tools
 from lit_agent_v2.tools.packs.demo import build_demo_tools
 from lit_agent_v2.tools.packs.report import build_report_tools
+from lit_agent_v2.tools.packs.report_v2 import assemble_sections, finalize_report, write_one_section
 from lit_agent_v2.tools.registry import ToolRegistry
 from lit_agent_v2.verify.verdict import Verifier
 from lit_agent_v2.workflow.events import EventLog
-from lit_agent_v2.workflow.node.definition import (
-    build_demo100_workflow,
-    build_report_demo_workflow,
-)
+from lit_agent_v2.workflow.node.definition import build_report_demo_workflow
 from lit_agent_v2.workflow.node.runner import WorkflowRunner
 from lit_agent_v2.workflow.node.state import WorkflowInterrupted
 from lit_agent_v2.workflow.report_v2 import build_report_v2_workflow
@@ -249,8 +247,6 @@ class PlatformRunService:
     ) -> WorkflowDefinition:
         if self.workflow_mode in {"report-v2", "v2"}:
             return build_report_v2_workflow()
-        if self.workflow_mode == "full":
-            return build_demo100_workflow()
         base = build_report_demo_workflow()
         node = base.nodes[0]
         brief = self.topics.brief(str(topic["id"])) or {}
@@ -378,6 +374,50 @@ class PlatformRunService:
                 self._threads.pop(run_id, None)
             self._pause_events.pop(run_id, None)
 
+    def retry_section(self, run_id: str, section_id: str) -> dict[str, Any] | None:
+        with self.db.connect() as conn:
+            row = conn.execute("SELECT * FROM runs WHERE id=?", (run_id,)).fetchone()
+        if row is None:
+            return None
+        request = _loads(row["request_json"], {})
+        out_dir = Path(str(request.get("out_dir") or ""))
+        topic_id = str(row["topic_id"])
+        if not out_dir.exists():
+            raise ValueError("E_RUN_OUTPUT_MISSING")
+        llm = self.llm or DeepSeekChatClient(load_llm_config())
+        plan_path = out_dir / "plan.json"
+        evidence_path = out_dir / "evidence.json"
+        if not plan_path.exists() or not evidence_path.exists():
+            raise ValueError("E_SECTION_ARTIFACTS_MISSING")
+        result = write_one_section(
+            str(plan_path),
+            section_id,
+            str(evidence_path),
+            str(out_dir),
+            llm=llm,
+        )
+        if not result.get("ok"):
+            raise ValueError("E_SECTION_RETRY_FAILED")
+        draft = assemble_sections(str(plan_path), str(evidence_path), str(out_dir))
+        final = finalize_report(
+            str(draft["draft_path"]),
+            str(evidence_path),
+            str(out_dir),
+            strict_quality=True,
+            llm=llm,
+            strict_audit=True,
+        )
+        report_id = self._persist_report(run_id, topic_id, final)
+        with self.db.connect() as conn:
+            conn.execute(
+                "UPDATE runs SET state='succeeded', finished_at=?, error_code=NULL WHERE id=?",
+                (_now(), run_id),
+            )
+        events = DbEvents(self.db, run_id)
+        events.emit("section.retried", section_id=section_id, report_id=report_id)
+        events.emit("run.finished", state="succeeded", report_id=report_id)
+        return self.get(run_id)
+
     def _persist_report(
         self, run_id: str, topic_id: str, output: dict[str, Any]
     ) -> str:
@@ -436,7 +476,15 @@ class PlatformRunService:
             claims=claims,
             state=str(output.get("state") or "complete"),
         )
-        return ReportStore(self.db).save(run_id=run_id, topic_id=topic_id, draft=draft)
+        report_id = ReportStore(self.db).save(run_id=run_id, topic_id=topic_id, draft=draft)
+        quality = output.get("quality")
+        if quality is not None:
+            with self.db.connect() as conn:
+                conn.execute(
+                    "UPDATE reports SET metrics_json=? WHERE report_id=?",
+                    (_json(quality), report_id),
+                )
+        return report_id
 
     def _state(self, run_id: str) -> str:
         with self.db.connect() as conn:

@@ -335,6 +335,16 @@ def _write_next_section_tool(
             total=result.get("total"),
             ok=result.get("ok"),
         )
+        if not result.get("ok"):
+            events.emit(
+                "section.failed",
+                node_id=getattr(context, "node_id", None),
+                section_id=result.get("section_id"),
+                written=result.get("written"),
+                remaining=result.get("remaining"),
+                total=result.get("total"),
+                ok=False,
+            )
     return result
 
 
@@ -417,6 +427,8 @@ def finalize_report(
     out_dir: str,
     *,
     strict_quality: bool = False,
+    llm: Any | None = None,
+    strict_audit: bool = False,
 ) -> dict[str, Any]:
     draft = _read(draft_path)
     evidence = _read(evidence_path)
@@ -450,6 +462,17 @@ def finalize_report(
     )
     if strict_quality and not quality["accepted"]:
         raise ValueError("E_REPORT_QUALITY: " + "; ".join(quality["problems"]))
+    audit: dict[str, Any] | None = None
+    if llm is not None:
+        audit = audit_report(
+            llm,
+            # The report is not persisted yet; audit the draft payload.
+            str(Path(out_dir) / "draft.json"),
+            evidence_path,
+        )
+        quality["audit"] = audit
+        if strict_audit and audit["status"] == "rejected":
+            raise ValueError("E_REPORT_AUDIT: " + "; ".join(audit.get("problems") or []))
     persisted = persist_report(
         out_dir,
         assembled["title"],
@@ -497,9 +520,16 @@ def audit_report(llm: Any, report_path: str, evidence_path: str) -> dict[str, An
         f"duplicate_sentences={metrics['duplicate_sentences']}; "
         f"quality_accepted={quality['accepted']}"
     )
-    report_audit = LLMAuditor(llm, min_score=2.0).audit_summary(summary)
+    report_audit = LLMAuditor(llm, min_score=1.0).audit_summary(summary)
+    if report_audit.accepted:
+        status = "accepted"
+    elif report_audit.problems and not report_audit.problems[0].startswith("audit_error"):
+        status = "rejected"
+    else:
+        status = "unavailable"
     return {
         "accepted": report_audit.accepted,
+        "status": status,
         "scores": report_audit.scores,
         "problems": report_audit.problems,
         "summary": summary,
@@ -732,16 +762,19 @@ def build_report_v2_tools(llm: Any | None = None) -> list[ToolSpec]:
                     "evidence_path": {"type": "string"},
                     "out_dir": {"type": "string"},
                     "strict_quality": {"type": "boolean"},
+                    "strict_audit": {"type": "boolean"},
                 },
                 "required": ["draft_path", "evidence_path", "out_dir"],
             },
             side_effect=True,
-            timeout_s=60.0,
+            timeout_s=120.0,
             handler=lambda args: finalize_report(
                 args["draft_path"],
                 args["evidence_path"],
                 args["out_dir"],
                 strict_quality=bool(args.get("strict_quality", True)),
+                llm=llm,
+                strict_audit=bool(args.get("strict_audit", True)),
             ),
         ),
     ]

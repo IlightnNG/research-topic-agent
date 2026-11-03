@@ -116,6 +116,7 @@ export type TraceEventType =
   | 'run.failed'
   | 'context.compacted'
   | 'section.written'
+  | 'section.failed'
 
 export interface TraceEvent {
   id: string
@@ -166,6 +167,28 @@ export interface ReportSection {
   paper_links?: PaperLink[]
 }
 
+export interface ReportQuality {
+  accepted: boolean
+  problems: string[]
+  metrics?: {
+    papers?: number
+    fulltext?: number
+    claims?: number
+    sections?: number
+    word_count?: number
+    citation_coverage?: number
+    empty_sections?: number
+    uncovered_claims?: number
+    duplicate_sentences?: number
+  }
+  audit?: {
+    accepted: boolean
+    status: string
+    scores?: Record<string, number>
+    problems?: string[]
+  }
+}
+
 export interface Report {
   id: string
   run_id: string
@@ -173,6 +196,7 @@ export interface Report {
   state: string
   word_count: number
   sections: ReportSection[]
+  quality?: ReportQuality
 }
 
 export interface Paper {

@@ -132,6 +132,16 @@ def build_platform_router(
             raise HTTPException(status_code=404, detail="E_RUN_NOT_FOUND")
         return run
 
+    @router.post("/runs/{run_id}/sections/{section_id}/retry")
+    def retry_section(run_id: str, section_id: str) -> dict[str, Any]:
+        try:
+            run = runs.retry_section(run_id, section_id)
+        except ValueError as exc:
+            raise HTTPException(status_code=409, detail=str(exc)) from exc
+        if run is None:
+            raise HTTPException(status_code=404, detail="E_RUN_NOT_FOUND")
+        return run
+
     @router.post("/runs/{run_id}/resume")
     def resume_run(run_id: str) -> dict[str, Any]:
         run = runs.resume(run_id)

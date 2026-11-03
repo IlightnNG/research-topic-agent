@@ -158,6 +158,24 @@ async function resumeRun(): Promise<void> {
   }
 }
 
+async function retrySection(sectionId: string): Promise<void> {
+  if (!selected.value) return
+  controlBusy.value = true
+  try {
+    await api.retrySection(selected.value.id, sectionId)
+    await Promise.all([
+      traceStore.load(selected.value.id),
+      reportsStore.load(selected.value.id, true),
+      runsStore.load(topicId.value),
+    ])
+    runsStore.select(selected.value.id)
+  } catch (error) {
+    createError.value = error instanceof Error ? error.message : 'Could not retry section.'
+  } finally {
+    controlBusy.value = false
+  }
+}
+
 async function openPaper(paperId: string): Promise<void> {
   if (!selected.value) return
   const paper = await api.getPaper(paperId)
@@ -215,6 +233,7 @@ function switchMode(mode: 'report' | 'chat'): void {
               :busy="controlBusy"
               @pause="pauseRun"
               @resume="resumeRun"
+              @retry-section="retrySection"
             />
             <ReportViewer
               v-else-if="activeTab?.kind === 'report' && report"
