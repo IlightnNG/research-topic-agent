@@ -11,6 +11,7 @@ from lit_agent_v2.interface.runs import PlatformRunService
 from lit_agent_v2.storage.db import Database
 from lit_agent_v2.tools.packs.report_v2 import (
     assemble_sections,
+    check_report_quality,
     finalize_report,
     plan_from_evidence,
     write_next_section,
@@ -76,6 +77,12 @@ def test_report_v2_tool_chain(tmp_path: Path) -> None:
     )
     assert draft["sections"] >= 3
     assert draft["citation_coverage"] > 0
+    evidence_doc = json.loads(Path(evidence["evidence_path"]).read_text(encoding="utf-8"))
+    draft_doc = json.loads(Path(draft["draft_path"]).read_text(encoding="utf-8"))
+    quality = check_report_quality(draft_doc, evidence_doc)
+    assert quality["metrics"]["sections"] == draft["sections"]
+    assert quality["metrics"]["section_metrics"]
+    assert quality["metrics"]["uncovered_claims"] >= 0
     with pytest.raises(ValueError, match="E_REPORT_QUALITY"):
         finalize_report(
             draft["draft_path"],

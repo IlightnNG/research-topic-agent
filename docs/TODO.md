@@ -140,6 +140,58 @@ P3  Chat
   - `test_no_demo_orchestrator_in_src` 通过；
   - demo 仅保留为离线样本或测试 fixture。
 
+### TODO-212 · Section quality metrics
+
+- Module：R/V
+- Status：done
+- Acceptance：
+  - per-section words / citations / claim refs；
+  - cited / uncovered claims；
+  - duplicate sentences；
+  - 写入 report quality JSON。
+
+### TODO-213 · LLM audit hard gate
+
+- Module：R/V
+- Status：open
+- 问题：长报告 audit JSON 不稳定。
+- Acceptance：
+  - audit 输出可解析；
+  - score 校准；
+  - hard/advisory 策略明确；
+  - 失败可重试/repair。
+
+### TODO-214 · Fulltext quality
+
+- Module：R
+- Status：open
+- 问题：100 篇只有 35 fulltext。
+- Acceptance：
+  - 多源 PDF/HTML；
+  - abstract-only 明示；
+  - fulltext ratio 提升；
+  - 来源可追溯。
+
+### TODO-215 · API resume interruption test
+
+- Module：I/W
+- Status：open
+- Acceptance：
+  - pause → 进程重启 → resume；
+  - section checkpoint 恢复；
+  - 不重复 report；
+  - 测试真实 API 路径。
+
+### TODO-216 · Report progress UI
+
+- Module：I
+- Status：open
+- Acceptance：
+  - 5 Node 进度；
+  - section 进度；
+  - quality gate 展示；
+  - failed section retry。
+
 ### TODO-208 · 报告质量门禁
 
 - Module：R/V

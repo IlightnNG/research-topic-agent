@@ -2,7 +2,7 @@
 
 > 版本：2.1（2026-11-03）
 > 类型：详细设计与迁移方案
-> 状态：Kernel done；L3 gate passed；S10.0–S10.7 + S10.2b 已跑通；Chat 后置
+> 状态：Kernel done；S10 done；4.2.11 in progress；Chat 后置
 > 优先级：report workflow v2 > report quality > D 盘约束 > 三库/RAG > Chat
 > 依据：DSH `core/tools`、`core/agent-loop`、`compaction` 与 Phase 4.1 实现
 
@@ -1370,14 +1370,112 @@ Qdrant
 Kuzu
 ```
 
-### 4.2.11 Post-S10 report optimization
+### 4.2.11 Report optimization · in progress
 
-S10.5 是报告质量门禁；这里列的是 S10 通过后的进一步优化：
+S10.5 已有 deterministic quality gate；本节继续做报告质量，不改 Kernel。
 
-- 100 篇 fulltext 提升
-- section 级写作质量
-- citation / evidence / audit 深化
-- 报告可读性与结构优化
+#### 4.2.11.1 Section quality metrics · done
+
+新增：
+
+```text
+report.quality.metrics
+section_metrics
+```
+
+指标：
+
+```text
+per-section words
+per-section citations
+per-section claim refs
+empty sections
+reference problem sections
+cited claims
+uncovered claims
+duplicate sentences
+```
+
+质量门禁不变：
+
+```text
+citation_coverage = 1.0
+empty sections = 0
+reference problems = 0
+```
+
+#### 4.2.11.2 LLM audit hard gate · open
+
+当前：
+
+```text
+deterministic gate = hard
+LLM audit = advisory
+```
+
+尝试把 LLM audit 变成 hard gate 时，真实报告容易出现：
+
+```text
+audit JSON 解析失败
+audit 对长文评分不稳定
+```
+
+所以暂不把 LLM audit 设为唯一硬门禁；保留为 advisory，并记录 score/problems。
+
+#### 4.2.11.3 Fulltext quality · open
+
+当前：
+
+```text
+100 papers / 35 fulltext
+```
+
+后续：
+
+```text
+多源 PDF/HTML
+abstract-only 明示
+fulltext ratio 提升
+source provenance
+```
+
+#### 4.2.11.4 API resume interruption test · open
+
+当前：
+
+```text
+CLI resume 已验证
+API resume 代码路径已接
+```
+
+待补：
+
+```text
+真实 pause → 进程重启 → resume
+section checkpoint 恢复
+重复 report 防护
+```
+
+#### 4.2.11.5 Report UX · open
+
+待补：
+
+```text
+5 Node 进度
+section 进度
+quality gate 展示
+失败 section 重试
+```
+
+#### 4.2.11.6 Exit criteria
+
+```text
+section quality metrics 可查询
+quality gate 可复算
+fulltext 达到目标或显式 degraded
+API resume 真实测试通过
+LLM audit 有明确 hard/advisory 策略
+```
 
 ### 4.2.12 Chat · deferred
 

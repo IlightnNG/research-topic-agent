@@ -100,18 +100,47 @@ def check_report_quality(
         problems.append(f"citation_coverage {coverage:.3f} < 1.0")
     empty = 0
     unknown = 0
+    section_metrics: list[dict[str, Any]] = []
+    cited_claim_ids: set[str] = set()
+    duplicate_sentences = 0
+    seen_sentences: set[str] = set()
     for section in sections:
+        body = str(section.get("body") or "")
+        section_id = str(section.get("section_id") or "")
+        refs = _CITATION.findall(body)
+        cited_claim_ids.update(f"C{ref}" for ref in refs)
+        sentences = [
+            " ".join(sentence.split()).lower()
+            for sentence in re.split(r"(?<=[.!?])\s+", body)
+            if len(sentence.strip()) > 30
+        ]
+        for sentence in sentences:
+            if sentence in seen_sentences:
+                duplicate_sentences += 1
+            seen_sentences.add(sentence)
         if section.get("kind") == "paper_index":
             continue
         checked = check_section(section, claims)
-        if not str(section.get("body") or "").strip():
+        if not body.strip():
             empty += 1
         if checked.get("problems"):
             unknown += 1
+        section_metrics.append(
+            {
+                "section_id": section_id,
+                "kind": section.get("kind"),
+                "words": len(body.split()),
+                "citations": len(refs),
+                "claim_refs": len(set(refs)),
+                "problems": checked.get("problems", []),
+            }
+        )
     if empty:
         problems.append(f"empty sections: {empty}")
     if unknown:
         problems.append(f"sections with reference problems: {unknown}")
+    if len(sections) != len({str(section.get("section_id")) for section in sections}):
+        problems.append("duplicate section ids")
     return {
         "accepted": not problems,
         "problems": problems,
@@ -124,6 +153,10 @@ def check_report_quality(
             "citation_coverage": coverage,
             "empty_sections": empty,
             "reference_problem_sections": unknown,
+            "section_metrics": section_metrics,
+            "cited_claims": len(cited_claim_ids),
+            "uncovered_claims": max(0, len(claims) - len(cited_claim_ids)),
+            "duplicate_sentences": duplicate_sentences,
         },
     }
 
@@ -407,6 +440,7 @@ def finalize_report(
             "sections": sections,
             "state": state,
             "citation_coverage": _coverage(sections),
+            "quality": quality,
         }
     )
     _write(persisted["path"], report_payload)
@@ -570,6 +604,21 @@ def build_report_v2_tools(llm: Any | None = None) -> list[ToolSpec]:
             handler=lambda args: assemble_sections(
                 args["plan_path"], args["evidence_path"], args["out_dir"]
             ),
+        ),
+        ToolSpec(
+            "report.quality.metrics",
+            "Return section-level report quality metrics without enforcing the gate.",
+            {
+                "type": "object",
+                "properties": {
+                    "report_path": {"type": "string"},
+                    "evidence_path": {"type": "string"},
+                },
+                "required": ["report_path", "evidence_path"],
+            },
+            handler=lambda args: check_report_quality(
+                _read(args["report_path"]), _read(args["evidence_path"])
+            )["metrics"],
         ),
         ToolSpec(
             "report.quality.check",
