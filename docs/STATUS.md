@@ -1,6 +1,6 @@
 # STATUS
 
-> 版本：2.1（2026-11-02）
+> 版本：3.0（2026-11-03）
 > 用途：AI 长周期交接；每个 phase 收尾必须更新。
 > 只写事实，不写计划口吻。
 
@@ -97,6 +97,11 @@ API/UI 可读
 2026-11-02  ARCHITECTURE 2.1：通用 Kernel + 特制 Workflow
 2026-11-02  CONTRACTS 2.0 frozen
 2026-11-02  Phase 4.2 设计：Kernel/Tools 优先，报告 Workflow 后置
+2026-11-03  Phase 4.2 complete：5 Node report + Node-level section loop
+2026-11-03  Fulltext 98/100，196 claims，23 sections，quality + audit passed
+2026-11-03  API pause/resume，quality UI，failed section retry
+2026-11-03  DemoOrchestrator / demo package / demo100 CLI removed
+2026-11-03  Docs / TODO / phase4.2 收尾
 2026-11-01  模块地图改为 W/K/T/V/S/I + R/E + C
 2026-11-01  M6-P01 API/UI 完成
 2026-11-01  M5-P02 AI gold 抽样分析：不可用

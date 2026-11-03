@@ -1032,9 +1032,7 @@ context compaction observable
 已记录：
 
 ```text
-docs/implementation/RESULTS-P4.2-S10.0.md
-docs/implementation/RESULTS-P4.2-S10.1-S10.3.md
-docs/implementation/RESULTS-P4.2-S10.4-S10.7.md
+docs/implementation/RESULTS-P4.2.md
 ```
 
 #### 4.2.10.1 S10.1 · API 切到 KernelNodeAdapter
@@ -1335,7 +1333,7 @@ run_nodes 5 committed
 **记录**
 
 ```text
-docs/implementation/RESULTS-P4.2-S10.6.md
+docs/implementation/RESULTS-P4.2.md
 ```
 
 #### 4.2.10.7 S10.7 · Cleanup
