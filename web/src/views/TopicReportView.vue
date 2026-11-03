@@ -46,6 +46,7 @@ const pendingDelete = ref<Run | null>(null)
 const deleteBusy = ref(false)
 const controlBusy = ref(false)
 let unsubscribe: (() => void) | undefined
+const terminalHandled = new Set<string>()
 
 onMounted(async () => {
   if (!topicsStore.topics.length) await topicsStore.load()
@@ -66,6 +67,7 @@ watch(
     if (run) tabsStore.ensureRun(run.id, Boolean(run.report_id))
     if (route.query.run !== id) void router.replace({ query: { ...route.query, run: id } })
     if (id) {
+      terminalHandled.clear()
       unsubscribe?.()
       void traceStore.load(id)
       if (run?.report_id) void reportsStore.load(id)
@@ -77,6 +79,8 @@ watch(
 function handleRunEvent(id: string, event: Parameters<Parameters<typeof api.subscribeRunEvents>[1]>[0]): void {
   traceStore.append(id, event)
   if (event.type === 'run.failed') {
+    if (terminalHandled.has(id)) return
+    terminalHandled.add(id)
     void runsStore.load(topicId.value).then(() => {
       runsStore.select(id)
       const next = runsStore.runs.find((item) => item.id === id)
@@ -86,6 +90,10 @@ function handleRunEvent(id: string, event: Parameters<Parameters<typeof api.subs
     return
   }
   if (event.type === 'run.finished' || event.type === 'run.paused' || event.type === 'run.resumed') {
+    if (event.type === 'run.finished') {
+      if (terminalHandled.has(id)) return
+      terminalHandled.add(id)
+    }
     void runsStore.load(topicId.value).then(() => {
       runsStore.select(id)
       const next = runsStore.runs.find((item) => item.id === id)

@@ -198,6 +198,7 @@ export const api = {
             ts: outer.ts || new Date().toISOString(),
             ...payload,
           })
+          if (type === 'run.failed' || type === 'run.finished') source.close()
         } catch {
           // Ignore malformed events; the next trace refresh will reconcile.
         }

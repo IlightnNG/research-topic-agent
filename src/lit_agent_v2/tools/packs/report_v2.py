@@ -224,56 +224,80 @@ def collect_online(
     download_fulltext: bool = True,
 ) -> dict[str, Any]:
     candidates = OpenAlexAdapter().fetch(
-        query, limit=max(limit * 3, limit + 20), from_year=from_year
+        query, limit=min(200, max(limit * 6, limit + 60)), from_year=from_year
     )
-    unique: list[dict[str, Any]] = []
+    out = Path(out_dir)
+    out.mkdir(parents=True, exist_ok=True)
+    accepted: list[dict[str, Any]] = []
+    skipped: list[dict[str, Any]] = []
     seen: set[str] = set()
-    for paper in candidates:
-        payload = dict(paper.__dict__)
-        marker = str(payload.get("paper_id") or payload.get("title") or "").strip().lower()
-        if not marker or marker in seen:
-            continue
-        # Avoid filling the window with records that have no usable text at all.
-        if not (payload.get("abstract") or payload.get("pdf_url") or payload.get("html_url")):
-            continue
-        seen.add(marker)
-        unique.append(payload)
-        if len(unique) >= limit:
-            break
-    if len(unique) < limit:
+
+    if not download_fulltext:
         for paper in candidates:
             payload = dict(paper.__dict__)
             marker = str(payload.get("paper_id") or payload.get("title") or "").strip().lower()
             if not marker or marker in seen:
                 continue
+            if not (payload.get("abstract") or payload.get("pdf_url") or payload.get("html_url")):
+                continue
             seen.add(marker)
-            unique.append(payload)
-            if len(unique) >= limit:
+            accepted.append(payload)
+            if len(accepted) >= limit:
                 break
-    out = Path(out_dir)
-    out.mkdir(parents=True, exist_ok=True)
+    else:
+        # Keep searching until we have `limit` papers with usable fulltext.
+        # A candidate that cannot be downloaded is skipped, not silently kept
+        # as an abstract-only paper.
+        batch_size = 6
+        for start in range(0, len(candidates), batch_size):
+            batch: list[dict[str, Any]] = []
+            for paper in candidates[start : start + batch_size]:
+                payload = dict(paper.__dict__)
+                marker = str(payload.get("paper_id") or payload.get("title") or "").strip().lower()
+                if not marker or marker in seen:
+                    continue
+                if not (payload.get("abstract") or payload.get("pdf_url") or payload.get("html_url")):
+                    continue
+                seen.add(marker)
+                batch.append(payload)
+            if not batch:
+                continue
+            with ThreadPoolExecutor(max_workers=batch_size) as pool:
+                texts = list(pool.map(lambda paper: _download_online(paper, out), batch))
+            for paper, text in zip(batch, texts, strict=True):
+                if text:
+                    paper["fulltext"] = text
+                    accepted.append(paper)
+                else:
+                    skipped.append({"paper_id": paper.get("paper_id"), "title": paper.get("title")})
+                if len(accepted) >= limit:
+                    break
+            if len(accepted) >= limit:
+                break
+
     (out / "papers.jsonl").write_text(
-        "\n".join(json.dumps(paper, ensure_ascii=False) for paper in unique),
+        "\n".join(json.dumps(paper, ensure_ascii=False) for paper in accepted),
         encoding="utf-8",
     )
-    if download_fulltext:
-        with ThreadPoolExecutor(max_workers=4) as pool:
-            texts = list(pool.map(lambda paper: _download_online(paper, out), unique))
-        for paper, text in zip(unique, texts, strict=True):
-            if text:
-                paper["fulltext"] = text
-    fulltext = sum(1 for paper in unique if paper.get("fulltext"))
+    fulltext = sum(1 for paper in accepted if paper.get("fulltext"))
     source_path = _write(
         out / "source.json",
-        {"papers": unique, "count": len(unique), "limit": limit, "query": query},
+        {
+            "papers": accepted,
+            "count": len(accepted),
+            "limit": limit,
+            "query": query,
+            "skipped_no_fulltext": skipped,
+        },
     )
     return {
         "source_path": source_path,
-        "papers": len(unique),
+        "papers": len(accepted),
         "fulltext": fulltext,
-        "fulltext_ratio": fulltext / len(unique) if unique else 0.0,
+        "fulltext_ratio": fulltext / len(accepted) if accepted else 0.0,
         "limit": limit,
-        "state": "complete" if unique and fulltext / len(unique) >= 0.3 else "degraded",
+        "skipped_no_fulltext": len(skipped),
+        "state": "complete" if len(accepted) >= limit else "degraded",
     }
 
 
