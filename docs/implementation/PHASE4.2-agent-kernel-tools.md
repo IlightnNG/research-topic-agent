@@ -863,26 +863,21 @@ report.md 和 report.json 可打开
 run 状态 complete
 ```
 
-#### 9.2.6 S10 实施顺序
+#### 9.2.6 S10 索引（执行清单见 4.2.10）
+
+S10 的统一执行清单、子阶段编号和验收标准在 **4.2.10**；这里只做导航：
 
 ```text
-S10.0 KernelNodeAdapter 接入 WorkflowRunner
-S10.1 定义 5 节点 WorkflowDefinition
-S10.2 补齐 source/evidence 领域工具与 schema
-S10.3 补齐 plan/write/audit 工具与 verifier
-S10.4 本地 100 篇 corpus 端到端跑通
-S10.5 checkpoint/resume 与失败恢复
-S10.6 移除生产 DemoOrchestrator
-S10.7 回归、指标、文档、提交
+S10.1 API 切到 KernelNodeAdapter
+S10.2 report.write 逐 section + 局部重试
+S10.3 Node checkpoint / resume
+S10.4 移除生产 DemoOrchestrator
+S10.5 report quality gate
+S10.6 100 篇端到端
+S10.7 cleanup
 ```
 
-S10 不包含：
-
-```text
-Chat
-Qdrant
-Kuzu
-```
+本节只保留 Node 契约，不再维护第二套编号。
 
 ### 9.3 Chat Workflow · deferred
 
@@ -1019,23 +1014,368 @@ context compaction observable
 
 ### 4.2.10 Workflow core + report shell · in progress
 
-只有 Kernel 门禁通过后才开始。当前 Kernel 门禁已通过。
+> 这一节是 S10 的唯一执行清单。9.2 只定义 Node 契约；S10 的编号、顺序、验收统一以本节为准。
 
-- CLI 已接入 `KernelNodeAdapter`
-- 五节点 report workflow 已跑通 100 篇
-- 每 Node >= 3 tools
-- API 仍走旧 Kernel + DemoOrchestrator
-- Node checkpoint / resume 未接
-- 真实 100 篇 CLI 报告已通过
+#### 4.2.10.0 当前状态
 
-S10.0 记录：`RESULTS-P4.2-S10.0.md`。
+| 子阶段 | 状态 | 结果 |
+|---|---|---|
+| S10.0 5 Node CLI | done | `report-v2` CLI 跑通 100 篇 |
+| S10.1 API 切 KernelNodeAdapter | open | API 仍走旧 Kernel + DemoOrchestrator |
+| S10.2 逐 section 写入 | open | 当前 `report.write_v2` 是批量 tool |
+| S10.3 checkpoint / resume | open | CLI 未接 Node checkpoint |
+| S10.4 移除生产 DemoOrchestrator | open | 生产 API 仍依赖 |
+| S10.5 report quality gate | open | 只有 schema/citation 基础检查 |
+| S10.6 100 篇端到端 | partial | CLI 通过；API 未通过 |
+| S10.7 cleanup | open | 测试/文档/提交未完 |
 
-### 4.2.11 Report optimization
+已记录：
 
-- 100 篇 fulltext
-- 分节写作与局部重试
-- citation / evidence / audit
-- 报告质量门禁
+```text
+docs/implementation/RESULTS-P4.2-S10.0.md
+```
+
+#### 4.2.10.1 S10.1 · API 切到 KernelNodeAdapter
+
+**目标**
+
+API/UI 与 CLI 使用同一条 5 Node 链路，不再走旧 `Kernel` + `DemoOrchestrator`。
+
+**依赖**
+
+```text
+S10.0 已完成
+build_report_v2_workflow
+build_report_v2_runtime
+KernelNodeAdapter
+```
+
+**允许改**
+
+```text
+src/lit_agent_v2/interface/runs.py
+src/lit_agent_v2/interface/cli.py
+src/lit_agent_v2/workflow/report_v2*.py
+tests/v2/test_report_v2.py
+tests/v2/test_platform_*.py
+```
+
+**实施**
+
+```text
+1. runs.py 增加 workflow 选择：
+   LIT_V2_WORKFLOW=report-v2 | demo100 | report-demo
+   默认 report-v2
+
+2. report-v2 分支：
+   workflow = build_report_v2_workflow()
+   runtime = build_report_v2_runtime(llm)
+   adapter = KernelNodeAdapter(
+       llm, runtime,
+       workspace=out_dir,
+       events=events,
+       checkpoints=FileCheckpointStore(out_dir / "checkpoints"),
+   )
+   runner = WorkflowRunner(kernel=adapter, verifier=Verifier(), store=DbNodeStore(...))
+
+3. runner 输出键改为 report.audit_finalize
+4. _persist_report 读取 report_path 指向的 report.json
+5. run_nodes / run_events / metrics 继续写 SQLite
+6. 旧 demo100 仅保留显式 legacy flag
+```
+
+**验收**
+
+```text
+API create_run 能产出 100 篇报告
+run 状态 succeeded
+outputs.report.audit_finalize 存在
+report_path 可打开
+run_events 有 5 个 node.started / node.committed
+没有 DemoOrchestrator 进入 report-v2 分支
+```
+
+**失败/回滚**
+
+```text
+保留 legacy flag；report-v2 失败时不得静默回退 demo100
+失败原因写 run.error_code
+```
+
+#### 4.2.10.2 S10.2 · report.write 逐 section 写入 + 局部重试
+
+**目标**
+
+一个 section 失败只重写该 section，不重写整篇报告。
+
+**当前问题**
+
+```text
+report.write_v2 是一个批量 tool：
+  在 tool 内部循环所有 section
+  Agent 看不到 section 级进度
+  section 失败只能整批重试
+```
+
+**实施**
+
+```text
+1. 新增 report.write_section_v2：
+   args: plan_path, section_id, evidence_path, out_dir
+   output: section_path, section_id, ok, problems, attempts
+
+2. 新增 report.check_section_v2：
+   检查 citation、空 body、unknown claim
+
+3. 新增 report.assemble_v2：
+   读取 section 文件，组装 draft.json
+
+4. report.write Node 流程：
+   read plan
+   for section in plan.sections:
+     write_section_v2
+     check_section_v2
+     if fail: retry <= 2
+     if still fail: section 标记 failed，继续下一节
+   assemble_v2
+   final
+
+5. 保留 report.write_v2 仅作为 legacy/fallback，不再进入默认 Node
+```
+
+**状态文件**
+
+```text
+out_dir/sections/{section_id}.json
+  section_id
+  kind
+  title
+  body
+  claim_ids
+  attempts
+  ok
+  problems
+```
+
+**指标**
+
+```text
+sections_total
+sections_ok
+sections_retried
+sections_failed
+fallback_sections
+section_attempts
+```
+
+**验收**
+
+```text
+至少一个 section 的首次失败会被局部重试
+重试不重新执行 source/evidence
+最终 draft 的 citation_coverage = 1
+失败 section 不得静默变成空 section
+```
+
+**失败/回滚**
+
+```text
+单 section 超过 max attempts → section failed
+整体 Node 失败，不提交半成品
+```
+
+#### 4.2.10.3 S10.3 · Node checkpoint / resume
+
+**目标**
+
+进程中断后从最近完成的 Node 或 step 继续，不重跑已完成阶段。
+
+**实施**
+
+```text
+1. FileCheckpointStore 固定：
+   out_dir/checkpoints
+
+2. KernelNodeAdapter 使用稳定 task_id：
+   {run_id}:{node_id}
+   store 负责 sanitize 文件名
+
+3. NodeStore 持久化：
+   run_nodes state / output / verdict
+   run_artifacts output
+
+4. WorkflowRunner resume=True：
+   committed Node 直接 load_output
+   未完成 Node 从 Kernel checkpoint 恢复
+
+5. section 级 checkpoint：
+   out_dir/sections/*.json 已存在的 section 可跳过
+```
+
+**验收**
+
+```text
+source/evidence 完成后取消，再 resume 不重跑
+report.write 中途取消，resume 只补未完成 section
+checkpoint 损坏 → 该 Node 从头开始，不崩溃
+run 最终只能产生一份 report
+```
+
+**失败/回滚**
+
+```text
+checkpoint 版本不匹配 → 丢弃该 checkpoint
+不得把半个 report 标记 complete
+```
+
+#### 4.2.10.4 S10.4 · 移除生产 DemoOrchestrator
+
+**目标**
+
+生产路径只使用通用 `AgentKernel` + 5 个特制 Node。
+
+**实施**
+
+```text
+1. runs.py 默认 report-v2
+2. CLI 主命令 report-v2；demo100 标记 legacy
+3. DemoOrchestrator 只允许：
+   LIT_V2_WORKFLOW=demo100
+   或 tests/fixtures
+4. 删除生产 import
+5. 保留 demo100 仅作为离线回归/对比
+```
+
+**验收**
+
+```text
+grep 'DemoOrchestrator' src/lit_agent_v2/interface = 0
+生产 create_run 不触发 DemoOrchestrator
+demo100 仍可显式运行
+test_no_demo_orchestrator_in_production 通过
+```
+
+#### 4.2.10.5 S10.5 · Report quality gate
+
+**目标**
+
+报告不是“文件生成了”就算完成，必须过质量门禁。
+
+**门禁**
+
+| 指标 | 阈值 |
+|---|---|
+| papers | >=100 |
+| fulltext | >=35 或显式 degraded |
+| claims | >=100 |
+| sections | >=10 |
+| word_count | 3500–8000 |
+| citation_coverage | =1.0 |
+| empty sections | 0 |
+| unknown claim refs | 0 |
+| stage verifier | 5/5 |
+| final audit | accepted |
+| 失败 section | 0 |
+
+**实现**
+
+```text
+report.quality.check tool 或 FinalReport verifier
+  重新计算，不信任 writer 自报
+  papers / claims / sections 从 artifact 读取
+  citation coverage 由正文和 claim 列表计算
+  section empty/unknown refs 逐节检查
+  audit 使用 LLM，但 code gate 先执行
+```
+
+**验收**
+
+```text
+质量失败返回 E_REPORT_QUALITY
+run 标记 failed/degraded，不标记 complete
+指标写入 report.metrics_json
+```
+
+#### 4.2.10.6 S10.6 · 100 篇端到端验收
+
+**命令**
+
+```bash
+python -m lit_agent_v2.interface.cli report-v2 \
+  --corpus D:\lit-agent-store\v2-eval\gold\corpora\agents-fulltext \
+  --out D:\lit-agent-store\v2-report-v2
+```
+
+**API**
+
+```text
+workflow=report-v2
+corpus=agents-fulltext
+```
+
+**必须验证**
+
+```text
+papers = 100
+fulltext = 35
+claims >= 100
+sections >= 10
+word_count 3500–8000
+citation_coverage = 1.0
+state = complete
+report.md 可打开
+report.json 有完整 sections
+final.json 有 content_sha
+run_nodes 5 committed
+无 DemoOrchestrator
+```
+
+**记录**
+
+```text
+docs/implementation/RESULTS-P4.2-S10.6.md
+```
+
+#### 4.2.10.7 S10.7 · Cleanup
+
+```text
+删除默认 DemoOrchestrator 分支
+删除单工具 demo 生产注册
+更新 TODO / STATUS / TESTING
+补 guard tests
+commit
+```
+
+#### 4.2.10.8 AI 执行规则
+
+```text
+每次只做一个子阶段
+先写 acceptance test，再改实现
+不改 Kernel；需要通用能力时先单独加 Kernel 测试
+不跨阶段改 report 质量阈值
+每阶段结束跑：
+  pytest tests/v2 -q
+  ruff check .
+  100 篇 CLI
+失败先回滚该子阶段，不进入下一阶段
+```
+
+**S10 不包含**
+
+```text
+Chat
+Qdrant
+Kuzu
+```
+
+### 4.2.11 Post-S10 report optimization
+
+S10.5 是报告质量门禁；这里列的是 S10 通过后的进一步优化：
+
+- 100 篇 fulltext 提升
+- section 级写作质量
+- citation / evidence / audit 深化
+- 报告可读性与结构优化
 
 ### 4.2.12 Chat · deferred
 
