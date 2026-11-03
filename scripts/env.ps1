@@ -34,6 +34,16 @@ foreach ($dir in @($env:UV_CACHE_DIR, $env:PIP_CACHE_DIR, $env:HF_HOME, $env:TOR
     }
 }
 
+# v2 defaults: local demo corpus and D-drive state.
+if (-not $env:LIT_V2_CORPUS) {
+    $env:LIT_V2_CORPUS = Join-Path $LitAgentStore 'v2-eval\gold\corpora\agents-fulltext'
+}
+if (-not $env:LIT_V2_DB) {
+    $env:LIT_V2_DB = Join-Path $LitAgentStore 'v2\v2.sqlite'
+}
+if (-not $env:LIT_V2_DEMO_OUT) {
+    $env:LIT_V2_DEMO_OUT = Join-Path $LitAgentStore 'v2-demo'
+}
 # Allow `python -m lit_agent` from the repo root (no editable install, see pyproject.toml).
 $env:PYTHONPATH = Join-Path $LitAgentRepo 'src'
 

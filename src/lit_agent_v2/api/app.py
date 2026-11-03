@@ -17,6 +17,20 @@ from lit_agent_v2.storage.db import Database
 __all__ = ["create_app"]
 
 
+def _default_corpus() -> Path:
+    configured = os.environ.get("LIT_V2_CORPUS")
+    candidates = [
+        Path(configured) if configured else None,
+        Path("D:/lit-agent-store/v2-eval/gold/corpora/agents-fulltext"),
+        Path("D:/lit-agent-store/v2-live/corpus"),
+        Path("D:/lit-agent-store/v2/corpus"),
+    ]
+    for candidate in candidates:
+        if candidate is not None and candidate.exists():
+            return candidate
+    return Path(configured or "D:/lit-agent-store/v2/corpus")
+
+
 def create_app(
     *,
     db_path: str | Path | None = None,
@@ -25,7 +39,7 @@ def create_app(
 ) -> FastAPI:
     db = Database(db_path or os.environ.get("LIT_V2_DB", "D:/lit-agent-store/v2/v2.sqlite"))
     db.migrate()
-    corpus = Path(corpus_root or os.environ.get("LIT_V2_CORPUS", "D:/lit-agent-store/v2/corpus"))
+    corpus = Path(corpus_root) if corpus_root is not None else _default_corpus()
     app = FastAPI(title="lit-agent-v2")
     app.include_router(
         build_platform_router(db, corpus_root=corpus, llm=platform_llm)
