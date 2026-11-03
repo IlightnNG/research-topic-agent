@@ -172,6 +172,7 @@ export const api = {
       'run.paused',
       'run.resumed',
       'run.finished',
+      'run.failed',
       'kernel.started',
       'kernel.step_started',
       'kernel.checkpoint',

@@ -69,20 +69,31 @@ watch(
       unsubscribe?.()
       void traceStore.load(id)
       if (run?.report_id) void reportsStore.load(id)
-      unsubscribe = api.subscribeRunEvents(id, (event) => {
-        traceStore.append(id, event)
-        if (event.type === 'run.finished' || event.type === 'run.paused' || event.type === 'run.resumed') {
-          void runsStore.load(topicId.value).then(() => {
-            runsStore.select(id)
-            const next = runsStore.runs.find((item) => item.id === id)
-            if (next) tabsStore.ensureRun(next.id, Boolean(next.report_id))
-          })
-          if (event.type === 'run.finished') void reportsStore.load(id, true)
-        }
-      })
+      unsubscribe = api.subscribeRunEvents(id, (event) => handleRunEvent(id, event))
     }
   },
 )
+
+function handleRunEvent(id: string, event: Parameters<Parameters<typeof api.subscribeRunEvents>[1]>[0]): void {
+  traceStore.append(id, event)
+  if (event.type === 'run.failed') {
+    void runsStore.load(topicId.value).then(() => {
+      runsStore.select(id)
+      const next = runsStore.runs.find((item) => item.id === id)
+      if (next) tabsStore.ensureRun(next.id, Boolean(next.report_id))
+    })
+    void traceStore.load(id)
+    return
+  }
+  if (event.type === 'run.finished' || event.type === 'run.paused' || event.type === 'run.resumed') {
+    void runsStore.load(topicId.value).then(() => {
+      runsStore.select(id)
+      const next = runsStore.runs.find((item) => item.id === id)
+      if (next) tabsStore.ensureRun(next.id, Boolean(next.report_id))
+    })
+    if (event.type === 'run.finished') void reportsStore.load(id, true)
+  }
+}
 
 function selectInitialRun(): void {
   const queryRun = String(route.query.run || '')
@@ -149,10 +160,9 @@ async function resumeRun(): Promise<void> {
     await runsStore.resume(selected.value.id)
     await traceStore.load(selected.value.id)
     unsubscribe?.()
-    unsubscribe = api.subscribeRunEvents(selected.value.id, (event) => {
-      traceStore.append(selected.value!.id, event)
-      if (event.type === 'run.finished') void reportsStore.load(selected.value!.id, true)
-    })
+    unsubscribe = api.subscribeRunEvents(selected.value.id, (event) =>
+      handleRunEvent(selected.value!.id, event),
+    )
   } finally {
     controlBusy.value = false
   }
