@@ -115,6 +115,7 @@ export type TraceEventType =
   | 'run.finished'
   | 'run.failed'
   | 'context.compacted'
+  | 'section.written'
 
 export interface TraceEvent {
   id: string
@@ -134,6 +135,10 @@ export interface TraceEvent {
   reason?: string
   state?: RunState
   checkpoint?: Checkpoint
+  section_id?: string
+  written?: number
+  remaining?: number
+  total?: number
 }
 
 export interface RunTrace {
@@ -141,6 +146,10 @@ export interface RunTrace {
   nodes: NodeTrace[]
   events: TraceEvent[]
   checkpoint?: Checkpoint
+  section_id?: string
+  written?: number
+  remaining?: number
+  total?: number
 }
 
 export interface PaperLink {

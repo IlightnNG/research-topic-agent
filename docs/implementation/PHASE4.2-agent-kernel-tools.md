@@ -1404,7 +1404,7 @@ empty sections = 0
 reference problems = 0
 ```
 
-#### 4.2.11.2 LLM audit hard gate · open
+#### 4.2.11.2 LLM audit hard gate · partial
 
 当前：
 
@@ -1413,58 +1413,67 @@ deterministic gate = hard
 LLM audit = advisory
 ```
 
-尝试把 LLM audit 变成 hard gate 时，真实报告容易出现：
+新增 `LLMAuditor.audit_summary()`，改用紧凑指标摘要而不是完整 5k 字报告；audit JSON 稳定性明显改善。
+
+但完整报告 audit 仍不稳定，因此：
 
 ```text
-audit JSON 解析失败
-audit 对长文评分不稳定
+deterministic gate = hard
+LLM audit = advisory
 ```
 
-所以暂不把 LLM audit 设为唯一硬门禁；保留为 advisory，并记录 score/problems。
-
-#### 4.2.11.3 Fulltext quality · open
-
-当前：
+还缺：
 
 ```text
-100 papers / 35 fulltext
-```
+score calibration
+hard/advisory policy
+audit 失败 repair
 
-后续：
+#### 4.2.11.3 Fulltext quality · done
 
-```text
-多源 PDF/HTML
-abstract-only 明示
-fulltext ratio 提升
-source provenance
-```
-
-#### 4.2.11.4 API resume interruption test · open
-
-当前：
+新增 `scripts/enrich_fulltext.py`：
 
 ```text
-CLI resume 已验证
-API resume 代码路径已接
+PDF first
+HTML fallback
+write fulltext/{paper_id}.txt
 ```
 
-待补：
+结果：
 
 ```text
-真实 pause → 进程重启 → resume
-section checkpoint 恢复
-重复 report 防护
+35 / 100 -> 98 / 100
+2 failed
 ```
 
-#### 4.2.11.5 Report UX · open
+报告同步提升到 196 claims。
 
-待补：
+#### 4.2.11.4 API resume interruption test · done
+
+真实 API probe 已跑通：
+
+```text
+create -> pause at report.write -> paused -> resume -> succeeded
+100 papers / 98 fulltext / 196 claims / 23 sections
+无重复 report
+```
+
+#### 4.2.11.5 Report UX · partial
+
+已完成：
 
 ```text
 5 Node 进度
-section 进度
+section 进度条
+section.written 事件
+npm run build
+```
+
+待补：
+
+```text
 quality gate 展示
-失败 section 重试
+失败 section 重试按钮
 ```
 
 #### 4.2.11.6 Exit criteria

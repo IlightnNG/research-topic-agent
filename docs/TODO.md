@@ -153,7 +153,7 @@ P3  Chat
 ### TODO-213 · LLM audit hard gate
 
 - Module：R/V
-- Status：open
+- Status：partial（compact summary 已修；hard gate 未开）
 - 问题：长报告 audit JSON 不稳定。
 - Acceptance：
   - audit 输出可解析；
@@ -164,7 +164,7 @@ P3  Chat
 ### TODO-214 · Fulltext quality
 
 - Module：R
-- Status：open
+- Status：done（98/100）
 - 问题：100 篇只有 35 fulltext。
 - Acceptance：
   - 多源 PDF/HTML；
@@ -175,7 +175,7 @@ P3  Chat
 ### TODO-215 · API resume interruption test
 
 - Module：I/W
-- Status：open
+- Status：done
 - Acceptance：
   - pause → 进程重启 → resume；
   - section checkpoint 恢复；
@@ -185,7 +185,7 @@ P3  Chat
 ### TODO-216 · Report progress UI
 
 - Module：I
-- Status：open
+- Status：partial（section 进度已完成）
 - Acceptance：
   - 5 Node 进度；
   - section 进度；

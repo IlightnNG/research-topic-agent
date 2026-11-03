@@ -4,6 +4,7 @@ import type { NodeStatus, Run, RunTrace, TraceEvent } from '@/types'
 import Button from '@/components/ui/Button.vue'
 import StatusBadge from '@/components/ui/StatusBadge.vue'
 import NodeProgress from './NodeProgress.vue'
+import SectionProgress from './SectionProgress.vue'
 
 const props = defineProps<{
   run: Run
@@ -178,6 +179,10 @@ watch(
             <p v-if="contextCount(node.node_id)" class="compaction-note">
               Context compacted {{ contextCount(node.node_id) }}× to keep the prompt within budget.
             </p>
+            <SectionProgress
+              v-if="node.node_id === 'report.write'"
+              :events="eventsFor(node.node_id)"
+            />
 
             <div v-if="renderItems(node.node_id).length" class="events">
               <div v-for="item in renderItems(node.node_id)" :key="item.event.id" class="event">

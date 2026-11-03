@@ -228,6 +228,7 @@ class AgentKernel:
                     call_id=call["id"],
                     workspace=str(self.state.workspace),
                     signal=self.should_stop,
+                    events=self.events,
                     state=self.state,
                 ),
                 max_parallel=task.policy.max_parallel_tools,

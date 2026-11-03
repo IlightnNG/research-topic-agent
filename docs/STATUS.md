@@ -9,9 +9,9 @@
 ## 当前状态
 
 ```text
-阶段：Phase 4.1 complete；Phase 4.2 S0–S9 done；S10.0–S10.7 done；L3 gate passed
+阶段：Phase 4.1 complete；Phase 4.2 S0–S9 done；S10.0–S10.7 done；4.2.11 mostly done；L3 gate passed
 前端：Vue F1–F6 done；real API mode 已联调
-最后测试：126 passed / ruff clean
+最后测试：127 passed / ruff clean
 前端构建：web npm run build passed
 全链路 demo：100 papers / 35 fulltext / 186 claims / 23 sections / complete
 联调：topics → run → trace → report → paper；chat 基础链路
@@ -65,7 +65,7 @@ Legacy:
 1. `LIT_V2_WORKFLOW=report-v2` 已是默认；demo100 仅保留 legacy；
 2. S10.2b Node-level section loop 已是默认；批量 write 仅兼容；
 3. 100 篇本地 corpus fulltext 35/100，其余 65 篇使用 abstract；
-4. quality gate 是 deterministic；LLM audit 仍为 advisory；
+4. quality gate 是 deterministic；LLM audit compact summary 可用但仍 advisory；
 5. 真实 Chat 仍是本地检索，不是 LLM 对话。
 
 ---
@@ -73,8 +73,8 @@ Legacy:
 ## 下一步
 
 ```text
-1. S11 report optimization
-2. Node-level per-section loop（可选）
+1. 4.2.11.2 LLM audit hard gate
+2. 4.2.11.5 quality UI / failed section retry
 3. Chat workflow
 4. 三库/RAG 仍 deferred
 ```

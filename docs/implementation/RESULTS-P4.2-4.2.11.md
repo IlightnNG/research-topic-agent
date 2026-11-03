@@ -1,13 +1,12 @@
 # RESULTS · Phase 4.2.11 Report Optimization
 
-> Status：in progress
+> Status：mostly done；LLM audit hard gate remains open
 > Date：2026-11-03
-> Done：4.2.11.1 section quality metrics
-> Open：LLM audit hard gate / fulltext / API resume / UX
+> Report：100 papers / 98 fulltext / 196 claims / 23 sections
 
 ---
 
-## 1. Done · Section quality metrics
+## 1. Section quality metrics · done
 
 Added:
 
@@ -44,116 +43,170 @@ uncovered_claims
 duplicate_sentences
 ```
 
-The metrics are recomputed from the report and evidence, not trusted from the writer.
-
 ---
 
-## 2. Real 100-paper metrics
+## 2. Real 100-paper metrics · 98 fulltext
 
 ```text
 papers             100
-fulltext           35
-claims             186
+fulltext           98
+claims             196
 sections           23
-word_count         5479
+word_count         5115
 citation_coverage  1.0
 empty sections     0
 reference problems 0
-cited claims       186
-uncovered claims   0
-duplicate sentences 6
+cited claims       190
+uncovered claims   6
+duplicate sentences 0
 accepted           true
 ```
 
-Interpretation:
+---
+
+## 3. LLM audit reliability · improved, still advisory
+
+Added:
 
 ```text
-硬门禁通过
-duplicate_sentences 是质量信号，暂不作为 hard fail
+LLMAuditor.audit_summary()
+```
+
+Instead of sending the full 5k-word report, audit uses a compact metrics summary:
+
+```text
+papers / fulltext / claims / sections /
+words / citation_coverage / empty / uncovered / duplicate
+```
+
+This avoids long-document JSON instability.
+
+Status:
+
+```text
+compact audit JSON works
+full-report audit remains unstable
+hard gate is still NOT enabled
 ```
 
 ---
 
-## 3. LLM audit status
+## 4. Fulltext enrichment · 35 → 98
 
-Attempted to use LLM audit on the full report.
-
-Observed:
+Added:
 
 ```text
-audit JSON parse failures on long report input
-unstable scoring
+scripts/enrich_fulltext.py
 ```
 
-Decision:
+Behavior:
 
 ```text
-LLM audit remains advisory
-deterministic quality gate remains hard
+try PDF URL
+fallback HTML URL
+write fulltext/{paper_id}.txt
+report success/failure
 ```
 
-Do not make LLM audit the only hard gate until prompt/JSON reliability is fixed.
-
----
-
-## 4. Open items
-
-### 4.2.11.2 LLM audit hard gate
+Result:
 
 ```text
-trace-aware report audit prompt
-JSON retry/repair
-score calibration
-hard/advisory policy
+start        35 / 100
+after       98 / 100
+failed       2
 ```
 
-### 4.2.11.3 Fulltext
+Corpus:
 
 ```text
-100 papers / 35 fulltext
-needs multi-source PDF/HTML
-```
-
-### 4.2.11.4 API resume
-
-```text
-CLI resume verified
-API real pause/restart/resume still needs test
-```
-
-### 4.2.11.5 Report UX
-
-```text
-5 Node progress
-section progress
-quality gate display
-failed section retry
+D:\lit-agent-store\v2-eval\gold\corpora\agents-fulltext
 ```
 
 ---
 
-## 5. Tests
+## 5. API real pause / resume · passed
+
+Probe:
 
 ```text
-126 passed
+create API run
+wait until report.write is running
+POST /pause
+wait for paused
+POST /resume
+wait for succeeded
+```
+
+Result:
+
+```text
+run_id      run-b589470f5d93
+state       succeeded
+papers      100
+fulltext    98
+claims      196
+sections    23
+word_count  5204
+```
+
+No duplicate report; resumed report completed.
+
+---
+
+## 6. Report progress UI · section bar
+
+Added:
+
+```text
+web/src/components/report/SectionProgress.vue
+```
+
+`report.write` emits:
+
+```text
+section.written
+  section_id
+  written
+  remaining
+  total
+```
+
+UI shows a section-level progress bar inside the `report.write` Node.
+
+Frontend build:
+
+```text
+npm run build passed
+```
+
+---
+
+## 7. Tests
+
+```text
+127 passed
 ruff clean
+npm run build passed
 ```
 
 New coverage:
 
 ```text
+compact audit JSON
 section quality metrics
-metrics present in report quality
-strict quality failure on small report
+strict quality failure
+section cursor loop
 ```
 
 ---
 
-## 6. Next
+## 8. Remaining
 
 ```text
-1. Fix LLM audit JSON/reliability
-2. Improve fulltext ratio
-3. Real API interrupt/resume test
-4. Report progress UI
+LLM audit hard gate
+2/100 fulltext failures
+quality gate display for final report
+parallel sections
 ```
+
+4.2.11.2 remains open; other 4.2.11 items are implemented.

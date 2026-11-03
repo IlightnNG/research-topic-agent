@@ -7,6 +7,7 @@ from pathlib import Path
 from typing import Any
 
 from lit_agent_v2.contracts.tool import ToolSpec
+from lit_agent_v2.kernel.agent.audit import LLMAuditor
 from lit_agent_v2.kernel.agent.checkpoint import FileCheckpointStore
 from lit_agent_v2.kernel.agent.loop import AgentKernel
 from lit_agent_v2.kernel.agent.observability import MemoryEventSink
@@ -261,3 +262,24 @@ def test_trace_aware_audit_repair(tmp_path: Path) -> None:
     assert result.metrics["audit_failures"] == 1
     assert result.metrics["audit_repair_successes"] == 1
     assert trace_seen["items"] >= 1
+
+
+def test_audit_summary_compact_json() -> None:
+    class AuditLLM:
+        def chat_json(self, messages, **kwargs):  # noqa: ANN001, ARG002
+            return {
+                "verdict": "accept",
+                "scores": {
+                    "relevance": 5,
+                    "grounding": 4,
+                    "completeness": 4,
+                    "clarity": 5,
+                },
+                "problems": [],
+            }, None
+
+    report = LLMAuditor(AuditLLM(), min_score=3.0).audit_summary(
+        "100 papers, 98 fulltext, 196 claims, 23 sections, coverage 1.0"
+    )
+    assert report.accepted is True
+    assert report.scores["grounding"] == 4.0

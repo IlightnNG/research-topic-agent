@@ -13,6 +13,7 @@ from pathlib import Path
 from typing import Any
 
 from lit_agent_v2.contracts.tool import ToolSpec
+from lit_agent_v2.kernel.agent.audit import LLMAuditor
 from lit_agent_v2.tools.packs.demo import (
     collect_source,
     extract_evidence,
@@ -313,6 +314,30 @@ def write_next_section(
     }
 
 
+def _write_next_section_tool(
+    args: dict[str, Any], context: Any, llm: Any
+) -> dict[str, Any]:
+    result = write_next_section(
+        args["plan_path"],
+        args["evidence_path"],
+        args["out_dir"],
+        llm=llm,
+        language=str(args.get("language", "en")),
+    )
+    events = getattr(context, "events", None)
+    if events is not None:
+        events.emit(
+            "section.written",
+            node_id=getattr(context, "node_id", None),
+            section_id=result.get("section_id"),
+            written=result.get("written"),
+            remaining=result.get("remaining"),
+            total=result.get("total"),
+            ok=result.get("ok"),
+        )
+    return result
+
+
 def assemble_sections(plan_path: str, evidence_path: str, out_dir: str) -> dict[str, Any]:
     plan = _read(plan_path)
     evidence = _read(evidence_path)
@@ -458,6 +483,30 @@ def finalize_report(
     return final
 
 
+def audit_report(llm: Any, report_path: str, evidence_path: str) -> dict[str, Any]:
+    report = _read(report_path)
+    evidence = _read(evidence_path)
+    quality = check_report_quality(report, evidence)
+    metrics = quality["metrics"]
+    summary = (
+        f"papers={metrics['papers']}; fulltext={metrics['fulltext']}; "
+        f"claims={metrics['claims']}; sections={metrics['sections']}; "
+        f"words={metrics['word_count']}; citation_coverage={metrics['citation_coverage']}; "
+        f"empty_sections={metrics['empty_sections']}; "
+        f"uncovered_claims={metrics['uncovered_claims']}; "
+        f"duplicate_sentences={metrics['duplicate_sentences']}; "
+        f"quality_accepted={quality['accepted']}"
+    )
+    report_audit = LLMAuditor(llm, min_score=2.0).audit_summary(summary)
+    return {
+        "accepted": report_audit.accepted,
+        "scores": report_audit.scores,
+        "problems": report_audit.problems,
+        "summary": summary,
+        "quality_accepted": quality["accepted"],
+    }
+
+
 def build_report_v2_tools(llm: Any | None = None) -> list[ToolSpec]:
     return [
         ToolSpec(
@@ -537,12 +586,10 @@ def build_report_v2_tools(llm: Any | None = None) -> list[ToolSpec]:
             },
             side_effect=True,
             timeout_s=180.0,
-            handler=lambda args: write_next_section(
-                args["plan_path"],
-                args["evidence_path"],
-                args["out_dir"],
-                llm=llm,
-                language=str(args.get("language", "en")),
+            context_handler=lambda args, context: _write_next_section_tool(
+                {**args, "language": str(args.get("language", "en"))},
+                context,
+                llm,
             ),
             repeatable=True,
         ),
@@ -619,6 +666,23 @@ def build_report_v2_tools(llm: Any | None = None) -> list[ToolSpec]:
             handler=lambda args: check_report_quality(
                 _read(args["report_path"]), _read(args["evidence_path"])
             )["metrics"],
+        ),
+        ToolSpec(
+            "report.quality.audit",
+            "Audit a report using compact quality metrics (advisory).",
+            {
+                "type": "object",
+                "properties": {
+                    "report_path": {"type": "string"},
+                    "evidence_path": {"type": "string"},
+                },
+                "required": ["report_path", "evidence_path"],
+            },
+            handler=lambda args: (
+                audit_report(llm, args["report_path"], args["evidence_path"])
+                if llm is not None
+                else {"accepted": False, "problems": ["audit_llm_unavailable"]}
+            ),
         ),
         ToolSpec(
             "report.quality.check",
