@@ -186,7 +186,7 @@ audit          accepted
 Template:
 
 ```text
-docs/modules/research/REPORT-TEMPLATE.md
+docs/REPORT-TEMPLATE.md
 REPORT_TEMPLATE in tools/packs/report.py
 ```
 

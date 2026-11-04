@@ -43,32 +43,25 @@ src/lit_agent_v2/domains/evaluation/
 旧 M1–M6：
 
 ```text
-历史 phase 记录，不再新增
-映射见 docs/modules/README.md
+历史 phase 记录不再新增；当前阶段记录见 docs/implementation/
 ```
 
 ---
 
 ## 2. Phase 命名
 
-phase 文档直接放在模块文件夹：
+phase 文档放在实现目录：
 
 ```text
-docs/modules/research/R-P01-report-node.md
-```
-
-正则：
-
-```regex
-^(W|K|T|V|S|I|R|E|C)-P\d{2}-[a-z0-9-]+\.md$
+docs/implementation/PHASE4.2-agent-kernel-tools.md
 ```
 
 规则：
 
-- 一个 phase 只改一个模块；
-- `P01` 只增不改；
-- slug 小写、短横线、≤5 词；
-- 不允许 `phase3.6.md` 这类跨模块命名。
+- 一个 phase 一个计划文档；
+- 当前 phase 结果放在 `docs/implementation/`；
+- 旧 phase 记录移动到 `docs/archive/implementation/`；
+- 不允许 `phase3.6.md` 这类无阶段命名。
 
 phase 文档必须包含：
 
@@ -224,9 +217,9 @@ docs/LOGGING.md
 docs/TESTING.md
 docs/STATUS.md
 docs/TODO.md
-docs/modules/README.md
-docs/modules/mX-name/README.md
-docs/modules/mX-name/MX-Pnn-slug.md
+docs/implementation/README.md
+docs/implementation/PHASE4.2-agent-kernel-tools.md
+docs/implementation/RESULTS-P4.2.md
 ```
 
 禁止：

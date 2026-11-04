@@ -73,7 +73,7 @@ source.collect
   → finalize
 ```
 
-Full-chain result: [`RESULTS-P4.1.8.md`](../implementation/RESULTS-P4.1.8.md).
+Full-chain result: [`RESULTS-P4.1.8.md`](../archive/implementation/RESULTS-P4.1.8.md).
 
 If the fulltext corpus is missing, prepare it once:
 

@@ -2,7 +2,7 @@
 
 > Status: S6/S7/S8 implemented; S9 superseded by final L3 gate
 > Date: 2026-11-02
-> Important: final L3 gate passed; see [`RESULTS-P4.2-L3-GATE.md`](RESULTS-P4.2-L3-GATE.md).
+> Important: final L3 gate passed; see [`RESULTS-P4.2-L3-GATE.md`](../../implementation/RESULTS-P4.2-L3-GATE.md).
 
 ---
 

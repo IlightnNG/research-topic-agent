@@ -1,6 +1,6 @@
 # RESULTS · Phase 4.2 Complex L3 Benchmark
 
-> Status: early benchmark record; final gate passed in [`RESULTS-P4.2-L3-GATE.md`](RESULTS-P4.2-L3-GATE.md)
+> Status: early benchmark record; final gate passed in [`RESULTS-P4.2-L3-GATE.md`](../../implementation/RESULTS-P4.2-L3-GATE.md)
 > Date: 2026-11-02
 > Model: `deepseek-flash`
 > Pricing: peak rates from DeepSeek official page

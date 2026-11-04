@@ -122,7 +122,7 @@ API/UI 可读
 1. 先读 `docs/ARCHITECTURE.md`；
 2. 再读 `docs/KERNEL-WORKFLOW.md`；
 3. 再读 `docs/CONTRACTS.md`；
-4. 再读 `docs/modules/README.md`；
+4. 再读 `docs/implementation/README.md`；
 5. 只改当前平台模块；
 6. phase 完成更新 STATUS/TODO；
 7. 生成一句话 commit；

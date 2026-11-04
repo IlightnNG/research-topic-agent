@@ -752,9 +752,9 @@ Report Node 的 plan 工具
 ## 17. 相关文档
 
 - `docs/CONTRACTS.md`：Node / Tool / Verifier 契约
-- `docs/modules/README.md`：新平台模块与旧 M1–M6 映射
+- `docs/ARCHITECTURE.md`：双层 Kernel / Workflow 架构
 - `docs/STATUS.md`：当前实现与迁移状态
 - `docs/DECISIONS.md`：架构决定
-- `docs/modules/research/REPORT-POLICY.md`：报告 sizing / demo 质量策略
+- `docs/archive/implementation/REPORT-POLICY.md`：报告 sizing / demo 质量策略
 - `docs/implementation/PHASE4.1-node-platform-migration.md`：迁移方案
 - `docs/archive/implementation/PHASE4-report-end-to-end.md`：历史 Phase 4 计划

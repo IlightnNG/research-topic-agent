@@ -137,7 +137,7 @@
 - 状态：accepted
 - 决定：方向数、方向最小规模、max share、报告字数全部由 `policy_for(n, c)` 推导。
 - 原因：固定 5–8 方向 / 1500–3000 words 会让 20 篇和 200 篇使用同一把尺子。
-- 约束：`docs/modules/research/REPORT-POLICY.md`；M4 state gate 使用 policy。
+- 约束：`docs/archive/implementation/REPORT-POLICY.md`；M4 state gate 使用 policy。
 - 取代：D-004 中固定 1500–3000 的部分。
 
 

@@ -124,7 +124,7 @@ $env:LIT_V2_CORPUS='D:\lit-agent-store\v2-eval\gold\corpora\agents-fulltext'
 $env:LIT_V2_DEMO_OUT='D:\lit-agent-store\v2-demo-api'
 ```
 
-See [`docs/implementation/RESULTS-P4.1.8.md`](docs/implementation/RESULTS-P4.1.8.md).
+See [`docs/archive/implementation/RESULTS-P4.1.8.md`](docs/archive/implementation/RESULTS-P4.1.8.md).
 
 ---
 
