@@ -29,6 +29,20 @@ package = false
 line-length = 100
 target-version = "py311"
 src = ["src", "tests"]
+extend-exclude = [
+  ".agents",
+  ".pip-cache",
+  ".piptmp",
+  ".pydeps",
+  ".uv-cache",
+  ".venv",
+  "acl-recovery-*",
+  "pipcache",
+  "pydeps",
+  "tmpwork",
+  "web/dist",
+  "web/node_modules",
+]
 
 [tool.ruff.lint]
 select = ["E", "F", "I", "UP", "B", "SIM", "C4"]
