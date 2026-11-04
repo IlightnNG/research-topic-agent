@@ -89,7 +89,6 @@ single-Node compatibility profile.
 ```powershell
 cd web
 npm install
-$env:VITE_USE_MOCK='false'
 npm run dev -- --host 127.0.0.1
 ```
 
