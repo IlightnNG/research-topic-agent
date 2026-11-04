@@ -210,7 +210,7 @@ class PlatformRunService:
                 (
                     run_id,
                     topic_id,
-                    "report-demo",
+                    workflow.name,
                     _json(
                         {
                             "topic_id": topic_id,
